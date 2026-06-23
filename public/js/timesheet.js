@@ -27,13 +27,15 @@ const Timesheet = {
     const { year, month, days, employees, note } = this.data;
     const now = new Date();
 
-    // 월 탭 생성 (최근 12개월)
+    // 월 탭 생성 (2026년 6월부터 현재까지)
     const tabs = [];
-    for (let i = 11; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const y = d.getFullYear(), m = d.getMonth() + 1;
-      const active = (y === year && m === month) ? 'active' : '';
-      tabs.push(`<button class="tab ${active}" onclick="Timesheet.load(${y},${m})">${y}년 ${m}월</button>`);
+    const startYear = 2026, startMonth = 6;
+    let ty = startYear, tm = startMonth;
+    while (ty < now.getFullYear() || (ty === now.getFullYear() && tm <= now.getMonth() + 1)) {
+      const active = (ty === year && tm === month) ? 'active' : '';
+      tabs.push(`<button class="tab ${active}" onclick="Timesheet.load(${ty},${tm})">${ty}년 ${tm}월</button>`);
+      tm++;
+      if (tm > 12) { tm = 1; ty++; }
     }
 
     // 요일 계산 (1=월, 7=일)
@@ -86,12 +88,11 @@ const Timesheet = {
         groupTotal += totalHours;
         grandTotal += totalHours;
 
-        // 주민번호 마스킹 (앞 6자리 + - + 뒤 1자리*****)
+        // 주민번호 표시 (앞 6자리-뒤 7자리 형식)
         let ssnDisplay = '-';
         if (emp.ssn) {
-          ssnDisplay = emp.ssn.length >= 7
-            ? emp.ssn.substring(0, 6) + '-' + emp.ssn[6] + '******'
-            : emp.ssn;
+          const s = emp.ssn.replace(/-/g, '');
+          ssnDisplay = s.length === 13 ? s.substring(0, 6) + '-' + s.substring(6) : emp.ssn;
         }
 
         rowsHtml += `<tr>
