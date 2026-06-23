@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>비욘더팜 관리 시스템</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="비욘더팜">
+  <meta name="theme-color" content="#1b4332">
+</head>
+<body>
+
+<!-- 로그인 화면 -->
+<div id="login-page" style="display:none">
+  <div class="login-card">
+    <h1>🌿 비욘더팜</h1>
+    <p>내부 관리 시스템에 오신 것을 환영합니다</p>
+    <div class="form-group">
+      <label>아이디</label>
+      <input type="text" id="login-username" placeholder="아이디 입력" autocomplete="username">
+    </div>
+    <div class="form-group">
+      <label>비밀번호</label>
+      <input type="password" id="login-password" placeholder="비밀번호 입력" autocomplete="current-password">
+    </div>
+    <p id="login-error" style="color:#dc3545;font-size:12px;margin-bottom:12px;display:none"></p>
+    <button class="btn btn-primary" onclick="App.login()">로그인</button>
+  </div>
+</div>
+
+<!-- 메인 앱 -->
+<div id="app" style="display:none">
+  <!-- 사이드바 -->
+  <div id="sidebar">
+    <div class="logo">
+      <h1>🌿 비욘더팜</h1>
+      <p>내부 관리 시스템</p>
+    </div>
+    <nav>
+      <div class="nav-section">홈</div>
+      <a href="#" onclick="App.goto('dashboard')" data-page="dashboard">
+        <span class="icon">📊</span><span>대시보드</span>
+      </a>
+      <div class="nav-section">인사관리</div>
+      <a href="#" onclick="App.goto('employees')" data-page="employees">
+        <span class="icon">👥</span><span>직원 관리</span>
+      </a>
+      <a href="#" onclick="App.goto('attendance')" data-page="attendance">
+        <span class="icon">🕐</span><span>출퇴근 관리</span>
+      </a>
+      <a href="#" onclick="App.goto('leaves')" data-page="leaves">
+        <span class="icon">📅</span><span>휴가 관리</span>
+      </a>
+      <a href="#" onclick="App.goto('salary')" data-page="salary">
+        <span class="icon">💰</span><span>급여 관리</span>
+      </a>
+      <div class="nav-section">재무관리</div>
+      <a href="#" onclick="App.goto('finance')" data-page="finance">
+        <span class="icon">📒</span><span>수입/지출</span>
+      </a>
+      <div class="nav-section">재고관리</div>
+      <a href="#" onclick="App.goto('inventory')" data-page="inventory">
+        <span class="icon">📦</span><span>재고 현황</span>
+      </a>
+      <div class="nav-section" id="nav-admin-section">관리자</div>
+      <a href="#" onclick="App.goto('settings')" data-page="settings" id="nav-settings">
+        <span class="icon">⚙️</span><span>시스템 설정</span>
+      </a>
+    </nav>
+    <div class="user-info">
+      <div class="name" id="sidebar-name"></div>
+      <div class="role" id="sidebar-role"></div>
+      <button onclick="App.logout()"><span>로그아웃</span></button>
+    </div>
+  </div>
+
+  <!-- 메인 -->
+  <div id="main">
+    <div id="topbar">
+      <h2 id="page-title">대시보드</h2>
+      <div class="spacer"></div>
+      <span id="topbar-time" style="font-size:13px;color:#6c757d"></span>
+    </div>
+    <div id="content"></div>
+  </div>
+</div>
+
+<!-- 모달 컨테이너 -->
+<div id="modal-container"></div>
+
+<script src="/js/api.js"></script>
+<script src="/js/utils.js"></script>
+<script src="/js/dashboard.js"></script>
+<script src="/js/employees.js"></script>
+<script src="/js/attendance.js"></script>
+<script src="/js/leaves.js"></script>
+<script src="/js/salary.js"></script>
+<script src="/js/finance.js"></script>
+<script src="/js/inventory.js"></script>
+<script src="/js/settings.js"></script>
+<script src="/js/app.js"></script>
+</body>
+</html>

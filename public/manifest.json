@@ -1,0 +1,17 @@
+{
+  "name": "비욘더팜 관리시스템",
+  "short_name": "비욘더팜",
+  "description": "비욘더팜 내부 관리 시스템",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1b4332",
+  "theme_color": "#1b4332",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' rx='24' fill='%231b4332'/><text y='130' x='96' text-anchor='middle' font-size='110'>🌿</text></svg>",
+      "sizes": "192x192",
+      "type": "image/svg+xml"
+    }
+  ]
+}
