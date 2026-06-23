@@ -108,6 +108,10 @@ const Attendance = {
               <select id="cal-month" onchange="Attendance.renderCalendar()">
                 ${Array.from({length:12},(_,i)=>`<option value="${i+1}" ${i+1===now.getMonth()+1?'selected':''}>${i+1}월</option>`).join('')}
               </select>
+              <select id="cal-user" onchange="Attendance.renderCalendar()">
+                <option value="">전체 직원</option>
+                ${this.employees.filter(e => e.status === 'active').map(e => `<option value="${e.id}">${e.name}</option>`).join('')}
+              </select>
             </div>
             <div id="att-calendar"></div>
           </div>
@@ -211,12 +215,16 @@ const Attendance = {
     if (!calEl) return;
     const year = parseInt(Utils.val('cal-year')) || new Date().getFullYear();
     const month = parseInt(document.getElementById('cal-month')?.value) || new Date().getMonth() + 1;
+    const userId = document.getElementById('cal-user')?.value || '';
     const days = new Date(year, month, 0).getDate();
     const getDow = (d) => new Date(year, month-1, d).getDay();
     const dowNames = ['일','월','화','수','목','금','토'];
 
     // 해당 월 데이터 로드
-    const data = await API.get(`/api/attendance?year=${year}&month=${month}`);
+    let url = `/api/attendance?year=${year}&month=${month}`;
+    if (userId) url += `&user_id=${userId}`;
+    const data = await API.get(url);
+    const selectedName = userId ? this.employees.find(e => e.id === parseInt(userId))?.name : '';
 
     // 날짜별 그룹화
     const byDay = {};
@@ -225,6 +233,17 @@ const Attendance = {
       if (!byDay[d]) byDay[d] = [];
       byDay[d].push(a);
     });
+
+    // 월 총 근무시간 계산
+    let totalMins = 0;
+    data.forEach(a => {
+      if (a.check_in && a.check_out) {
+        const [ih,im] = a.check_in.split(':').map(Number);
+        const [oh,om] = a.check_out.split(':').map(Number);
+        totalMins += Math.max(0, (oh*60+om) - (ih*60+im));
+      }
+    });
+    const totalH = Math.floor(totalMins/60), totalM = totalMins%60;
 
     // 달력 그리기
     let html = `<style>
@@ -242,6 +261,10 @@ const Attendance = {
       .cal-entry.present { background:#d1fae5; }
       .cal-entry.absent { background:#fee2e2; }
     </style>
+    ${selectedName ? `<div style="padding:8px 4px 12px;display:flex;align-items:center;gap:16px">
+      <span style="font-size:14px;font-weight:600">👤 ${selectedName}</span>
+      <span style="font-size:13px;color:#6c757d">이번 달 총 근무: <strong style="color:#1b4332">${totalH}시간${totalM ? ' ' + totalM + '분' : ''}</strong></span>
+    </div>` : ''}
     <div class="cal-grid">
       ${dowNames.map((d,i) => `<div class="cal-day-header ${i===0?'sun':i===6?'sat':''}">${d}</div>`).join('')}
     `;
