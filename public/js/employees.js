@@ -72,7 +72,7 @@ const Employees = {
                   <th class="resizable-th">입사 D-day</th>
                   <th class="resizable-th">생일</th>
                   <th class="resizable-th">생일 D-day</th>
-                  <th class="resizable-th">권한</th>
+                  ${isAdmin ? '<th class="resizable-th">권한</th>' : ''}
                   ${isAdmin ? '<th class="resizable-th">시급</th>' : ''}
                   ${isAdmin ? '<th class="resizable-th">관리</th>' : ''}
                 </tr>
@@ -113,7 +113,7 @@ const Employees = {
         ${(() => { const d = this.calcDday(e.hire_date,'hire'); return `<td style="padding:8px 10px;font-size:12px;${d.style||'color:#1971c2'}">${d.text}</td>`; })()}
         <td style="padding:8px 10px;font-size:12px">${e.birth_date || '-'}</td>
         ${(() => { const d = this.calcDday(e.birth_date,'birth'); return `<td style="padding:8px 10px;font-size:12px;${d.style||'color:#198754'}">${d.text}</td>`; })()}
-        <td style="padding:8px 10px"><span class="badge ${e.role==='superadmin'?'badge-danger':e.role==='admin'?'badge-info':'badge-secondary'}">${roleLabel[e.role]||e.role}</span></td>
+        ${isAdmin ? `<td style="padding:8px 10px"><span class="badge ${e.role==='superadmin'?'badge-danger':e.role==='admin'?'badge-info':'badge-secondary'}">${roleLabel[e.role]||e.role}</span></td>` : ''}
         ${isAdmin ? `<td style="padding:8px 10px;text-align:right;font-size:12px">${e.hourly_rate ? Utils.formatNum(e.hourly_rate)+'원' : '-'}</td>` : ''}
         ${isAdmin ? `<td style="padding:8px 10px">
           <button class="btn btn-secondary btn-sm" onclick="Employees.showForm(${e.id})">수정</button>
