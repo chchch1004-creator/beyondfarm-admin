@@ -9,6 +9,16 @@ const App = {
       App.showApp();
     } catch {
       App.showLogin();
+      // 저장된 아이디 불러오기
+      const savedId = localStorage.getItem('savedUsername');
+      if (savedId) {
+        document.getElementById('login-username').value = savedId;
+        document.getElementById('save-id').checked = true;
+      }
+      // 자동로그인 체크 복원
+      if (localStorage.getItem('autoLogin') === 'true') {
+        document.getElementById('auto-login').checked = true;
+      }
     }
     // 시계 업데이트
     setInterval(() => {
@@ -35,10 +45,21 @@ const App = {
   async login() {
     const username = document.getElementById('login-username').value.trim();
     const password = document.getElementById('login-password').value;
+    const saveId = document.getElementById('save-id').checked;
+    const autoLogin = document.getElementById('auto-login').checked;
     const errEl = document.getElementById('login-error');
     errEl.style.display = 'none';
+
+    // 아이디 저장 처리
+    if (saveId) localStorage.setItem('savedUsername', username);
+    else localStorage.removeItem('savedUsername');
+
+    // 자동로그인 설정 저장
+    if (autoLogin) localStorage.setItem('autoLogin', 'true');
+    else localStorage.removeItem('autoLogin');
+
     try {
-      const data = await API.post('/api/auth/login', { username, password });
+      const data = await API.post('/api/auth/login', { username, password, autoLogin });
       App.user = data.user;
       App.showApp();
     } catch (e) {
@@ -65,7 +86,8 @@ const App = {
     const titles = {
       dashboard: '대시보드', employees: '직원 관리', attendance: '출퇴근 관리',
       leaves: '휴가 관리', salary: '급여 관리', finance: '수입/지출', inventory: '재고 현황',
-      settings: '시스템 설정'
+      settings: '시스템 설정',
+      mypage: '마이페이지'
     };
     document.getElementById('page-title').textContent = titles[page] || page;
 
@@ -76,7 +98,7 @@ const App = {
       if (el) el.style.display = App.user.role === 'admin' ? '' : 'none';
     });
 
-    const pages = { dashboard: Dashboard, employees: Employees, attendance: Attendance, leaves: Leaves, salary: Salary, finance: Finance, inventory: Inventory, settings: Settings };
+    const pages = { dashboard: Dashboard, employees: Employees, attendance: Attendance, leaves: Leaves, salary: Salary, finance: Finance, inventory: Inventory, settings: Settings, mypage: MyPage };
     pages[page]?.render();
   }
 };
