@@ -95,14 +95,15 @@ const Timesheet = {
           ssnDisplay = s.length === 13 ? s.substring(0, 6) + '-' + s.substring(6) : emp.ssn;
         }
 
+        const np = emp.net_pay || 0;
         rowsHtml += `<tr>
           <td style="padding:4px 8px;white-space:nowrap;font-size:12px">${emp.name}</td>
           <td style="text-align:right;padding:4px 6px;font-size:11px">${totalHours > 0 ? totalHours : ''}</td>
           ${dailyCells}
-          <td style="text-align:right;padding:4px 6px;font-size:11px;white-space:nowrap">${emp.net_pay ? Utils.formatNum(emp.net_pay) : ''}</td>
-          <td style="text-align:right;padding:4px 6px;font-size:11px">${emp.net_pay ? Utils.formatNum(Math.round(emp.net_pay * 0.033)) : ''}</td>
-          <td style="text-align:right;padding:4px 6px;font-size:11px">${emp.net_pay ? Utils.formatNum(Math.round(emp.net_pay * 0.0033)) : ''}</td>
-          <td style="text-align:right;padding:4px 6px;font-size:11px;white-space:nowrap">${emp.net_pay ? Utils.formatNum(Math.round(emp.net_pay * 0.9637)) : ''}</td>
+          <td style="text-align:right;padding:4px 6px;font-size:11px;white-space:nowrap">${np ? Utils.formatNum(np) : ''}</td>
+          <td style="text-align:right;padding:4px 6px;font-size:11px">${np ? Utils.formatNum(emp.tax) : ''}</td>
+          <td style="text-align:right;padding:4px 6px;font-size:11px">${np ? Utils.formatNum(emp.local_tax) : ''}</td>
+          <td style="text-align:right;padding:4px 6px;font-size:11px;white-space:nowrap">${np ? Utils.formatNum(emp.transfer) : ''}</td>
           <td style="font-size:10px;white-space:nowrap">${ssnDisplay}</td>
           <td style="font-size:10px;white-space:nowrap">${emp.bank_name ? emp.bank_name + ' ' + (emp.bank_account || '') : (emp.bank_account || '-')}</td>
         </tr>`;
@@ -202,15 +203,15 @@ const Timesheet = {
       rows.push([type]);
       for (const emp of emps) {
         const dailyVals = Array.from({length: days}, (_, i) => emp.daily[i + 1] || '');
-        const netPay = emp.net_pay || 0;
+        const np = emp.net_pay || 0;
         rows.push([
           emp.name,
           emp.total_hours || '',
           ...dailyVals,
-          netPay || '',
-          netPay ? Math.round(netPay * 0.033) : '',
-          netPay ? Math.round(netPay * 0.0033) : '',
-          netPay ? Math.round(netPay * 0.9637) : '',
+          np || '',
+          np ? emp.tax : '',
+          np ? emp.local_tax : '',
+          np ? emp.transfer : '',
           emp.ssn || '',
           emp.bank_name ? emp.bank_name + ' ' + (emp.bank_account || '') : (emp.bank_account || ''),
         ]);

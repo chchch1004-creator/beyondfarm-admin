@@ -51,6 +51,12 @@ router.get('/', requireSuperAdmin, async (req, res) => {
 
       const totalHours = Object.values(daily).reduce((s, h) => s + h, 0);
 
+      const hourlyRate = emp.hourly_rate || 0;
+      const netPay = Math.round(totalHours * hourlyRate);
+      const tax = Math.round(netPay * 0.03);
+      const localTax = Math.round(netPay * 0.003);
+      const transfer = netPay - tax - localTax;
+
       return {
         id: emp.id,
         name: emp.name,
@@ -58,12 +64,13 @@ router.get('/', requireSuperAdmin, async (req, res) => {
         ssn: emp.ssn || '',
         bank_name: emp.bank_name || '',
         bank_account: emp.bank_account || '',
-        hourly_rate: emp.hourly_rate || 0,
+        hourly_rate: hourlyRate,
         daily,
         total_hours: totalHours,
-        net_pay: empSal?.net_pay || 0,
-        base_salary: empSal?.base_salary || 0,
-        deduction: empSal?.deduction || 0,
+        net_pay: netPay,
+        tax,
+        local_tax: localTax,
+        transfer,
       };
     });
 

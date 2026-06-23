@@ -93,6 +93,7 @@ const Employees = {
             <option value="superadmin" ${emp?.role === 'superadmin' ? 'selected' : ''}>총괄관리자</option>
           </select>
         </div>
+        <div class="form-group"><label>시급 (원)</label><input type="number" id="f-hourly" placeholder="예: 10030" value="${emp?.hourly_rate || ''}"></div>
         <div class="form-group"><label>주민등록번호</label><input id="f-ssn" placeholder="숫자만 입력" value="${emp?.ssn || ''}"></div>
         <div class="form-group"><label>은행명</label><input id="f-bank" placeholder="예: 농협" value="${emp?.bank_name || ''}"></div>
         <div class="form-group"><label>계좌번호</label><input id="f-account" placeholder="계좌번호 입력" value="${emp?.bank_account || ''}"></div>` : ''}
@@ -107,10 +108,10 @@ const Employees = {
         if (pw) body.password = pw;
         if (isAdmin) {
           body.role = Utils.val('f-role');
-          body.employee_type = Utils.val('f-emptype');
           body.ssn = Utils.val('f-ssn');
           body.bank_name = Utils.val('f-bank');
           body.bank_account = Utils.val('f-account');
+          body.hourly_rate = Utils.val('f-hourly');
         }
         if (!body.name) return Utils.showToast('이름을 입력하세요', 'error');
         try {

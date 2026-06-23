@@ -14,9 +14,9 @@ router.get('/', async (req, res) => {
   if (!req.session.user) return res.status(401).json({ error: '로그인 필요' });
   try {
     if (['admin','superadmin'].includes(req.session.user.role)) {
-      return res.json(await db.prepare('SELECT id, username, name, role, department, position, phone, email, hire_date, status, created_at FROM users ORDER BY name').all());
+      return res.json(await db.prepare('SELECT id, username, name, role, department, position, phone, email, hire_date, status, created_at, employee_type, ssn, bank_name, bank_account, hourly_rate FROM users ORDER BY name').all());
     }
-    res.json([await db.prepare('SELECT id, username, name, role, department, position, phone, email, hire_date, status FROM users WHERE id = ?').get(req.session.user.id)]);
+    res.json([await db.prepare('SELECT id, username, name, role, department, position, phone, email, hire_date, status, employee_type FROM users WHERE id = ?').get(req.session.user.id)]);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -41,16 +41,17 @@ router.put('/:id', async (req, res) => {
   try {
     const user = await db.prepare('SELECT * FROM users WHERE id = ?').get(id);
     if (!user) return res.status(404).json({ error: '직원을 찾을 수 없습니다.' });
-    const { name, department, position, phone, email, hire_date, role, status, password, employee_type, ssn, bank_name, bank_account } = req.body;
+    const { name, department, position, phone, email, hire_date, role, status, password, employee_type, ssn, bank_name, bank_account, hourly_rate } = req.body;
     if (password) await db.prepare('UPDATE users SET password = ? WHERE id = ?').run(bcrypt.hashSync(password, 10), id);
-    await db.prepare('UPDATE users SET name=?, department=?, position=?, phone=?, email=?, hire_date=?, role=?, status=?, employee_type=?, ssn=?, bank_name=?, bank_account=? WHERE id=?')
+    await db.prepare('UPDATE users SET name=?, department=?, position=?, phone=?, email=?, hire_date=?, role=?, status=?, employee_type=?, ssn=?, bank_name=?, bank_account=?, hourly_rate=? WHERE id=?')
       .run(name ?? user.name, department ?? user.department, position ?? user.position, phone ?? user.phone,
            email ?? user.email, hire_date ?? user.hire_date,
            (isAdmin && role) ? role : user.role, (isAdmin && status) ? status : user.status,
-           (isAdmin && employee_type) ? employee_type : user.employee_type,
+           (isAdmin && employee_type !== undefined) ? employee_type : user.employee_type,
            (isAdmin && ssn !== undefined) ? ssn : user.ssn,
            (isAdmin && bank_name !== undefined) ? bank_name : user.bank_name,
            (isAdmin && bank_account !== undefined) ? bank_account : user.bank_account,
+           (isAdmin && hourly_rate !== undefined) ? (parseInt(hourly_rate) || 0) : user.hourly_rate,
            id);
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
