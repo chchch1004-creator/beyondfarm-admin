@@ -21,11 +21,11 @@ router.get('/', async (req, res) => {
 });
 
 router.post('/', requireAdmin, async (req, res) => {
-  const { username, password, name, role, department, position, phone, email, hire_date } = req.body;
+  const { username, password, name, role, department, position, phone, email, hire_date, employee_type, ssn, bank_name, bank_account } = req.body;
   if (!username || !password || !name) return res.status(400).json({ error: '필수 항목 누락' });
   try {
-    const result = await db.prepare('INSERT INTO users (username, password, name, role, department, position, phone, email, hire_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(username, bcrypt.hashSync(password, 10), name, role || 'employee', department, position, phone, email, hire_date);
+    const result = await db.prepare('INSERT INTO users (username, password, name, role, department, position, phone, email, hire_date, employee_type, ssn, bank_name, bank_account) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(username, bcrypt.hashSync(password, 10), name, role || 'employee', department, position, phone, email, hire_date, employee_type || '평일', ssn || null, bank_name || null, bank_account || null);
     res.json({ id: result.lastInsertRowid });
   } catch (e) {
     if (e.message?.includes('UNIQUE')) return res.status(400).json({ error: '이미 사용 중인 아이디입니다.' });
