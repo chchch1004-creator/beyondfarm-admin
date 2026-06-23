@@ -135,7 +135,25 @@ async function init() {
     )`
   ];
 
-  // 새 테이블
+  // 새 테이블들
+  tables.push(`CREATE TABLE IF NOT EXISTS timesheet_manual_hours (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    year INTEGER NOT NULL,
+    month INTEGER NOT NULL,
+    day INTEGER NOT NULL,
+    hours REAL NOT NULL,
+    UNIQUE(user_id, year, month, day)
+  )`);
+  tables.push(`CREATE TABLE IF NOT EXISTS timesheet_adjustments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    year INTEGER NOT NULL,
+    month INTEGER NOT NULL,
+    adj REAL DEFAULT 0,
+    adj1 REAL DEFAULT 0,
+    UNIQUE(user_id, year, month)
+  )`);
   tables.push(`CREATE TABLE IF NOT EXISTS timesheet_notes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     year INTEGER NOT NULL,
