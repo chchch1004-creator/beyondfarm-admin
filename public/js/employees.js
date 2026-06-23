@@ -15,9 +15,10 @@ const Employees = {
       if (anniv < today) anniv = new Date(today.getFullYear()+1, parseInt(mm)-1, parseInt(dd));
       const daysLeft = Math.floor((anniv - today) / 86400000);
       let style = '';
-      if (daysLeft === 0) style = 'color:#dc3545;font-weight:700';
+      let text = `D+${elapsed}`;
+      if (daysLeft === 0) { text = `🎂 D+${elapsed}`; style = 'color:#dc3545;font-weight:700'; }
       else if (daysLeft <= 7) style = 'color:#dc3545';
-      return { text: `D+${elapsed}`, style };
+      return { text, style };
     }
 
     if (type === 'birth') {
