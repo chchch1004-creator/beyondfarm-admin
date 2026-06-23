@@ -44,6 +44,7 @@ router.put('/:id', async (req, res) => {
     if (!user) return res.status(404).json({ error: '직원을 찾을 수 없습니다.' });
     const { name, department, position, phone, email, hire_date, birth_date, role, status, password, employee_type, ssn, bank_name, bank_account, hourly_rate } = req.body;
     if (password) await db.prepare('UPDATE users SET password = ? WHERE id = ?').run(bcrypt.hashSync(password, 10), id);
+    if (isAdmin && req.body.username) await db.prepare('UPDATE users SET username = ? WHERE id = ?').run(req.body.username, id);
     await db.prepare('UPDATE users SET name=?, department=?, position=?, phone=?, email=?, hire_date=?, birth_date=?, role=?, status=?, employee_type=?, ssn=?, bank_name=?, bank_account=?, hourly_rate=? WHERE id=?')
       .run(name ?? user.name, department ?? user.department, position ?? user.position, phone ?? user.phone,
            email ?? user.email, hire_date ?? user.hire_date, birth_date ?? user.birth_date,

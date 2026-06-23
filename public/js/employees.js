@@ -159,7 +159,7 @@ const Employees = {
       emp ? '직원 정보 수정' : '직원 등록',
       `<div class="form-grid">
         <div class="form-group"><label>이름 *</label><input id="f-name" value="${emp?.name || ''}"></div>
-        <div class="form-group"><label>아이디 *</label><input id="f-username" value="${emp?.username || ''}" ${emp ? 'disabled' : ''}></div>
+        <div class="form-group"><label>아이디 *</label><input id="f-username" value="${emp?.username || ''}" ${(emp && !isAdmin) ? 'disabled' : ''}></div>
         <div class="form-group"><label>비밀번호 ${emp ? '(변경시 입력)' : '*'}</label><input type="password" id="f-password"></div>
         <div class="form-group"><label>부서</label><input id="f-dept" value="${emp?.department || ''}"></div>
         <div class="form-group"><label>직급</label><input id="f-pos" value="${emp?.position || ''}"></div>
@@ -186,7 +186,9 @@ const Employees = {
           phone: Utils.val('f-phone'), email: Utils.val('f-email'),
           hire_date: Utils.val('f-hire'), birth_date: Utils.val('f-birth'),
         };
-        if (!emp) body.username = Utils.val('f-username');
+        const newUsername = Utils.val('f-username');
+        if (!emp) body.username = newUsername;
+        else if (isAdmin && newUsername && newUsername !== emp.username) body.username = newUsername;
         const pw = Utils.val('f-password');
         if (pw) body.password = pw;
         if (isAdmin) {
