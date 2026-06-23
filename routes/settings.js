@@ -1,6 +1,6 @@
 const express = require('express');
 const { getDb } = require('../db/database');
-const db = { prepare: (...a) => getDb().prepare(...a), exec: (...a) => getDb().exec(...a) };
+const db = { prepare: (...a) => getDb().prepare(...a) };
 const router = express.Router();
 
 function requireAdmin(req, res, next) {
@@ -9,26 +9,25 @@ function requireAdmin(req, res, next) {
   next();
 }
 
-// 설정 조회 (전체)
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   if (!req.session.user) return res.status(401).json({ error: '로그인 필요' });
-  const rows = db.prepare('SELECT key, value FROM settings').all();
-  const result = {};
-  rows.forEach(r => { result[r.key] = r.value; });
-  res.json(result);
+  try {
+    const rows = await db.prepare('SELECT key, value FROM settings').all();
+    const result = {};
+    rows.forEach(r => { result[r.key] = r.value; });
+    res.json(result);
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// 설정 저장 (관리자)
-router.post('/', requireAdmin, (req, res) => {
-  const entries = Object.entries(req.body);
-  for (const [key, value] of entries) {
-    db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value')
-      .run(key, String(value));
-  }
-  res.json({ ok: true });
+router.post('/', requireAdmin, async (req, res) => {
+  try {
+    for (const [key, value] of Object.entries(req.body)) {
+      await db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value').run(key, String(value));
+    }
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// 서버 로컬 IP 조회
 router.get('/server-ip', (req, res) => {
   if (!req.session.user) return res.status(401).json({ error: '로그인 필요' });
   const { networkInterfaces } = require('os');

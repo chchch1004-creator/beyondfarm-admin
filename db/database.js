@@ -1,80 +1,40 @@
-const initSqlJs = require('sql.js');
-const fs = require('fs');
-const path = require('path');
+const { createClient } = require('@libsql/client');
 const bcrypt = require('bcryptjs');
-
-const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'beyondfarm.db');
-
-// sql.js wrapper - better-sqlite3 호환 API 제공
-class DbWrapper {
-  constructor(sqlDb) {
-    this._db = sqlDb;
-  }
-
-  _save() {
-    const data = this._db.export();
-    fs.writeFileSync(DB_PATH, Buffer.from(data));
-  }
-
-  exec(sql) {
-    this._db.run(sql);
-    this._save();
-  }
-
-  prepare(sql) {
-    const self = this;
-    return {
-      get(...args) {
-        const params = args.flat();
-        const stmt = self._db.prepare(sql);
-        try {
-          if (params.length) stmt.bind(params);
-          return stmt.step() ? stmt.getAsObject() : undefined;
-        } finally { stmt.free(); }
-      },
-      all(...args) {
-        const params = args.flat();
-        const stmt = self._db.prepare(sql);
-        try {
-          if (params.length) stmt.bind(params);
-          const rows = [];
-          while (stmt.step()) rows.push(stmt.getAsObject());
-          return rows;
-        } finally { stmt.free(); }
-      },
-      run(...args) {
-        const params = args.flat();
-        const stmt = self._db.prepare(sql);
-        try {
-          if (params.length) stmt.bind(params);
-          stmt.step();
-          self._save();
-          const res = self._db.exec('SELECT last_insert_rowid()');
-          const lastId = res[0]?.values[0]?.[0];
-          return { lastInsertRowid: lastId };
-        } finally { stmt.free(); }
-      }
-    };
-  }
-}
 
 let _db = null;
 
+function wrap(client) {
+  const prepare = (sql) => ({
+    async get(...args) {
+      const r = await client.execute({ sql, args: args.flat().map(a => a ?? null) });
+      return r.rows[0] ?? undefined;
+    },
+    async all(...args) {
+      const r = await client.execute({ sql, args: args.flat().map(a => a ?? null) });
+      return r.rows;
+    },
+    async run(...args) {
+      const r = await client.execute({ sql, args: args.flat().map(a => a ?? null) });
+      return { lastInsertRowid: r.lastInsertRowid ? Number(r.lastInsertRowid) : null };
+    }
+  });
+  return {
+    prepare,
+    async exec(sql) {
+      const stmts = sql.split(';').map(s => s.trim()).filter(Boolean);
+      for (const s of stmts) await client.execute({ sql: s, args: [] });
+    }
+  };
+}
+
 async function init() {
-  const SQL = await initSqlJs();
+  const client = createClient({
+    url: process.env.TURSO_URL,
+    authToken: process.env.TURSO_TOKEN,
+  });
 
-  let sqlDb;
-  if (fs.existsSync(DB_PATH)) {
-    const buf = fs.readFileSync(DB_PATH);
-    sqlDb = new SQL.Database(buf);
-  } else {
-    sqlDb = new SQL.Database();
-  }
-
-  _db = new DbWrapper(sqlDb);
-
-  _db.exec(`
-    CREATE TABLE IF NOT EXISTS users (
+  const tables = [
+    `CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       username TEXT UNIQUE NOT NULL,
       password TEXT NOT NULL,
@@ -86,9 +46,9 @@ async function init() {
       email TEXT,
       hire_date TEXT,
       status TEXT NOT NULL DEFAULT 'active',
-      created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
-    );
-    CREATE TABLE IF NOT EXISTS attendance (
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`,
+    `CREATE TABLE IF NOT EXISTS attendance (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL,
       date TEXT NOT NULL,
@@ -96,9 +56,9 @@ async function init() {
       check_out TEXT,
       type TEXT NOT NULL DEFAULT 'normal',
       note TEXT,
-      created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
-    );
-    CREATE TABLE IF NOT EXISTS leaves (
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`,
+    `CREATE TABLE IF NOT EXISTS leaves (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL,
       type TEXT NOT NULL,
@@ -109,9 +69,9 @@ async function init() {
       status TEXT NOT NULL DEFAULT 'pending',
       approved_by INTEGER,
       approved_at TEXT,
-      created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
-    );
-    CREATE TABLE IF NOT EXISTS salaries (
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`,
+    `CREATE TABLE IF NOT EXISTS salaries (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL,
       year INTEGER NOT NULL,
@@ -122,9 +82,9 @@ async function init() {
       deduction INTEGER NOT NULL DEFAULT 0,
       net_pay INTEGER NOT NULL DEFAULT 0,
       note TEXT,
-      created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
-    );
-    CREATE TABLE IF NOT EXISTS finance (
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`,
+    `CREATE TABLE IF NOT EXISTS finance (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       type TEXT NOT NULL,
       category TEXT NOT NULL,
@@ -133,9 +93,9 @@ async function init() {
       date TEXT NOT NULL,
       receipt_no TEXT,
       created_by INTEGER,
-      created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
-    );
-    CREATE TABLE IF NOT EXISTS inventory (
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`,
+    `CREATE TABLE IF NOT EXISTS inventory (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
       category TEXT NOT NULL,
@@ -144,22 +104,22 @@ async function init() {
       min_quantity REAL DEFAULT 0,
       location TEXT,
       note TEXT,
-      updated_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
-    );
-    CREATE TABLE IF NOT EXISTS inventory_logs (
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`,
+    `CREATE TABLE IF NOT EXISTS inventory_logs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       inventory_id INTEGER NOT NULL,
       type TEXT NOT NULL,
       quantity REAL NOT NULL,
       reason TEXT,
       created_by INTEGER,
-      created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
-    );
-    CREATE TABLE IF NOT EXISTS settings (
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`,
+    `CREATE TABLE IF NOT EXISTS settings (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS attendance_change_requests (
+    )`,
+    `CREATE TABLE IF NOT EXISTS attendance_change_requests (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       attendance_id INTEGER,
       user_id INTEGER NOT NULL,
@@ -171,22 +131,27 @@ async function init() {
       status TEXT NOT NULL DEFAULT 'pending',
       reviewed_by INTEGER,
       reviewed_at TEXT,
-      created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
-      FOREIGN KEY (user_id) REFERENCES users(id)
-    );
-  `);
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`
+  ];
 
-  const adminExists = _db.prepare('SELECT id FROM users WHERE username = ?').get('admin');
-  if (!adminExists) {
+  for (const sql of tables) {
+    await client.execute({ sql, args: [] });
+  }
+
+  const r = await client.execute({ sql: 'SELECT id FROM users WHERE username = ?', args: ['admin'] });
+  if (!r.rows[0]) {
     const hash = bcrypt.hashSync('admin1234', 10);
-    _db.prepare(`INSERT INTO users (username, password, name, role, department, position) VALUES (?, ?, ?, ?, ?, ?)`)
-      .run('admin', hash, '관리자', 'admin', '경영', '대표');
+    await client.execute({
+      sql: 'INSERT INTO users (username, password, name, role, department, position) VALUES (?, ?, ?, ?, ?, ?)',
+      args: ['admin', hash, '관리자', 'admin', '경영', '대표']
+    });
     console.log('관리자 계정 생성: admin / admin1234');
   }
 
+  _db = wrap(client);
   return _db;
 }
 
 function getDb() { return _db; }
-
 module.exports = { init, getDb };
