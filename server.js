@@ -24,6 +24,7 @@ app.use('/api/salary', require('./routes/salary'));
 app.use('/api/finance', require('./routes/finance'));
 app.use('/api/inventory', require('./routes/inventory'));
 app.use('/api/settings', require('./routes/settings'));
+app.use('/api/timesheet', require('./routes/timesheet'));
 
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));

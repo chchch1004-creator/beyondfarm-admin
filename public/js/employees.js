@@ -90,7 +90,15 @@ const Employees = {
             <option value="admin" ${emp?.role === 'admin' ? 'selected' : ''}>관리자</option>
             <option value="superadmin" ${emp?.role === 'superadmin' ? 'selected' : ''}>총괄관리자</option>
           </select>
-        </div>` : ''}
+        </div>
+        <div class="form-group"><label>직원 구분</label>
+          <select id="f-emptype">
+            ${['평일','소장','주말고정','주말','주주'].map(t => `<option value="${t}" ${emp?.employee_type===t?'selected':''}>${t}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-group"><label>주민등록번호</label><input id="f-ssn" placeholder="숫자만 입력" value="${emp?.ssn || ''}"></div>
+        <div class="form-group"><label>은행명</label><input id="f-bank" placeholder="예: 농협" value="${emp?.bank_name || ''}"></div>
+        <div class="form-group"><label>계좌번호</label><input id="f-account" placeholder="계좌번호 입력" value="${emp?.bank_account || ''}"></div>` : ''}
       </div>`,
       async () => {
         const body = {
@@ -100,7 +108,13 @@ const Employees = {
         if (!emp) body.username = Utils.val('f-username');
         const pw = Utils.val('f-password');
         if (pw) body.password = pw;
-        if (isAdmin) body.role = Utils.val('f-role');
+        if (isAdmin) {
+          body.role = Utils.val('f-role');
+          body.employee_type = Utils.val('f-emptype');
+          body.ssn = Utils.val('f-ssn');
+          body.bank_name = Utils.val('f-bank');
+          body.bank_account = Utils.val('f-account');
+        }
         if (!body.name) return Utils.showToast('이름을 입력하세요', 'error');
         try {
           if (emp) await API.put(`/api/employees/${id}`, body);

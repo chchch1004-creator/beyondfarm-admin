@@ -135,8 +135,29 @@ async function init() {
     )`
   ];
 
+  // 새 테이블
+  tables.push(`CREATE TABLE IF NOT EXISTS timesheet_notes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    year INTEGER NOT NULL,
+    month INTEGER NOT NULL,
+    content TEXT,
+    UNIQUE(year, month)
+  )`);
+
   for (const sql of tables) {
     await client.execute({ sql, args: [] });
+  }
+
+  // users 테이블에 새 컬럼 추가 (이미 있으면 무시)
+  const newCols = [
+    "ALTER TABLE users ADD COLUMN employee_type TEXT DEFAULT '평일'",
+    "ALTER TABLE users ADD COLUMN ssn TEXT",
+    "ALTER TABLE users ADD COLUMN bank_name TEXT",
+    "ALTER TABLE users ADD COLUMN bank_account TEXT",
+    "ALTER TABLE users ADD COLUMN hourly_rate INTEGER DEFAULT 0",
+  ];
+  for (const sql of newCols) {
+    try { await client.execute({ sql, args: [] }); } catch {}
   }
 
   const r = await client.execute({ sql: 'SELECT id FROM users WHERE username = ?', args: ['admin'] });

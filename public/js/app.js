@@ -87,18 +87,19 @@ const App = {
       dashboard: '대시보드', employees: '직원 관리', attendance: '출퇴근 관리',
       leaves: '휴가 관리', salary: '급여 관리', finance: '수입/지출', inventory: '재고 현황',
       settings: '시스템 설정',
-      mypage: '마이페이지'
+      mypage: '마이페이지',
+      timesheet: '근무표'
     };
     document.getElementById('page-title').textContent = titles[page] || page;
 
     // 관리자 전용 메뉴 표시 제어
-    const adminOnly = ['nav-settings', 'nav-admin-section'];
+    const adminOnly = ['nav-settings', 'nav-admin-section', 'nav-timesheet'];
     adminOnly.forEach(id => {
       const el = document.getElementById(id);
       if (el) el.style.display = App.user.role === 'admin' ? '' : 'none';
     });
 
-    const pages = { dashboard: Dashboard, employees: Employees, attendance: Attendance, leaves: Leaves, salary: Salary, finance: Finance, inventory: Inventory, settings: Settings, mypage: MyPage };
+    const pages = { dashboard: Dashboard, employees: Employees, attendance: Attendance, leaves: Leaves, salary: Salary, finance: Finance, inventory: Inventory, settings: Settings, mypage: MyPage, timesheet: Timesheet };
     pages[page]?.render();
   }
 };
