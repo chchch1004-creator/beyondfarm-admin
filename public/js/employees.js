@@ -43,7 +43,7 @@ const Employees = {
   filter() {
     const status = document.getElementById('emp-status-filter')?.value || '';
     const search = document.getElementById('emp-search')?.value?.toLowerCase() || '';
-    const isAdmin = App.user.role === 'admin';
+    const isAdmin = ['admin','superadmin'].includes(App.user.role);
     const rows = this.data.filter(e =>
       (!status || e.status === status) &&
       (!search || e.name.toLowerCase().includes(search))
@@ -65,14 +65,16 @@ const Employees = {
         <td>${Utils.statusBadge(e.status)}</td>
         ${isAdmin ? `<td>
           <button class="btn btn-secondary btn-sm" onclick="Employees.showForm(${e.id})">수정</button>
-          ${e.status === 'active' ? `<button class="btn btn-danger btn-sm" onclick="Employees.retire(${e.id},'${e.name}')">퇴직</button>` : ''}
+          ${e.status === 'active'
+            ? `<button class="btn btn-danger btn-sm" onclick="Employees.retire(${e.id},'${e.name}')">퇴직</button>`
+            : `<button class="btn btn-success btn-sm" onclick="Employees.restore(${e.id},'${e.name}')">복구</button>`}
         </td>` : ''}
       </tr>`).join('');
   },
 
   showForm(id) {
     const emp = id ? this.data.find(e => e.id === id) : null;
-    const isAdmin = App.user.role === 'admin';
+    const isAdmin = ['admin','superadmin'].includes(App.user.role);
     Utils.modal(
       emp ? '직원 정보 수정' : '직원 등록',
       `<div class="form-grid">
@@ -89,11 +91,6 @@ const Employees = {
             <option value="employee" ${emp?.role === 'employee' ? 'selected' : ''}>직원</option>
             <option value="admin" ${emp?.role === 'admin' ? 'selected' : ''}>관리자</option>
             <option value="superadmin" ${emp?.role === 'superadmin' ? 'selected' : ''}>총괄관리자</option>
-          </select>
-        </div>
-        <div class="form-group"><label>직원 구분</label>
-          <select id="f-emptype">
-            ${['평일','소장','주말고정','주말','주주'].map(t => `<option value="${t}" ${emp?.employee_type===t?'selected':''}>${t}</option>`).join('')}
           </select>
         </div>
         <div class="form-group"><label>주민등록번호</label><input id="f-ssn" placeholder="숫자만 입력" value="${emp?.ssn || ''}"></div>
@@ -132,6 +129,15 @@ const Employees = {
     try {
       await API.delete(`/api/employees/${id}`);
       Utils.showToast('퇴직 처리되었습니다.');
+      Employees.render();
+    } catch (e) { Utils.showToast(e.message, 'error'); }
+  },
+
+  async restore(id, name) {
+    if (!confirm(`${name} 직원을 재직 상태로 복구하시겠습니까?`)) return;
+    try {
+      await API.put(`/api/employees/${id}`, { status: 'active' });
+      Utils.showToast('복구되었습니다.');
       Employees.render();
     } catch (e) { Utils.showToast(e.message, 'error'); }
   }

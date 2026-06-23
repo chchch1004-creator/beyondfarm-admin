@@ -2,7 +2,7 @@ const Inventory = {
   data: [],
   async render() {
     const content = document.getElementById('content');
-    const isAdmin = App.user.role === 'admin';
+    const isAdmin = ['admin','superadmin'].includes(App.user.role);
     try {
       this.data = await API.get('/api/inventory');
       const lowStock = this.data.filter(i => i.min_quantity > 0 && i.quantity <= i.min_quantity).length;
@@ -42,7 +42,7 @@ const Inventory = {
     );
     const tbody = document.getElementById('inv-tbody');
     if (!tbody) return;
-    const isAdmin = App.user.role === 'admin';
+    const isAdmin = ['admin','superadmin'].includes(App.user.role);
     if (rows.length === 0) {
       tbody.innerHTML = `<tr><td colspan="9"><div class="empty-state">품목이 없습니다</div></td></tr>`;
       return;

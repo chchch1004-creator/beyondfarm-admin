@@ -3,7 +3,7 @@ const Leaves = {
   employees: [],
   async render() {
     const content = document.getElementById('content');
-    const isAdmin = App.user.role === 'admin';
+    const isAdmin = ['admin','superadmin'].includes(App.user.role);
     const year = new Date().getFullYear();
     try {
       if (isAdmin) this.employees = await API.get('/api/employees');
@@ -81,7 +81,7 @@ const Leaves = {
   renderTable(statusFilter) {
     const tbody = document.getElementById('leaves-tbody');
     if (!tbody) return;
-    const isAdmin = App.user.role === 'admin';
+    const isAdmin = ['admin','superadmin'].includes(App.user.role);
     let rows = this.data;
     if (statusFilter) rows = rows.filter(l => l.status === statusFilter);
     if (rows.length === 0) {
@@ -106,7 +106,7 @@ const Leaves = {
   },
 
   showForm() {
-    const isAdmin = App.user.role === 'admin';
+    const isAdmin = ['admin','superadmin'].includes(App.user.role);
     const emps = this.employees.filter(e => e.status === 'active');
     Utils.modal('휴가 신청',
       `<div class="form-grid">

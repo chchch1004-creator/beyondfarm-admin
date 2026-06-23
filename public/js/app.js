@@ -38,7 +38,8 @@ const App = {
     document.getElementById('login-page').style.display = 'none';
     document.getElementById('app').style.display = 'flex';
     document.getElementById('sidebar-name').textContent = App.user.name;
-    document.getElementById('sidebar-role').textContent = App.user.role === 'admin' ? '관리자' : '직원';
+    const roleLabel = { superadmin: '총괄관리자', admin: '관리자', employee: '직원' };
+    document.getElementById('sidebar-role').textContent = roleLabel[App.user.role] || '직원';
     App.goto('dashboard');
   },
 
@@ -93,11 +94,14 @@ const App = {
     document.getElementById('page-title').textContent = titles[page] || page;
 
     // 관리자 전용 메뉴 표시 제어
-    const adminOnly = ['nav-settings', 'nav-admin-section', 'nav-timesheet'];
-    adminOnly.forEach(id => {
+    const isAdmin = ['admin', 'superadmin'].includes(App.user.role);
+    const isSuperAdmin = App.user.role === 'superadmin';
+    ['nav-settings', 'nav-admin-section'].forEach(id => {
       const el = document.getElementById(id);
-      if (el) el.style.display = App.user.role === 'admin' ? '' : 'none';
+      if (el) el.style.display = isAdmin ? '' : 'none';
     });
+    const tsEl = document.getElementById('nav-timesheet');
+    if (tsEl) tsEl.style.display = isSuperAdmin ? '' : 'none';
 
     const pages = { dashboard: Dashboard, employees: Employees, attendance: Attendance, leaves: Leaves, salary: Salary, finance: Finance, inventory: Inventory, settings: Settings, mypage: MyPage, timesheet: Timesheet };
     pages[page]?.render();

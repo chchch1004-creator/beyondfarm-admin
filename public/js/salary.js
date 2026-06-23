@@ -3,7 +3,7 @@ const Salary = {
   employees: [],
   async render() {
     const content = document.getElementById('content');
-    const isAdmin = App.user.role === 'admin';
+    const isAdmin = ['admin','superadmin'].includes(App.user.role);
     const now = new Date();
     try {
       if (isAdmin) this.employees = await API.get('/api/employees');
@@ -49,7 +49,7 @@ const Salary = {
   renderTable() {
     const tbody = document.getElementById('sal-tbody');
     if (!tbody) return;
-    const isAdmin = App.user.role === 'admin';
+    const isAdmin = ['admin','superadmin'].includes(App.user.role);
     if (this.data.length === 0) {
       tbody.innerHTML = `<tr><td colspan="12"><div class="empty-state">급여 내역이 없습니다</div></td></tr>`;
       return;
