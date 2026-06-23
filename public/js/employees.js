@@ -2,22 +2,35 @@ const Employees = {
   data: [],
 
   calcDday(dateStr, type) {
-    if (!dateStr) return '-';
+    if (!dateStr) return { text: '-', style: '' };
     const today = new Date(); today.setHours(0,0,0,0);
+    const [, mm, dd] = dateStr.split('-');
+
     if (type === 'hire') {
+      // 입사일 D+경과일
       const hire = new Date(dateStr);
-      const days = Math.floor((today - hire) / 86400000);
-      return `D+${days}`;
+      const elapsed = Math.floor((today - hire) / 86400000);
+      // 올해 기념일까지 남은 일수 (월/일 기준)
+      let anniv = new Date(today.getFullYear(), parseInt(mm)-1, parseInt(dd));
+      if (anniv < today) anniv = new Date(today.getFullYear()+1, parseInt(mm)-1, parseInt(dd));
+      const daysLeft = Math.floor((anniv - today) / 86400000);
+      let style = '';
+      if (daysLeft === 0) style = 'color:#dc3545;font-weight:700';
+      else if (daysLeft <= 7) style = 'color:#dc3545';
+      return { text: `D+${elapsed}`, style };
     }
+
     if (type === 'birth') {
-      // 올해 생일
-      const [,mm,dd] = dateStr.split('-');
       let next = new Date(today.getFullYear(), parseInt(mm)-1, parseInt(dd));
       if (next < today) next = new Date(today.getFullYear()+1, parseInt(mm)-1, parseInt(dd));
-      const days = Math.floor((next - today) / 86400000);
-      return days === 0 ? '🎂 오늘!' : `D-${days}`;
+      const daysLeft = Math.floor((next - today) / 86400000);
+      let style = '';
+      let text = `D-${daysLeft}`;
+      if (daysLeft === 0) { text = '🎂 D-0'; style = 'color:#dc3545;font-weight:700'; }
+      else if (daysLeft <= 7) style = 'color:#dc3545';
+      return { text, style };
     }
-    return '-';
+    return { text: '-', style: '' };
   },
 
   async render() {
@@ -96,9 +109,9 @@ const Employees = {
         <td style="padding:8px 10px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${e.department || '-'}</td>
         <td style="padding:8px 10px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${e.position || '-'}</td>
         <td style="padding:8px 10px;font-size:12px">${e.hire_date || '-'}</td>
-        <td style="padding:8px 10px;font-size:12px;color:#1971c2">${this.calcDday(e.hire_date,'hire')}</td>
+        ${(() => { const d = this.calcDday(e.hire_date,'hire'); return `<td style="padding:8px 10px;font-size:12px;${d.style||'color:#1971c2'}">${d.text}</td>`; })()}
         <td style="padding:8px 10px;font-size:12px">${e.birth_date || '-'}</td>
-        <td style="padding:8px 10px;font-size:12px;color:${e.birth_date && this.calcDday(e.birth_date,'birth').includes('오늘') ? '#dc3545' : '#198754'}">${this.calcDday(e.birth_date,'birth')}</td>
+        ${(() => { const d = this.calcDday(e.birth_date,'birth'); return `<td style="padding:8px 10px;font-size:12px;${d.style||'color:#198754'}">${d.text}</td>`; })()}
         <td style="padding:8px 10px"><span class="badge ${e.role==='superadmin'?'badge-danger':e.role==='admin'?'badge-info':'badge-secondary'}">${roleLabel[e.role]||e.role}</span></td>
         ${isAdmin ? `<td style="padding:8px 10px;text-align:right;font-size:12px">${e.hourly_rate ? Utils.formatNum(e.hourly_rate)+'원' : '-'}</td>` : ''}
         ${isAdmin ? `<td style="padding:8px 10px">

@@ -16,7 +16,8 @@ router.get('/', async (req, res) => {
     if (['admin','superadmin'].includes(req.session.user.role)) {
       return res.json(await db.prepare('SELECT id, username, name, role, department, position, phone, email, hire_date, birth_date, status, created_at, employee_type, ssn, bank_name, bank_account, hourly_rate FROM users ORDER BY name').all());
     }
-    res.json([await db.prepare('SELECT id, username, name, role, department, position, phone, email, hire_date, status, employee_type FROM users WHERE id = ?').get(req.session.user.id)]);
+    // 일반 직원: 전체 목록 조회 가능하지만 민감정보 제외
+    res.json(await db.prepare('SELECT id, name, role, department, position, hire_date, birth_date, status FROM users WHERE status = ? ORDER BY name').all('active'));
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
