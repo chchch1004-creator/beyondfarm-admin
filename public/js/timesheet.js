@@ -54,8 +54,8 @@ const Timesheet = {
     const dayHeaders = Array.from({length: days}, (_, i) => {
       const d = i + 1;
       const dow = getDow(d);
-      const color = dow === 0 ? 'color:#dc3545' : dow === 6 ? 'color:#1971c2' : '';
-      return `<th style="min-width:28px;padding:4px 2px;font-size:11px;${color}">${d}</th>`;
+      const color = dow === 0 ? 'color:#ff6b6b' : dow === 6 ? 'color:#74c0fc' : '';
+      return `<th style="min-width:26px;width:26px;${color}">${d}</th>`;
     }).join('');
 
     // 직원 행 생성
@@ -67,10 +67,8 @@ const Timesheet = {
       if (!emps || emps.length === 0) continue;
 
       // 구분 헤더 행
-      rowsHtml += `<tr style="background:#f0fdf4">
-        <td colspan="2" style="font-weight:700;padding:6px 8px;font-size:12px">${type}</td>
-        ${Array.from({length: days}, () => '<td></td>').join('')}
-        <td colspan="5"></td>
+      rowsHtml += `<tr style="background:#d1fae5">
+        <td colspan="${2 + days + 6}" style="font-weight:700;padding:4px 8px;font-size:12px;color:#065f46">${type}</td>
       </tr>`;
 
       let groupTotal = 0;
@@ -97,24 +95,24 @@ const Timesheet = {
 
         const np = emp.net_pay || 0;
         rowsHtml += `<tr>
-          <td style="padding:4px 8px;white-space:nowrap;font-size:12px">${emp.name}</td>
-          <td style="text-align:right;padding:4px 6px;font-size:11px">${totalHours > 0 ? totalHours : ''}</td>
+          <td style="padding:3px 8px;font-weight:600">${emp.name}</td>
+          <td style="text-align:center">${totalHours > 0 ? totalHours : ''}</td>
           ${dailyCells}
-          <td style="text-align:right;padding:4px 6px;font-size:11px;white-space:nowrap">${np ? Utils.formatNum(np) : ''}</td>
-          <td style="text-align:right;padding:4px 6px;font-size:11px">${np ? Utils.formatNum(emp.tax) : ''}</td>
-          <td style="text-align:right;padding:4px 6px;font-size:11px">${np ? Utils.formatNum(emp.local_tax) : ''}</td>
-          <td style="text-align:right;padding:4px 6px;font-size:11px;white-space:nowrap">${np ? Utils.formatNum(emp.transfer) : ''}</td>
-          <td style="font-size:10px;white-space:nowrap">${ssnDisplay}</td>
-          <td style="font-size:10px;white-space:nowrap">${emp.bank_name ? emp.bank_name + ' ' + (emp.bank_account || '') : (emp.bank_account || '-')}</td>
+          <td style="text-align:right;padding:3px 4px">${np ? Utils.formatNum(np) : ''}</td>
+          <td style="text-align:right;padding:3px 4px">${np ? Utils.formatNum(emp.tax) : ''}</td>
+          <td style="text-align:right;padding:3px 4px">${np ? Utils.formatNum(emp.local_tax) : ''}</td>
+          <td style="text-align:right;padding:3px 4px">${np ? Utils.formatNum(emp.transfer) : ''}</td>
+          <td style="padding:3px 4px">${ssnDisplay}</td>
+          <td style="padding:3px 4px">${emp.bank_name ? emp.bank_name + ' ' + (emp.bank_account || '') : (emp.bank_account || '-')}</td>
         </tr>`;
       }
 
       // 구분 합계 행
       rowsHtml += `<tr style="background:#e8f5e9;font-weight:700">
-        <td style="padding:4px 8px;font-size:12px">${type} 합계</td>
-        <td style="text-align:right;font-size:11px">${groupTotal}</td>
+        <td style="padding:4px 8px">${type} 합계</td>
+        <td style="text-align:right">${groupTotal}</td>
         ${Array.from({length: days}, () => '<td></td>').join('')}
-        <td colspan="5"></td>
+        <td colspan="6"></td>
       </tr>`;
     }
 
@@ -131,27 +129,36 @@ const Timesheet = {
         <div style="font-size:16px;font-weight:700;text-align:center;margin-bottom:12px">
           ${year}년 ${month}월 비욘더팜 근무표
         </div>
-        <table id="timesheet-table" style="border-collapse:collapse;font-size:12px;width:100%">
+        <style>
+          #timesheet-table { border-collapse:collapse; font-size:11px; width:100%; }
+          #timesheet-table th, #timesheet-table td { border:1px solid #ccc; white-space:nowrap; }
+          #timesheet-table thead th { background:#1b4332; color:#fff; padding:5px 4px; text-align:center; position:sticky; top:0; z-index:1; }
+          #timesheet-table thead th:first-child { text-align:left; padding-left:8px; }
+          #timesheet-table tbody td { padding:3px 4px; }
+          #timesheet-table tbody tr:hover td { background:#f0fdf4 !important; }
+          #timesheet-table tfoot td { background:#1b4332; color:#fff; padding:5px 4px; font-weight:700; }
+        </style>
+        <table id="timesheet-table">
           <thead>
-            <tr style="background:#1b4332;color:#fff">
-              <th style="padding:6px 8px;white-space:nowrap;text-align:left">이름</th>
-              <th style="padding:6px 4px;white-space:nowrap">합계</th>
+            <tr>
+              <th style="min-width:70px;text-align:left;padding-left:8px">이름</th>
+              <th style="min-width:36px">합계</th>
               ${dayHeaders}
-              <th style="padding:6px 4px;white-space:nowrap">합계금액</th>
-              <th style="padding:6px 4px;white-space:nowrap">국세</th>
-              <th style="padding:6px 4px;white-space:nowrap">지방세</th>
-              <th style="padding:6px 4px;white-space:nowrap">이체금액</th>
-              <th style="padding:6px 4px;white-space:nowrap">주민등록번호</th>
-              <th style="padding:6px 4px;white-space:nowrap">계좌번호</th>
+              <th style="min-width:72px">합계금액</th>
+              <th style="min-width:52px">국세</th>
+              <th style="min-width:52px">지방세</th>
+              <th style="min-width:72px">이체금액</th>
+              <th style="min-width:110px">주민등록번호</th>
+              <th style="min-width:130px">계좌번호</th>
             </tr>
           </thead>
           <tbody>${rowsHtml}</tbody>
           <tfoot>
-            <tr style="background:#1b4332;color:#fff;font-weight:700">
-              <td style="padding:6px 8px">전체 합계</td>
-              <td style="text-align:right;padding:4px 6px">${grandTotal}</td>
+            <tr>
+              <td style="padding:5px 8px;text-align:left">전체 합계</td>
+              <td style="text-align:center">${grandTotal}</td>
               ${Array.from({length: days}, () => '<td></td>').join('')}
-              <td colspan="5"></td>
+              <td colspan="6"></td>
             </tr>
           </tfoot>
         </table>

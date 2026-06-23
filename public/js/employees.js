@@ -1,40 +1,75 @@
 const Employees = {
   data: [],
+
+  calcDday(dateStr, type) {
+    if (!dateStr) return '-';
+    const today = new Date(); today.setHours(0,0,0,0);
+    if (type === 'hire') {
+      const hire = new Date(dateStr);
+      const days = Math.floor((today - hire) / 86400000);
+      return `D+${days}`;
+    }
+    if (type === 'birth') {
+      // 올해 생일
+      const [,mm,dd] = dateStr.split('-');
+      let next = new Date(today.getFullYear(), parseInt(mm)-1, parseInt(dd));
+      if (next < today) next = new Date(today.getFullYear()+1, parseInt(mm)-1, parseInt(dd));
+      const days = Math.floor((next - today) / 86400000);
+      return days === 0 ? '🎂 오늘!' : `D-${days}`;
+    }
+    return '-';
+  },
+
   async render() {
     const content = document.getElementById('content');
-    const user = App.user;
+    const isAdmin = ['admin','superadmin'].includes(App.user.role);
     try {
       this.data = await API.get('/api/employees');
-      const isAdmin = user.role === 'admin';
+      const roleLabel = { superadmin:'총괄관리자', admin:'관리자', employee:'직원' };
 
       content.innerHTML = `
-        <div class="card">
-          <div class="card-title">
-            👥 직원 관리
+        <div class="card" style="padding:0;overflow:hidden">
+          <div style="padding:16px 20px;display:flex;align-items:center;gap:10px;border-bottom:1px solid #dee2e6">
+            <span style="font-size:15px;font-weight:600">👥 직원 관리</span>
             ${isAdmin ? '<button class="btn btn-primary btn-sm" style="margin-left:auto" onclick="Employees.showForm()">+ 직원 등록</button>' : ''}
           </div>
-          <div class="filter-bar">
-            <select id="emp-status-filter" onchange="Employees.filter()">
+          <div style="padding:12px 16px;border-bottom:1px solid #dee2e6;display:flex;gap:10px;flex-wrap:wrap">
+            <select id="emp-status-filter" onchange="Employees.filter()" style="padding:6px 10px;border:1px solid #dee2e6;border-radius:6px;font-size:13px">
               <option value="">전체</option>
               <option value="active">재직중</option>
               <option value="inactive">퇴직</option>
             </select>
-            <input id="emp-search" placeholder="이름 검색" oninput="Employees.filter()">
+            <input id="emp-search" placeholder="이름 검색" oninput="Employees.filter()" style="padding:6px 10px;border:1px solid #dee2e6;border-radius:6px;font-size:13px">
           </div>
-          <div class="table-wrap">
-            <table>
+          <div style="overflow-x:auto">
+            <table id="emp-table" class="resizable-table" style="border-collapse:collapse;width:100%;min-width:900px;table-layout:fixed">
+              <colgroup>
+                <col style="width:90px"><col style="width:80px"><col style="width:80px">
+                <col style="width:100px"><col style="width:80px"><col style="width:100px">
+                <col style="width:80px"><col style="width:90px"><col style="width:80px">
+                ${isAdmin ? '<col style="width:120px">' : ''}
+              </colgroup>
               <thead>
-                <tr>
-                  <th>이름</th><th>부서</th><th>직급</th><th>아이디</th>
-                  <th>연락처</th><th>입사일</th><th>상태</th>
-                  ${isAdmin ? '<th>관리</th>' : ''}
+                <tr style="background:#f8f9fa">
+                  <th class="resizable-th">이름</th>
+                  <th class="resizable-th">부서</th>
+                  <th class="resizable-th">직급</th>
+                  <th class="resizable-th">입사일</th>
+                  <th class="resizable-th">입사 D-day</th>
+                  <th class="resizable-th">생일</th>
+                  <th class="resizable-th">생일 D-day</th>
+                  <th class="resizable-th">권한</th>
+                  <th class="resizable-th">시급</th>
+                  ${isAdmin ? '<th class="resizable-th">관리</th>' : ''}
                 </tr>
               </thead>
               <tbody id="emp-tbody"></tbody>
             </table>
           </div>
         </div>`;
+
       this.filter();
+      this.initResize();
     } catch (e) {
       content.innerHTML = `<div class="empty-state"><div class="icon">⚠️</div>${e.message}</div>`;
     }
@@ -44,6 +79,7 @@ const Employees = {
     const status = document.getElementById('emp-status-filter')?.value || '';
     const search = document.getElementById('emp-search')?.value?.toLowerCase() || '';
     const isAdmin = ['admin','superadmin'].includes(App.user.role);
+    const roleLabel = { superadmin:'총괄관리자', admin:'관리자', employee:'직원' };
     const rows = this.data.filter(e =>
       (!status || e.status === status) &&
       (!search || e.name.toLowerCase().includes(search))
@@ -51,25 +87,55 @@ const Employees = {
     const tbody = document.getElementById('emp-tbody');
     if (!tbody) return;
     if (rows.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="8" class="empty-state">직원이 없습니다</td></tr>';
+      tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:24px;color:#6c757d">직원이 없습니다</td></tr>`;
       return;
     }
     tbody.innerHTML = rows.map(e => `
-      <tr>
-        <td><strong>${e.name}</strong></td>
-        <td>${e.department || '-'}</td>
-        <td>${e.position || '-'}</td>
-        <td>${e.username}</td>
-        <td>${e.phone || '-'}</td>
-        <td>${Utils.formatDate(e.hire_date)}</td>
-        <td>${Utils.statusBadge(e.status)}</td>
-        ${isAdmin ? `<td>
+      <tr style="border-bottom:1px solid #dee2e6" onmouseover="this.style.background='#f8f9fa'" onmouseout="this.style.background=''">
+        <td style="padding:8px 10px;font-weight:600;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${e.name}</td>
+        <td style="padding:8px 10px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${e.department || '-'}</td>
+        <td style="padding:8px 10px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${e.position || '-'}</td>
+        <td style="padding:8px 10px;font-size:12px">${e.hire_date || '-'}</td>
+        <td style="padding:8px 10px;font-size:12px;color:#1971c2">${this.calcDday(e.hire_date,'hire')}</td>
+        <td style="padding:8px 10px;font-size:12px">${e.birth_date || '-'}</td>
+        <td style="padding:8px 10px;font-size:12px;color:${e.birth_date && this.calcDday(e.birth_date,'birth').includes('오늘') ? '#dc3545' : '#198754'}">${this.calcDday(e.birth_date,'birth')}</td>
+        <td style="padding:8px 10px"><span class="badge ${e.role==='superadmin'?'badge-danger':e.role==='admin'?'badge-info':'badge-secondary'}">${roleLabel[e.role]||e.role}</span></td>
+        <td style="padding:8px 10px;text-align:right;font-size:12px">${e.hourly_rate ? Utils.formatNum(e.hourly_rate)+'원' : '-'}</td>
+        ${isAdmin ? `<td style="padding:8px 10px">
           <button class="btn btn-secondary btn-sm" onclick="Employees.showForm(${e.id})">수정</button>
           ${e.status === 'active'
             ? `<button class="btn btn-danger btn-sm" onclick="Employees.retire(${e.id},'${e.name}')">퇴직</button>`
             : `<button class="btn btn-success btn-sm" onclick="Employees.restore(${e.id},'${e.name}')">복구</button>`}
         </td>` : ''}
       </tr>`).join('');
+  },
+
+  initResize() {
+    const ths = document.querySelectorAll('.resizable-th');
+    ths.forEach(th => {
+      const handle = document.createElement('div');
+      handle.style.cssText = 'position:absolute;right:0;top:0;bottom:0;width:4px;cursor:col-resize;background:transparent;';
+      th.style.position = 'relative';
+      th.style.padding = '8px 10px';
+      th.style.borderBottom = '2px solid #dee2e6';
+      th.style.borderRight = '1px solid #dee2e6';
+      th.style.fontSize = '12px';
+      th.style.fontWeight = '600';
+      th.style.color = '#6c757d';
+      th.style.whiteSpace = 'nowrap';
+      th.style.overflow = 'hidden';
+      handle.addEventListener('mousedown', e => {
+        e.preventDefault();
+        const startX = e.pageX;
+        const startW = th.offsetWidth;
+        const col = document.querySelectorAll('#emp-table col')[Array.from(ths).indexOf(th)];
+        const onMove = (e) => { if (col) col.style.width = Math.max(60, startW + e.pageX - startX) + 'px'; };
+        const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+      });
+      th.appendChild(handle);
+    });
   },
 
   showForm(id) {
@@ -86,11 +152,13 @@ const Employees = {
         <div class="form-group"><label>연락처</label><input id="f-phone" value="${emp?.phone || ''}"></div>
         <div class="form-group"><label>이메일</label><input id="f-email" value="${emp?.email || ''}"></div>
         <div class="form-group"><label>입사일</label><input type="date" id="f-hire" value="${emp?.hire_date || ''}"></div>
-        ${isAdmin ? `<div class="form-group"><label>권한</label>
+        <div class="form-group"><label>생일</label><input type="date" id="f-birth" value="${emp?.birth_date || ''}"></div>
+        ${isAdmin ? `
+        <div class="form-group"><label>권한</label>
           <select id="f-role">
-            <option value="employee" ${emp?.role === 'employee' ? 'selected' : ''}>직원</option>
-            <option value="admin" ${emp?.role === 'admin' ? 'selected' : ''}>관리자</option>
-            <option value="superadmin" ${emp?.role === 'superadmin' ? 'selected' : ''}>총괄관리자</option>
+            <option value="employee" ${emp?.role==='employee'?'selected':''}>직원</option>
+            <option value="admin" ${emp?.role==='admin'?'selected':''}>관리자</option>
+            <option value="superadmin" ${emp?.role==='superadmin'?'selected':''}>총괄관리자</option>
           </select>
         </div>
         <div class="form-group"><label>시급 (원)</label><input type="number" id="f-hourly" placeholder="예: 10030" value="${emp?.hourly_rate || ''}"></div>
@@ -101,7 +169,8 @@ const Employees = {
       async () => {
         const body = {
           name: Utils.val('f-name'), department: Utils.val('f-dept'), position: Utils.val('f-pos'),
-          phone: Utils.val('f-phone'), email: Utils.val('f-email'), hire_date: Utils.val('f-hire'),
+          phone: Utils.val('f-phone'), email: Utils.val('f-email'),
+          hire_date: Utils.val('f-hire'), birth_date: Utils.val('f-birth'),
         };
         if (!emp) body.username = Utils.val('f-username');
         const pw = Utils.val('f-password');
@@ -118,8 +187,7 @@ const Employees = {
           if (emp) await API.put(`/api/employees/${id}`, body);
           else await API.post('/api/employees', body);
           Utils.showToast(emp ? '수정되었습니다.' : '등록되었습니다.');
-          Utils.closeModal();
-          Employees.render();
+          Utils.closeModal(); Employees.render();
         } catch (e) { Utils.showToast(e.message, 'error'); }
       }
     );
@@ -127,19 +195,13 @@ const Employees = {
 
   async retire(id, name) {
     if (!confirm(`${name} 직원을 퇴직 처리하시겠습니까?`)) return;
-    try {
-      await API.delete(`/api/employees/${id}`);
-      Utils.showToast('퇴직 처리되었습니다.');
-      Employees.render();
-    } catch (e) { Utils.showToast(e.message, 'error'); }
+    try { await API.delete(`/api/employees/${id}`); Utils.showToast('퇴직 처리되었습니다.'); Employees.render(); }
+    catch (e) { Utils.showToast(e.message, 'error'); }
   },
 
   async restore(id, name) {
     if (!confirm(`${name} 직원을 재직 상태로 복구하시겠습니까?`)) return;
-    try {
-      await API.put(`/api/employees/${id}`, { status: 'active' });
-      Utils.showToast('복구되었습니다.');
-      Employees.render();
-    } catch (e) { Utils.showToast(e.message, 'error'); }
+    try { await API.put(`/api/employees/${id}`, { status: 'active' }); Utils.showToast('복구되었습니다.'); Employees.render(); }
+    catch (e) { Utils.showToast(e.message, 'error'); }
   }
 };
