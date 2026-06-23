@@ -133,8 +133,8 @@ const Timesheet = {
               <th style="min-width:72px;text-align:left;padding-left:8px">이름</th>
               <th style="min-width:32px">합계</th>
               ${dayHeaders}
+              <th style="min-width:34px;background:#856404;color:#fff">상여</th>
               <th style="min-width:34px;background:#856404;color:#fff">조정</th>
-              <th style="min-width:34px;background:#856404;color:#fff">조정1</th>
               <th style="min-width:70px">합계금액</th>
               <th style="min-width:52px">국세</th>
               <th style="min-width:52px">지방세</th>
@@ -280,7 +280,7 @@ const Timesheet = {
     if (!this.data || typeof XLSX === 'undefined') return;
     const { year, month, days, employees } = this.data;
     const getDow = (d) => new Date(year, month - 1, d).getDay();
-    const header = ['이름','합계',...Array.from({length:days},(_,i)=>i+1),'조정','조정1','합계금액','국세','지방세','이체금액','주민등록번호','계좌번호'];
+    const header = ['이름','합계',...Array.from({length:days},(_,i)=>i+1),'조정','조정','합계금액','국세','지방세','이체금액','주민등록번호','계좌번호'];
     const rows = [[`${year}년 ${month}월 비욘더팜 근무표`], header];
 
     employees.forEach(emp => {
