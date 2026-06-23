@@ -5,6 +5,14 @@ const router = express.Router();
 
 function requireLogin(req, res, next) { if (!req.session.user) return res.status(401).json({ error: '로그인 필요' }); next(); }
 
+function kstDate() {
+  return new Date().toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit' })
+    .replace(/\. /g, '-').replace('.', '');
+}
+function kstTime() {
+  return new Date().toLocaleTimeString('ko-KR', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', hour12: false });
+}
+
 router.get('/', requireLogin, async (req, res) => {
   try {
     const { year, month, user_id } = req.query;
@@ -47,8 +55,8 @@ router.post('/check-in', requireLogin, async (req, res) => {
   try {
     const loc = await checkLocation(req);
     if (!loc.ok) return res.status(400).json({ error: loc.error });
-    const today = new Date().toISOString().split('T')[0];
-    const now = new Date().toTimeString().slice(0, 5);
+    const today = kstDate();
+    const now = kstTime();
     const userId = req.session.user.id;
     const existing = await db.prepare('SELECT * FROM attendance WHERE user_id = ? AND date = ?').get(userId, today);
     if (existing?.check_in) return res.status(400).json({ error: '이미 출근 처리되었습니다.' });
@@ -62,8 +70,8 @@ router.post('/check-out', requireLogin, async (req, res) => {
   try {
     const loc = await checkLocation(req);
     if (!loc.ok) return res.status(400).json({ error: loc.error });
-    const today = new Date().toISOString().split('T')[0];
-    const now = new Date().toTimeString().slice(0, 5);
+    const today = kstDate();
+    const now = kstTime();
     const userId = req.session.user.id;
     const existing = await db.prepare('SELECT * FROM attendance WHERE user_id = ? AND date = ?').get(userId, today);
     if (!existing?.check_in) return res.status(400).json({ error: '출근 기록이 없습니다.' });
