@@ -46,8 +46,8 @@ const Employees = {
               <colgroup>
                 <col style="width:90px"><col style="width:80px"><col style="width:80px">
                 <col style="width:100px"><col style="width:80px"><col style="width:100px">
-                <col style="width:80px"><col style="width:90px"><col style="width:80px">
-                ${isAdmin ? '<col style="width:120px">' : ''}
+                <col style="width:80px"><col style="width:90px">
+                ${isAdmin ? '<col style="width:80px"><col style="width:120px">' : ''}
               </colgroup>
               <thead>
                 <tr style="background:#f8f9fa">
@@ -59,7 +59,7 @@ const Employees = {
                   <th class="resizable-th">생일</th>
                   <th class="resizable-th">생일 D-day</th>
                   <th class="resizable-th">권한</th>
-                  <th class="resizable-th">시급</th>
+                  ${isAdmin ? '<th class="resizable-th">시급</th>' : ''}
                   ${isAdmin ? '<th class="resizable-th">관리</th>' : ''}
                 </tr>
               </thead>
@@ -100,7 +100,7 @@ const Employees = {
         <td style="padding:8px 10px;font-size:12px">${e.birth_date || '-'}</td>
         <td style="padding:8px 10px;font-size:12px;color:${e.birth_date && this.calcDday(e.birth_date,'birth').includes('오늘') ? '#dc3545' : '#198754'}">${this.calcDday(e.birth_date,'birth')}</td>
         <td style="padding:8px 10px"><span class="badge ${e.role==='superadmin'?'badge-danger':e.role==='admin'?'badge-info':'badge-secondary'}">${roleLabel[e.role]||e.role}</span></td>
-        <td style="padding:8px 10px;text-align:right;font-size:12px">${e.hourly_rate ? Utils.formatNum(e.hourly_rate)+'원' : '-'}</td>
+        ${isAdmin ? `<td style="padding:8px 10px;text-align:right;font-size:12px">${e.hourly_rate ? Utils.formatNum(e.hourly_rate)+'원' : '-'}</td>` : ''}
         ${isAdmin ? `<td style="padding:8px 10px">
           <button class="btn btn-secondary btn-sm" onclick="Employees.showForm(${e.id})">수정</button>
           ${e.status === 'active'
