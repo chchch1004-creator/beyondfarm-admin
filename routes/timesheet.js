@@ -26,6 +26,30 @@ router.get('/', requireSuperAdmin, async (req, res) => {
       `SELECT * FROM attendance WHERE strftime('%Y', date) = ? AND strftime('%m', date) = ?`
     ).all(String(y), String(m).padStart(2, '0'));
 
+    // 공식 출근 시간 설정 로드
+    const settingsRows = await db.prepare('SELECT key, value FROM settings').all();
+    const cfg = {};
+    settingsRows.forEach(r => { cfg[r.key] = r.value; });
+    const officeStart = cfg.office_start || '10:00';
+    const fieldWeekdayStart = cfg.field_weekday_start || '13:00';
+    const fieldWeekendStart = cfg.field_weekend_start || '09:30';
+
+    const parseMin = t => { const [h,m] = (t||'00:00').split(':').map(Number); return h*60+m; };
+    function calcOfficialHours(checkIn, checkOut, employeeType, date) {
+      if (!checkIn || !checkOut) return 0;
+      const dow = new Date(date).getDay(); // 0=일, 6=토
+      const isWeekend = dow === 0 || dow === 6;
+      const isField = ['주말고정','주말'].includes(employeeType);
+      const officialStartStr = isField ? (isWeekend ? fieldWeekendStart : fieldWeekdayStart) : officeStart;
+      const officialStart = parseMin(officialStartStr);
+      const actualStart = parseMin(checkIn);
+      const end = parseMin(checkOut);
+      const effectiveStart = Math.max(actualStart, officialStart);
+      const totalMins = end - effectiveStart;
+      if (totalMins <= 0) return 0;
+      return Math.round(totalMins / 30) * 0.5;
+    }
+
     const manualHours = await db.prepare(
       `SELECT * FROM timesheet_manual_hours WHERE year = ? AND month = ?`
     ).all(y, m);
@@ -44,10 +68,8 @@ router.get('/', requireSuperAdmin, async (req, res) => {
       attendance.filter(a => a.user_id === emp.id).forEach(att => {
         if (att.check_in && att.check_out) {
           const day = parseInt(att.date.split('-')[2]);
-          const [ih, im] = att.check_in.split(':').map(Number);
-          const [oh, om] = att.check_out.split(':').map(Number);
-          const hours = ((oh * 60 + om) - (ih * 60 + im)) / 60;
-          attDaily[day] = Math.round(hours * 2) / 2;
+          const hours = calcOfficialHours(att.check_in, att.check_out, emp.employee_type, att.date);
+          if (hours > 0) attDaily[day] = hours;
         }
       });
 

@@ -76,6 +76,11 @@ const Attendance = {
             📋 출퇴근 기록
             ${isAdmin ? '<button class="btn btn-primary btn-sm" style="margin-left:auto" onclick="Attendance.showForm()">+ 기록 추가</button>' : ''}
           </div>
+          <div class="tabs" style="margin-bottom:0">
+            <button class="tab active" onclick="Attendance.switchView(this,'list')">목록 보기</button>
+            ${isAdmin ? '<button class="tab" onclick="Attendance.switchView(this,\'calendar\')">달력 보기</button>' : ''}
+          </div>
+          <div id="att-list-view">
           <div class="filter-bar">
             ${isAdmin ? `<select id="att-user" onchange="Attendance.reload()">
               <option value="">전체 직원</option>
@@ -93,6 +98,18 @@ const Attendance = {
               <thead><tr>${isAdmin?'<th>직원</th>':''}<th>날짜</th><th>출근</th><th>퇴근</th><th>근무시간</th><th>유형</th><th>비고</th><th>수정요청</th>${isAdmin?'<th>관리</th>':''}</tr></thead>
               <tbody id="att-tbody"></tbody>
             </table>
+          </div>
+          </div><!-- /att-list-view -->
+          <div id="att-cal-view" style="display:none">
+            <div class="filter-bar">
+              <select id="cal-year" onchange="Attendance.renderCalendar()">
+                ${[now.getFullYear(), now.getFullYear()-1].map(y => `<option ${y===now.getFullYear()?'selected':''}>${y}</option>`).join('')}
+              </select>
+              <select id="cal-month" onchange="Attendance.renderCalendar()">
+                ${Array.from({length:12},(_,i)=>`<option value="${i+1}" ${i+1===now.getMonth()+1?'selected':''}>${i+1}월</option>`).join('')}
+              </select>
+            </div>
+            <div id="att-calendar"></div>
           </div>
         </div>
 
@@ -179,6 +196,97 @@ const Attendance = {
         <td>${r.reviewed_at?.slice(0,16) || '-'}</td>
       </tr>`;
     }).join('');
+  },
+
+  switchView(btn, view) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('att-list-view').style.display = view === 'list' ? '' : 'none';
+    document.getElementById('att-cal-view').style.display = view === 'calendar' ? '' : 'none';
+    if (view === 'calendar') this.renderCalendar();
+  },
+
+  async renderCalendar() {
+    const calEl = document.getElementById('att-calendar');
+    if (!calEl) return;
+    const year = parseInt(Utils.val('cal-year')) || new Date().getFullYear();
+    const month = parseInt(document.getElementById('cal-month')?.value) || new Date().getMonth() + 1;
+    const days = new Date(year, month, 0).getDate();
+    const getDow = (d) => new Date(year, month-1, d).getDay();
+    const dowNames = ['일','월','화','수','목','금','토'];
+
+    // 해당 월 데이터 로드
+    const data = await API.get(`/api/attendance?year=${year}&month=${month}`);
+
+    // 날짜별 그룹화
+    const byDay = {};
+    data.forEach(a => {
+      const d = parseInt(a.date.split('-')[2]);
+      if (!byDay[d]) byDay[d] = [];
+      byDay[d].push(a);
+    });
+
+    // 달력 그리기
+    let html = `<style>
+      .cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; }
+      .cal-day-header { text-align:center; font-size:12px; font-weight:600; padding:6px; background:#1b4332; color:#fff; border-radius:6px; }
+      .cal-day-header.sun { color:#ff9999; }
+      .cal-day-header.sat { color:#99ccff; }
+      .cal-cell { border:1px solid #dee2e6; border-radius:6px; padding:6px; min-height:90px; background:#fff; font-size:11px; }
+      .cal-cell.today { border-color:#1b4332; border-width:2px; }
+      .cal-cell.empty { background:#f8f9fa; border:none; }
+      .cal-date { font-weight:600; margin-bottom:4px; font-size:13px; }
+      .cal-date.sun { color:#dc3545; }
+      .cal-date.sat { color:#1971c2; }
+      .cal-entry { display:flex; justify-content:space-between; padding:2px 4px; border-radius:4px; margin-bottom:2px; font-size:10px; }
+      .cal-entry.present { background:#d1fae5; }
+      .cal-entry.absent { background:#fee2e2; }
+    </style>
+    <div class="cal-grid">
+      ${dowNames.map((d,i) => `<div class="cal-day-header ${i===0?'sun':i===6?'sat':''}">${d}</div>`).join('')}
+    `;
+
+    // 첫날 요일 맞추기
+    const firstDow = getDow(1);
+    for (let i = 0; i < firstDow; i++) html += '<div class="cal-cell empty"></div>';
+
+    const todayStr = Utils.today();
+    for (let d = 1; d <= days; d++) {
+      const dow = getDow(d);
+      const dateStr = `${year}-${String(month).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+      const isToday = dateStr === todayStr;
+      const isSun = dow === 0, isSat = dow === 6;
+      const entries = byDay[d] || [];
+
+      html += `<div class="cal-cell ${isToday?'today':''}">
+        <div class="cal-date ${isSun?'sun':isSat?'sat':''}">${d}</div>`;
+
+      if (entries.length === 0) {
+        html += '';
+      } else {
+        entries.forEach(a => {
+          const hasOut = !!a.check_out;
+          let workHours = '';
+          if (a.check_in && a.check_out) {
+            const [ih,im] = a.check_in.split(':').map(Number);
+            const [oh,om] = a.check_out.split(':').map(Number);
+            const mins = (oh*60+om)-(ih*60+im);
+            if (mins > 0) workHours = `(${Math.floor(mins/60)}h${mins%60?mins%60+'m':''})`;
+          }
+          html += `<div class="cal-entry ${hasOut?'present':'absent'}">
+            <span>${a.name}</span>
+            <span>${a.check_in||'?'} ${a.check_out?'→'+a.check_out:''} ${workHours}</span>
+          </div>`;
+        });
+      }
+      html += '</div>';
+    }
+
+    // 마지막 주 빈칸
+    const lastDow = getDow(days);
+    for (let i = lastDow + 1; i <= 6; i++) html += '<div class="cal-cell empty"></div>';
+    html += '</div>';
+    calEl.innerHTML = html;
   },
 
   startClock() {

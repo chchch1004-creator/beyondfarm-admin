@@ -75,19 +75,27 @@ const Settings = {
       <!-- 기타 설정 -->
       <div class="card" style="max-width:640px;margin-top:0">
         <div class="card-title">⚙️ 근무 기준 설정</div>
+        <p style="color:#6c757d;font-size:12px;margin-bottom:16px">공식 출근 시간 이전에 출근한 경우 근무표에는 공식 시간부터 계산됩니다.</p>
         <div class="form-grid">
           <div class="form-group">
             <label>기본 연차 일수</label>
             <input id="s-annual" type="number" value="${cfg.annual_days || 15}" min="1">
           </div>
           <div class="form-group">
-            <label>정시 출근 기준</label>
-            <input id="s-workon" type="time" value="${cfg.work_start || '09:00'}">
+            <label>사무실 공식 출근 시간</label>
+            <input id="s-office-start" type="time" value="${cfg.office_start || '10:00'}">
           </div>
           <div class="form-group">
-            <label>정시 퇴근 기준</label>
-            <input id="s-workoff" type="time" value="${cfg.work_end || '18:00'}">
+            <label>현장 공식 출근 시간 (평일)</label>
+            <input id="s-field-weekday" type="time" value="${cfg.field_weekday_start || '13:00'}">
           </div>
+          <div class="form-group">
+            <label>현장 공식 출근 시간 (주말)</label>
+            <input id="s-field-weekend" type="time" value="${cfg.field_weekend_start || '09:30'}">
+          </div>
+        </div>
+        <div style="padding:12px;background:#fff3cd;border-radius:8px;font-size:12px;margin-bottom:12px">
+          💡 <strong>손님이 일찍 와서 조기 출근해야 하는 경우:</strong> 근무표에서 해당 날짜 칸을 클릭해 직접 시간을 입력(빨간색 표시)하면 됩니다.
         </div>
         <div class="form-actions">
           <button class="btn btn-primary" onclick="Settings.saveGeneral()">저장</button>
@@ -158,8 +166,9 @@ const Settings = {
     try {
       await API.post('/api/settings', {
         annual_days: Utils.val('s-annual'),
-        work_start: Utils.val('s-workon'),
-        work_end: Utils.val('s-workoff'),
+        office_start: Utils.val('s-office-start'),
+        field_weekday_start: Utils.val('s-field-weekday'),
+        field_weekend_start: Utils.val('s-field-weekend'),
       });
       Utils.showToast('설정이 저장되었습니다.');
     } catch (e) { Utils.showToast(e.message, 'error'); }
