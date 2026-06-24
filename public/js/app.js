@@ -69,6 +69,15 @@ const App = {
     }
   },
 
+  toggleSidebar() {
+    document.getElementById('sidebar').classList.toggle('open');
+    document.getElementById('sidebar-overlay').classList.toggle('open');
+  },
+  closeSidebar() {
+    document.getElementById('sidebar').classList.remove('open');
+    document.getElementById('sidebar-overlay').classList.remove('open');
+  },
+
   async logout() {
     await API.post('/api/auth/logout', {});
     App.user = null;
@@ -105,6 +114,7 @@ const App = {
 
     const pages = { dashboard: Dashboard, employees: Employees, attendance: Attendance, leaves: Leaves, salary: Salary, finance: Finance, inventory: Inventory, settings: Settings, mypage: MyPage, timesheet: Timesheet };
     pages[page]?.render();
+    App.closeSidebar(); // 모바일에서 메뉴 선택 후 사이드바 닫기
   }
 };
 

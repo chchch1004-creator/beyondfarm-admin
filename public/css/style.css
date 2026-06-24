@@ -143,13 +143,85 @@ tr:hover td { background: #f8f9fa; }
 /* ── 재고 부족 경고 ── */
 .low-stock { background: #fff3cd; }
 
+/* ── 햄버거 버튼 ── */
+#hamburger {
+  display: none; position: fixed; top: 12px; left: 12px; z-index: 200;
+  background: var(--primary); border: none; border-radius: 8px; color: #fff;
+  width: 40px; height: 40px; font-size: 20px; cursor: pointer; align-items: center; justify-content: center;
+}
+#sidebar-overlay {
+  display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 150;
+}
+
 /* ── 반응형 ── */
 @media (max-width: 768px) {
-  #sidebar { width: 60px; }
-  #sidebar .logo p, #sidebar nav a span, #sidebar .nav-section, #sidebar .user-info .name, #sidebar .user-info .role { display: none; }
-  #sidebar nav a { justify-content: center; padding: 12px; }
-  #sidebar .user-info button { padding: 8px; font-size: 18px; }
-  #sidebar .user-info button span { display: none; }
+  #hamburger { display: flex; }
+
+  #sidebar {
+    position: fixed; left: -260px; top: 0; bottom: 0; width: 240px !important;
+    z-index: 160; transition: left 0.25s ease; box-shadow: 4px 0 20px rgba(0,0,0,0.3);
+  }
+  #sidebar.open { left: 0; }
+  #sidebar-overlay.open { display: block; }
+
+  #main { width: 100%; }
+  #topbar { padding: 0 12px 0 56px; height: 52px; }
+  #topbar h2 { font-size: 14px; }
+  #topbar-time { display: none; }
+  #content { padding: 12px; }
+
+  /* 카드 */
+  .card { padding: 14px; margin-bottom: 14px; }
+  .card-title { font-size: 14px; flex-wrap: wrap; gap: 6px; }
+
+  /* 통계 그리드 */
+  .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .stat-card { padding: 14px; gap: 10px; }
+  .stat-icon { width: 40px; height: 40px; font-size: 18px; }
+  .stat-value { font-size: 18px; }
+
+  /* 폼 */
+  .form-grid { grid-template-columns: 1fr !important; }
+  .form-actions { flex-direction: column; }
+  .form-actions .btn { width: 100%; justify-content: center; }
+
+  /* 버튼 */
+  .btn { padding: 10px 14px; font-size: 13px; min-height: 40px; }
+  .btn-sm { padding: 8px 12px; font-size: 12px; min-height: 36px; }
+
+  /* 테이블 */
+  .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  table { min-width: 500px; }
+  th, td { padding: 8px 8px !important; font-size: 12px; }
+
+  /* 필터바 */
+  .filter-bar { gap: 8px; }
+  .filter-bar select, .filter-bar input { flex: 1; min-width: 0; font-size: 13px; }
+
+  /* 모달 */
+  .modal { width: 96vw; max-width: none; padding: 18px; margin: 8px; }
+
+  /* 출퇴근 버튼 */
+  .checkin-btn { width: 130px !important; height: 130px !important; font-size: 15px !important; }
+  #clock { font-size: 32px !important; }
+
+  /* 탭 */
+  .tabs { overflow-x: auto; flex-wrap: nowrap !important; -webkit-overflow-scrolling: touch; }
+  .tab { white-space: nowrap; padding: 8px 12px; }
+
+  /* 로그인 카드 */
+  .login-card { width: 92vw; padding: 28px 20px; }
+
+  /* 직원 테이블 가로 스크롤 */
+  #emp-table { min-width: 700px; }
+
+  /* 근무표 */
+  #ts-table { font-size: 10px !important; }
+}
+
+@media (max-width: 400px) {
+  .stats-grid { grid-template-columns: 1fr; }
+  .checkin-btn { width: 110px !important; height: 110px !important; }
 }
 
 .empty-state { text-align: center; padding: 48px; color: var(--text-muted); }
