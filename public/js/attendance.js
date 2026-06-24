@@ -78,7 +78,7 @@ const Attendance = {
           </div>
           <div class="tabs" style="margin-bottom:0">
             <button class="tab active" onclick="Attendance.switchView(this,'list')">목록 보기</button>
-            ${isAdmin ? '<button class="tab" onclick="Attendance.switchView(this,\'calendar\')">달력 보기</button>' : ''}
+            <button class="tab" onclick="Attendance.switchView(this,'calendar')">달력 보기</button>
           </div>
           <div id="att-list-view">
           <div class="filter-bar">
@@ -215,7 +215,8 @@ const Attendance = {
     if (!calEl) return;
     const year = parseInt(Utils.val('cal-year')) || new Date().getFullYear();
     const month = parseInt(document.getElementById('cal-month')?.value) || new Date().getMonth() + 1;
-    const userId = document.getElementById('cal-user')?.value || '';
+    const isAdmin = ['admin','superadmin'].includes(App.user.role);
+    const userId = isAdmin ? (document.getElementById('cal-user')?.value || '') : String(App.user.id);
     const days = new Date(year, month, 0).getDate();
     const getDow = (d) => new Date(year, month-1, d).getDay();
     const dowNames = ['일','월','화','수','목','금','토'];

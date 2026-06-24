@@ -1,5 +1,7 @@
 const Employees = {
   data: [],
+  sortKey: 'name',
+  sortDir: 1,
 
   calcDday(dateStr, type) {
     if (!dateStr) return { text: '-', style: '' };
@@ -65,13 +67,10 @@ const Employees = {
               </colgroup>
               <thead>
                 <tr style="background:#f8f9fa">
-                  <th class="resizable-th">이름</th>
-                  <th class="resizable-th">부서</th>
-                  <th class="resizable-th">직급</th>
-                  <th class="resizable-th">입사일</th>
-                  <th class="resizable-th">입사 D-day</th>
-                  <th class="resizable-th">생일</th>
-                  <th class="resizable-th">생일 D-day</th>
+                  ${[['name','이름'],['department','부서'],['position','직급'],['hire_date','입사일'],['hire_dday','입사 D-day'],['birth_date','생일'],['birth_dday','생일 D-day']].map(([k,l])=>`
+                    <th class="resizable-th" onclick="Employees.sortBy('${k}')" style="cursor:pointer;user-select:none">
+                      ${l} ${Employees.sortKey===k?(Employees.sortDir===1?'▲':'▼'):''}
+                    </th>`).join('')}
                   ${isAdmin ? '<th class="resizable-th">권한</th>' : ''}
                   ${isAdmin ? '<th class="resizable-th">시급</th>' : ''}
                   ${isAdmin ? '<th class="resizable-th">관리</th>' : ''}
@@ -89,15 +88,38 @@ const Employees = {
     }
   },
 
+  sortBy(key) {
+    if (this.sortKey === key) this.sortDir *= -1;
+    else { this.sortKey = key; this.sortDir = 1; }
+    this.filter();
+  },
+
   filter() {
     const status = document.getElementById('emp-status-filter')?.value || '';
     const search = document.getElementById('emp-search')?.value?.toLowerCase() || '';
     const isAdmin = ['admin','superadmin'].includes(App.user.role);
     const roleLabel = { superadmin:'총괄관리자', admin:'관리자', employee:'직원' };
-    const rows = this.data.filter(e =>
+    let rows = this.data.filter(e =>
       (!status || e.status === status) &&
       (!search || e.name.toLowerCase().includes(search))
     );
+
+    // 정렬
+    const today = new Date(); today.setHours(0,0,0,0);
+    const daysUntil = (dateStr) => {
+      if (!dateStr) return 9999;
+      const [,mm,dd] = dateStr.split('-');
+      let d = new Date(today.getFullYear(), parseInt(mm)-1, parseInt(dd));
+      if (d < today) d = new Date(today.getFullYear()+1, parseInt(mm)-1, parseInt(dd));
+      return Math.floor((d-today)/86400000);
+    };
+    rows.sort((a, b) => {
+      let av, bv;
+      if (this.sortKey === 'hire_dday') { av = daysUntil(a.hire_date); bv = daysUntil(b.hire_date); }
+      else if (this.sortKey === 'birth_dday') { av = daysUntil(a.birth_date); bv = daysUntil(b.birth_date); }
+      else { av = a[this.sortKey] || ''; bv = b[this.sortKey] || ''; }
+      return av < bv ? -this.sortDir : av > bv ? this.sortDir : 0;
+    });
     const tbody = document.getElementById('emp-tbody');
     if (!tbody) return;
     if (rows.length === 0) {
@@ -172,7 +194,7 @@ const Employees = {
           <select id="f-role">
             <option value="employee" ${emp?.role==='employee'?'selected':''}>직원</option>
             <option value="admin" ${emp?.role==='admin'?'selected':''}>관리자</option>
-            <option value="superadmin" ${emp?.role==='superadmin'?'selected':''}>총괄관리자</option>
+            ${App.user.role === 'superadmin' ? `<option value="superadmin" ${emp?.role==='superadmin'?'selected':''}>총괄관리자</option>` : ''}
           </select>
         </div>
         <div class="form-group"><label>시급 (원)</label><input type="number" id="f-hourly" placeholder="예: 10030" value="${emp?.hourly_rate || ''}"></div>

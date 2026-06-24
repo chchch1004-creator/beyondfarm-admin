@@ -10,7 +10,9 @@ const Dashboard = {
         API.get('/api/finance/summary?year=' + new Date().getFullYear()),
       ]);
 
-      const activeEmp = employees.filter(e => e.status === 'active').length;
+      const testKeywords = ['테스트','TEST','관리자'];
+      const isTest = e => testKeywords.some(k => e.name?.includes(k)) || e.name === 'T';
+      const activeEmp = employees.filter(e => e.status === 'active' && !isTest(e)).length;
       const pendingLeaves = leaves.filter(l => l.status === 'pending').length;
       const todayStr = Utils.today();
       const todayAtt = attendance.filter(a => a.date === todayStr);

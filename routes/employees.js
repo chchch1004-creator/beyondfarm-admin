@@ -13,11 +13,15 @@ function requireAdmin(req, res, next) {
 router.get('/', async (req, res) => {
   if (!req.session.user) return res.status(401).json({ error: '로그인 필요' });
   try {
-    if (['admin','superadmin'].includes(req.session.user.role)) {
+    const testFilter = `AND name NOT LIKE '%테스트%' AND name NOT LIKE '%TEST%' AND name NOT LIKE '%관리자%' AND name != 'T'`;
+    if (req.session.user.role === 'superadmin') {
       return res.json(await db.prepare('SELECT id, username, name, role, department, position, phone, email, hire_date, birth_date, status, created_at, employee_type, ssn, bank_name, bank_account, hourly_rate FROM users ORDER BY name').all());
     }
-    // 일반 직원: 전체 목록 조회 가능하지만 민감정보 제외
-    res.json(await db.prepare('SELECT id, name, role, department, position, hire_date, birth_date, status FROM users WHERE status = ? ORDER BY name').all('active'));
+    if (req.session.user.role === 'admin') {
+      return res.json(await db.prepare(`SELECT id, username, name, role, department, position, phone, email, hire_date, birth_date, status, created_at, employee_type, ssn, bank_name, bank_account, hourly_rate FROM users WHERE 1=1 ${testFilter} ORDER BY name`).all());
+    }
+    // 일반 직원: 테스트 계정 제외, 민감정보 제외
+    res.json(await db.prepare(`SELECT id, name, role, department, position, hire_date, birth_date, status FROM users WHERE status = 'active' ${testFilter} ORDER BY name`).all());
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
