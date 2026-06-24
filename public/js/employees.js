@@ -106,19 +106,22 @@ const Employees = {
 
     // 정렬
     const today = new Date(); today.setHours(0,0,0,0);
-    const daysUntil = (dateStr) => {
+    // 기념일/생일까지 남은 일수 (월/일 기준)
+    const daysUntilAnniv = (dateStr) => {
       if (!dateStr) return 9999;
-      const [,mm,dd] = dateStr.split('-');
-      let d = new Date(today.getFullYear(), parseInt(mm)-1, parseInt(dd));
-      if (d < today) d = new Date(today.getFullYear()+1, parseInt(mm)-1, parseInt(dd));
+      const parts = dateStr.split('-');
+      const mm = parseInt(parts[1]), dd = parseInt(parts[2]);
+      let d = new Date(today.getFullYear(), mm-1, dd);
+      if (d < today) d = new Date(today.getFullYear()+1, mm-1, dd);
       return Math.floor((d-today)/86400000);
     };
     rows.sort((a, b) => {
       let av, bv;
-      if (this.sortKey === 'hire_dday') { av = daysUntil(a.hire_date); bv = daysUntil(b.hire_date); }
-      else if (this.sortKey === 'birth_dday') { av = daysUntil(a.birth_date); bv = daysUntil(b.birth_date); }
+      if (this.sortKey === 'hire_dday') { av = daysUntilAnniv(a.hire_date); bv = daysUntilAnniv(b.hire_date); }
+      else if (this.sortKey === 'birth_dday') { av = daysUntilAnniv(a.birth_date); bv = daysUntilAnniv(b.birth_date); }
       else { av = a[this.sortKey] || ''; bv = b[this.sortKey] || ''; }
-      return av < bv ? -this.sortDir : av > bv ? this.sortDir : 0;
+      if (av === bv) return 0;
+      return av < bv ? -this.sortDir : this.sortDir;
     });
     const tbody = document.getElementById('emp-tbody');
     if (!tbody) return;

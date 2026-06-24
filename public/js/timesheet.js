@@ -2,6 +2,14 @@ const Timesheet = {
   data: null,
   currentYear: new Date().getFullYear(),
   currentMonth: new Date().getMonth() + 1,
+  hiddenIds: new Set(),
+  editMode: false,
+  selectedIds: new Set(),
+  isDragging: false,
+
+  getStorageKey() { return `ts-hidden-${this.currentYear}-${this.currentMonth}`; },
+  loadHidden() { try { this.hiddenIds = new Set(JSON.parse(localStorage.getItem(this.getStorageKey()) || '[]')); } catch { this.hiddenIds = new Set(); } },
+  saveHidden() { localStorage.setItem(this.getStorageKey(), JSON.stringify([...this.hiddenIds])); },
 
   async render() {
     if (App.user.role !== 'superadmin') {
@@ -15,6 +23,9 @@ const Timesheet = {
   async load(year, month) {
     this.currentYear = year;
     this.currentMonth = month;
+    this.editMode = false;
+    this.selectedIds = new Set();
+    this.loadHidden();
     try {
       this.data = await API.get(`/api/timesheet?year=${year}&month=${month}`);
       this.renderPage();
@@ -79,7 +90,10 @@ const Timesheet = {
         ssnDisplay = s.length === 13 ? s.substring(0,6)+'-'+s.substring(6) : emp.ssn;
       }
 
-      rowsHtml += `<tr style="border-bottom:1px solid #dee2e6">
+      const isHidden = this.hiddenIds.has(emp.id);
+      rowsHtml += `<tr data-uid="${emp.id}" style="border-bottom:1px solid #dee2e6;${isHidden?'display:none':''}"
+        onmousedown="Timesheet.onRowMouseDown(event,${emp.id})"
+        onmouseover="Timesheet.onRowMouseOver(event,${emp.id})">
         <td style="padding:3px 8px;font-weight:600;white-space:nowrap">${emp.name}</td>
         <td id="total-${emp.id}" style="text-align:center;font-weight:600">${totalHours || ''}</td>
         ${dailyCells}
@@ -122,7 +136,15 @@ const Timesheet = {
 
       <div style="margin-bottom:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         <div class="tabs" style="margin:0;flex-wrap:wrap">${tabs.join('')}</div>
-        <button class="btn btn-secondary btn-sm" style="margin-left:auto" onclick="Timesheet.downloadExcel()">📥 엑셀 다운로드</button>
+        <div style="margin-left:auto;display:flex;gap:6px;align-items:center">
+          <button id="ts-edit-btn" class="btn btn-secondary btn-sm" onclick="Timesheet.toggleEditMode()">✏️ 행 숨김 편집</button>
+          <div id="ts-edit-tools" style="display:none;gap:6px">
+            <button class="btn btn-danger btn-sm" onclick="Timesheet.hideSelected()">숨기기</button>
+            <button class="btn btn-success btn-sm" onclick="Timesheet.showAll()">전체 표시</button>
+            <span id="ts-sel-count" style="font-size:12px;color:#6c757d"></span>
+          </div>
+          <button class="btn btn-secondary btn-sm" onclick="Timesheet.downloadExcel()">📥 엑셀 다운로드</button>
+        </div>
       </div>
 
       <div class="card" style="padding:10px;overflow-x:auto">
@@ -266,6 +288,63 @@ const Timesheet = {
       tfCells[offset+2].textContent = gt.netPay ? Utils.formatNum(gt.localTax) : '';
       tfCells[offset+3].textContent = gt.netPay ? Utils.formatNum(gt.transfer) : '';
     }
+  },
+
+  toggleEditMode() {
+    this.editMode = !this.editMode;
+    this.selectedIds = new Set();
+    const btn = document.getElementById('ts-edit-btn');
+    const tools = document.getElementById('ts-edit-tools');
+    if (btn) btn.style.background = this.editMode ? '#dc3545' : '';
+    if (btn) btn.style.color = this.editMode ? '#fff' : '';
+    if (tools) tools.style.display = this.editMode ? 'flex' : 'none';
+    // 숨긴 행 반투명 표시로 전환 (편집 모드에서는 보이게)
+    document.querySelectorAll('#ts-tbody tr').forEach(tr => {
+      const uid = parseInt(tr.dataset.uid);
+      if (this.hiddenIds.has(uid)) tr.style.display = this.editMode ? '' : 'none';
+      if (this.editMode && this.hiddenIds.has(uid)) tr.style.opacity = '0.35';
+      else tr.style.opacity = '';
+      tr.style.cursor = this.editMode ? 'pointer' : '';
+    });
+  },
+
+  onRowMouseDown(e, uid) {
+    if (!this.editMode) return;
+    // 셀 편집 클릭 방지
+    if (e.target.tagName === 'INPUT') return;
+    this.isDragging = true;
+    this.toggleRowSelect(uid);
+    document.addEventListener('mouseup', () => { this.isDragging = false; }, { once: true });
+  },
+
+  onRowMouseOver(e, uid) {
+    if (!this.editMode || !this.isDragging) return;
+    this.toggleRowSelect(uid);
+  },
+
+  toggleRowSelect(uid) {
+    if (this.selectedIds.has(uid)) this.selectedIds.delete(uid);
+    else this.selectedIds.add(uid);
+    const tr = document.querySelector(`#ts-tbody tr[data-uid="${uid}"]`);
+    if (tr) tr.style.background = this.selectedIds.has(uid) ? '#fff3cd' : '';
+    const cnt = document.getElementById('ts-sel-count');
+    if (cnt) cnt.textContent = this.selectedIds.size > 0 ? `${this.selectedIds.size}행 선택됨` : '';
+  },
+
+  hideSelected() {
+    this.selectedIds.forEach(uid => this.hiddenIds.add(uid));
+    this.saveHidden();
+    this.selectedIds = new Set();
+    this.toggleEditMode(); // 편집모드 종료
+    this.renderPage();
+  },
+
+  showAll() {
+    this.hiddenIds = new Set();
+    this.saveHidden();
+    this.selectedIds = new Set();
+    this.toggleEditMode();
+    this.renderPage();
   },
 
   async saveNote() {

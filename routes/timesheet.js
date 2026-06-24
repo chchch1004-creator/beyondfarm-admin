@@ -17,9 +17,14 @@ router.get('/', requireSuperAdmin, async (req, res) => {
     const days = new Date(y, m, 0).getDate();
 
     const employees = await db.prepare(
-      `SELECT id, name, employee_type, ssn, bank_name, bank_account, hourly_rate
+      `SELECT id, name, employee_type, ssn, bank_name, bank_account, hourly_rate, hire_date
        FROM users WHERE status = 'active' ORDER BY
-       CASE employee_type WHEN '소장' THEN 1 WHEN '주말고정' THEN 2 WHEN '주말' THEN 3 WHEN '주주' THEN 4 ELSE 0 END, name`
+       CASE
+         WHEN name IN ('조상희','조상하','정재호','소재훈') THEN 2
+         WHEN name LIKE '%관리자%' OR name LIKE '%테스트%' OR name LIKE '%TEST%' OR name = 'T' THEN 3
+         ELSE 1
+       END,
+       hire_date ASC, name`
     ).all();
 
     const attendance = await db.prepare(
