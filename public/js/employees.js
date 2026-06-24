@@ -69,7 +69,7 @@ const Employees = {
                 <tr style="background:#f8f9fa">
                   ${[['name','이름'],['department','부서'],['position','직급'],['hire_date','입사일'],['hire_dday','입사 D-day'],['birth_date','생일'],['birth_dday','생일 D-day']].map(([k,l])=>`
                     <th class="resizable-th" onclick="Employees.sortBy('${k}')" style="cursor:pointer;user-select:none">
-                      ${l} ${Employees.sortKey===k?(Employees.sortDir===1?'▲':'▼'):''}
+                      ${l} <span id="sort-arr-${k}"></span>
                     </th>`).join('')}
                   ${isAdmin ? '<th class="resizable-th">권한</th>' : ''}
                   ${isAdmin ? '<th class="resizable-th">시급</th>' : ''}
@@ -91,6 +91,11 @@ const Employees = {
   sortBy(key) {
     if (this.sortKey === key) this.sortDir *= -1;
     else { this.sortKey = key; this.sortDir = 1; }
+    // 화살표 업데이트
+    ['name','department','position','hire_date','hire_dday','birth_date','birth_dday'].forEach(k => {
+      const el = document.getElementById(`sort-arr-${k}`);
+      if (el) el.textContent = k === this.sortKey ? (this.sortDir === 1 ? ' ▲' : ' ▼') : '';
+    });
     this.filter();
   },
 
@@ -115,11 +120,20 @@ const Employees = {
       if (d < today) d = new Date(today.getFullYear()+1, mm-1, dd);
       return Math.floor((d-today)/86400000);
     };
+    // 입사일로부터 경과일 계산 (D+ 값)
+    const elapsed = (dateStr) => {
+      if (!dateStr) return -1;
+      return Math.floor((today - new Date(dateStr)) / 86400000);
+    };
     rows.sort((a, b) => {
       let av, bv;
-      if (this.sortKey === 'hire_dday') { av = daysUntilAnniv(a.hire_date); bv = daysUntilAnniv(b.hire_date); }
-      else if (this.sortKey === 'birth_dday') { av = daysUntilAnniv(a.birth_date); bv = daysUntilAnniv(b.birth_date); }
-      else { av = a[this.sortKey] || ''; bv = b[this.sortKey] || ''; }
+      if (this.sortKey === 'hire_dday') {
+        // D+ 값 기준 (클수록 오래 근무) - sortDir=1이면 내림차순(큰 D+부터)
+        av = elapsed(a.hire_date); bv = elapsed(b.hire_date);
+        return av > bv ? -this.sortDir : av < bv ? this.sortDir : 0;
+      } else if (this.sortKey === 'birth_dday') {
+        av = daysUntilAnniv(a.birth_date); bv = daysUntilAnniv(b.birth_date);
+      } else { av = a[this.sortKey] || ''; bv = b[this.sortKey] || ''; }
       if (av === bv) return 0;
       return av < bv ? -this.sortDir : this.sortDir;
     });

@@ -19,10 +19,17 @@ router.get('/', requireSuperAdmin, async (req, res) => {
     const employees = await db.prepare(
       `SELECT id, name, employee_type, ssn, bank_name, bank_account, hourly_rate, hire_date
        FROM users WHERE status = 'active' ORDER BY
-       CASE
-         WHEN name IN ('조상희','조상하','정재호','소재훈') THEN 2
-         WHEN name LIKE '%관리자%' OR name LIKE '%테스트%' OR name LIKE '%TEST%' OR name = 'T' THEN 3
-         ELSE 1
+       CASE name
+         WHEN '조상희' THEN 101
+         WHEN '조상하' THEN 102
+         WHEN '정재호' THEN 103
+         WHEN '소재훈' THEN 104
+         WHEN '관리자' THEN 105
+         ELSE CASE
+           WHEN name LIKE '%TEST%' OR name = 'T' THEN 106
+           WHEN name LIKE '%테스트%' THEN 107
+           ELSE 0
+         END
        END,
        hire_date ASC, name`
     ).all();
