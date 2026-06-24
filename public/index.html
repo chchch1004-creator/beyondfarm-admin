@@ -41,8 +41,12 @@
   </div>
 </div>
 
-<!-- 모바일 햄버거 -->
-<button id="hamburger" onclick="App.toggleSidebar()">☰</button>
+<!-- 모바일 상단 바 -->
+<div id="mobile-topbar">
+  <button id="hamburger" onclick="App.toggleSidebar()">☰</button>
+  <span class="mobile-title">🌿 비욘더팜</span>
+  <span id="mobile-page-title" style="font-size:13px;color:#6c757d;margin-left:auto"></span>
+</div>
 <div id="sidebar-overlay" onclick="App.closeSidebar()"></div>
 
 <!-- 메인 앱 -->

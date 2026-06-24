@@ -143,11 +143,23 @@ tr:hover td { background: #f8f9fa; }
 /* ── 재고 부족 경고 ── */
 .low-stock { background: #fff3cd; }
 
+/* ── 모바일 상단 안전 여백 바 ── */
+#mobile-topbar {
+  display: none;
+  position: fixed; top: 0; left: 0; right: 0;
+  height: 56px; background: #fff;
+  border-bottom: 1px solid var(--border);
+  z-index: 190; align-items: center; padding: 0 12px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+}
+#mobile-topbar .mobile-title { font-size: 15px; font-weight: 700; color: var(--primary); margin-left: 8px; }
+
 /* ── 햄버거 버튼 ── */
 #hamburger {
-  display: none; position: fixed; top: 12px; left: 12px; z-index: 200;
+  display: none; position: relative; z-index: 200;
   background: var(--primary); border: none; border-radius: 8px; color: #fff;
   width: 40px; height: 40px; font-size: 20px; cursor: pointer; align-items: center; justify-content: center;
+  flex-shrink: 0;
 }
 #sidebar-overlay {
   display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 150;
@@ -156,6 +168,7 @@ tr:hover td { background: #f8f9fa; }
 /* ── 반응형 ── */
 @media (max-width: 768px) {
   #hamburger { display: flex; }
+  #mobile-topbar { display: flex; }
 
   #sidebar {
     position: fixed; left: -260px; top: 0; bottom: 0; width: 240px !important;
@@ -164,10 +177,8 @@ tr:hover td { background: #f8f9fa; }
   #sidebar.open { left: 0; }
   #sidebar-overlay.open { display: block; }
 
-  #main { width: 100%; }
-  #topbar { padding: 0 12px 0 56px; height: 52px; }
-  #topbar h2 { font-size: 14px; }
-  #topbar-time { display: none; }
+  #main { width: 100%; padding-top: 56px; }
+  #topbar { display: none; }
   #content { padding: 12px; }
 
   /* 카드 */

@@ -91,12 +91,14 @@ const Employees = {
   sortBy(key) {
     if (this.sortKey === key) this.sortDir *= -1;
     else { this.sortKey = key; this.sortDir = 1; }
-    // 화살표 업데이트
+    this.filter();
+  },
+
+  updateArrows() {
     ['name','department','position','hire_date','hire_dday','birth_date','birth_dday'].forEach(k => {
       const el = document.getElementById(`sort-arr-${k}`);
       if (el) el.textContent = k === this.sortKey ? (this.sortDir === 1 ? ' ▲' : ' ▼') : '';
     });
-    this.filter();
   },
 
   filter() {
@@ -110,33 +112,42 @@ const Employees = {
     );
 
     // 정렬
-    const today = new Date(); today.setHours(0,0,0,0);
-    // 기념일/생일까지 남은 일수 (월/일 기준)
+    const todayMs = new Date(); todayMs.setHours(0,0,0,0);
+
+    const elapsedDays = (dateStr) => {
+      if (!dateStr) return -1;
+      // YYYY-MM-DD → 로컬 날짜로 파싱
+      const [y,m,d] = dateStr.split('-').map(Number);
+      return Math.floor((todayMs - new Date(y, m-1, d)) / 86400000);
+    };
     const daysUntilAnniv = (dateStr) => {
       if (!dateStr) return 9999;
-      const parts = dateStr.split('-');
-      const mm = parseInt(parts[1]), dd = parseInt(parts[2]);
-      let d = new Date(today.getFullYear(), mm-1, dd);
-      if (d < today) d = new Date(today.getFullYear()+1, mm-1, dd);
-      return Math.floor((d-today)/86400000);
+      const [,m,d] = dateStr.split('-').map(Number);
+      let next = new Date(todayMs.getFullYear(), m-1, d);
+      if (next < todayMs) next = new Date(todayMs.getFullYear()+1, m-1, d);
+      return Math.floor((next - todayMs) / 86400000);
     };
-    // 입사일로부터 경과일 계산 (D+ 값)
-    const elapsed = (dateStr) => {
-      if (!dateStr) return -1;
-      return Math.floor((today - new Date(dateStr)) / 86400000);
-    };
+
     rows.sort((a, b) => {
-      let av, bv;
+      let av, bv, result;
       if (this.sortKey === 'hire_dday') {
-        // D+ 값 기준 (클수록 오래 근무) - sortDir=1이면 내림차순(큰 D+부터)
-        av = elapsed(a.hire_date); bv = elapsed(b.hire_date);
-        return av > bv ? -this.sortDir : av < bv ? this.sortDir : 0;
+        av = elapsedDays(a.hire_date);
+        bv = elapsedDays(b.hire_date);
+        // 첫 클릭: 큰 D+(오래 근무) 먼저 → 내림차순
+        result = bv - av;
       } else if (this.sortKey === 'birth_dday') {
-        av = daysUntilAnniv(a.birth_date); bv = daysUntilAnniv(b.birth_date);
-      } else { av = a[this.sortKey] || ''; bv = b[this.sortKey] || ''; }
-      if (av === bv) return 0;
-      return av < bv ? -this.sortDir : this.sortDir;
+        av = daysUntilAnniv(a.birth_date);
+        bv = daysUntilAnniv(b.birth_date);
+        result = av - bv;
+      } else {
+        av = a[this.sortKey] || '';
+        bv = b[this.sortKey] || '';
+        result = av < bv ? -1 : av > bv ? 1 : 0;
+      }
+      return result * this.sortDir;
     });
+
+    this.updateArrows();
     const tbody = document.getElementById('emp-tbody');
     if (!tbody) return;
     if (rows.length === 0) {

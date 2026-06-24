@@ -101,6 +101,8 @@ const App = {
       timesheet: '근무표'
     };
     document.getElementById('page-title').textContent = titles[page] || page;
+    const mpt = document.getElementById('mobile-page-title');
+    if (mpt) mpt.textContent = titles[page] || page;
 
     // 관리자 전용 메뉴 표시 제어
     const isAdmin = ['admin', 'superadmin'].includes(App.user.role);
