@@ -69,18 +69,18 @@
       <a href="#" onclick="App.goto('attendance')" data-page="attendance">
         <span class="icon">🕐</span><span>출퇴근 관리</span>
       </a>
-      <a href="#" onclick="App.goto('leaves')" data-page="leaves">
+      <a href="#" onclick="App.goto('leaves')" data-page="leaves" id="nav-leaves" class="admin-only">
         <span class="icon">📅</span><span>휴가 관리</span>
       </a>
       <a href="#" onclick="App.goto('salary')" data-page="salary">
         <span class="icon">💰</span><span>급여 관리</span>
       </a>
-      <div class="nav-section">재무관리</div>
-      <a href="#" onclick="App.goto('finance')" data-page="finance">
+      <div class="nav-section admin-only">재무관리</div>
+      <a href="#" onclick="App.goto('finance')" data-page="finance" id="nav-finance" class="admin-only">
         <span class="icon">📒</span><span>수입/지출</span>
       </a>
-      <div class="nav-section">재고관리</div>
-      <a href="#" onclick="App.goto('inventory')" data-page="inventory">
+      <div class="nav-section admin-only">재고관리</div>
+      <a href="#" onclick="App.goto('inventory')" data-page="inventory" id="nav-inventory" class="admin-only">
         <span class="icon">📦</span><span>재고 현황</span>
       </a>
       <div class="nav-section">내 계정</div>

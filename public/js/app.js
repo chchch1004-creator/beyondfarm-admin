@@ -107,6 +107,11 @@ const App = {
     // 관리자 전용 메뉴 표시 제어
     const isAdmin = ['admin', 'superadmin'].includes(App.user.role);
     const isSuperAdmin = App.user.role === 'superadmin';
+
+    // 관리자 전용 메뉴 (휴가관리, 수입/지출, 재고현황, 설정)
+    document.querySelectorAll('.admin-only').forEach(el => {
+      el.style.display = isAdmin ? '' : 'none';
+    });
     ['nav-settings', 'nav-admin-section'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.style.display = isAdmin ? '' : 'none';
@@ -114,6 +119,11 @@ const App = {
     const tsEl = document.getElementById('nav-timesheet');
     if (tsEl) tsEl.style.display = isSuperAdmin ? '' : 'none';
 
+    const adminOnly = ['leaves', 'finance', 'inventory', 'settings'];
+    if (adminOnly.includes(page) && !['admin','superadmin'].includes(App.user.role)) {
+      document.getElementById('content').innerHTML = '<div class="empty-state"><div class="icon">🔒</div>관리자만 접근 가능합니다</div>';
+      return;
+    }
     const pages = { dashboard: Dashboard, employees: Employees, attendance: Attendance, leaves: Leaves, salary: Salary, finance: Finance, inventory: Inventory, settings: Settings, mypage: MyPage, timesheet: Timesheet };
     pages[page]?.render();
     App.closeSidebar(); // 모바일에서 메뉴 선택 후 사이드바 닫기
