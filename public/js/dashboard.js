@@ -37,13 +37,12 @@ const Dashboard = {
       const now = new Date();
       const cy = now.getFullYear(), cm = now.getMonth() + 1;
       let ny = cy, nm = cm + 1; if (nm > 12) { nm = 1; ny++; }
-      const requests = [
-        API.get('/api/employees'),
-        API.get('/api/leaves?year=' + cy),
-        API.get(`/api/sh-timesheet?year=${cy}&month=${cm}`),
-        API.get(`/api/sh-timesheet?year=${ny}&month=${nm}`),
-      ];
-      const [employees, leaves, shTimesheet, shTimesheetNext] = await Promise.all(requests);
+      const [employees, leaves, shTimesheet, shTimesheetNext] = await Promise.all([
+        API.get('/api/employees').catch(() => []),
+        API.get('/api/leaves?year=' + cy).catch(() => []),
+        API.get(`/api/sh-timesheet?year=${cy}&month=${cm}`).catch(() => null),
+        API.get(`/api/sh-timesheet?year=${ny}&month=${nm}`).catch(() => null),
+      ]);
 
       const testKeywords = ['테스트','TEST','관리자'];
       const isTest = e => testKeywords.some(k => e.name?.includes(k)) || e.name === 'T';
@@ -269,10 +268,21 @@ const Dashboard = {
       return `<tr>${cells}</tr>`;
     }).join('');
 
-    return `<table style="width:100%;border-collapse:collapse;font-size:11px">
-      <thead><tr>${thRow}</tr></thead>
-      <tbody>${bodyRows}</tbody>
-    </table>`;
+    const COLORS = { '조상희':'#2d6a4f', '조상하':'#1864ab', '정재호':'#862e9c', '소재훈':'#c0392b' };
+    const summary = employees.map(e => {
+      const cnt = partMap[e.id].size;
+      const color = COLORS[e.name] || '#495057';
+      return `<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:12px;background:${color}15;border:1px solid ${color}40;font-size:11px;font-weight:600;color:${color}">
+        ${nick(e.name)} <span style="font-size:13px;font-weight:700">${cnt}</span>일
+      </span>`;
+    }).join('');
+
+    return `
+      <table style="width:100%;border-collapse:collapse;font-size:11px;table-layout:fixed">
+        <thead><tr>${thRow}</tr></thead>
+        <tbody>${bodyRows}</tbody>
+      </table>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;padding-top:8px;border-top:1px solid #f1f3f5">${summary}</div>`;
   },
 
   openAddEvent(dateStr) {

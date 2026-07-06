@@ -9,8 +9,13 @@ function requireAdmin(req, res, next) {
   next();
 }
 
-// 주주 목록 + 참여 데이터
-router.get('/', requireAdmin, async (req, res) => {
+function requireLogin(req, res, next) {
+  if (!req.session.user) return res.status(401).json({ error: '로그인 필요' });
+  next();
+}
+
+// 주주 목록 + 참여 데이터 (모든 로그인 유저 접근 가능)
+router.get('/', requireLogin, async (req, res) => {
   try {
     const y = parseInt(req.query.year) || new Date().getFullYear();
     const m = parseInt(req.query.month) || new Date().getMonth() + 1;
