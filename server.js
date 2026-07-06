@@ -26,6 +26,7 @@ app.use('/api/inventory', require('./routes/inventory'));
 app.use('/api/settings', require('./routes/settings'));
 app.use('/api/timesheet', require('./routes/timesheet'));
 app.use('/api/gcal', require('./routes/gcal'));
+app.use('/api/sh-timesheet', require('./routes/sh_timesheet'));
 
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));

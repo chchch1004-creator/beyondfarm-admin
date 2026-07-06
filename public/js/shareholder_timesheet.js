@@ -2,14 +2,29 @@ const ShareholderTimesheet = {
   data: null,
   currentYear: new Date().getFullYear(),
   currentMonth: new Date().getMonth() + 1,
-  hiddenIds: new Set(),
-  editMode: false,
-  selectedIds: new Set(),
-  isDragging: false,
 
-  getStorageKey() { return `sh-hidden-${this.currentYear}-${this.currentMonth}`; },
-  loadHidden() { try { this.hiddenIds = new Set(JSON.parse(localStorage.getItem(this.getStorageKey()) || '[]')); } catch { this.hiddenIds = new Set(); } },
-  saveHidden() { localStorage.setItem(this.getStorageKey(), JSON.stringify([...this.hiddenIds])); },
+  // 이름 → 닉네임
+  NICK: { '조상희': '샘', '조상하': '비드', '정재호': '캐리', '소재훈': '빌리' },
+  // 요금
+  RATE_WEEKDAY: 200000,
+  RATE_FRIDAY: 250000,
+  RATE_WEEKEND: 300000,
+
+  nick(name) { return this.NICK[name] || name; },
+
+  dayType(year, month, day) {
+    const dow = new Date(year, month - 1, day).getDay();
+    if (dow === 0 || dow === 6) return 'weekend';
+    if (dow === 5) return 'friday';
+    return 'weekday';
+  },
+
+  rate(year, month, day) {
+    const t = this.dayType(year, month, day);
+    if (t === 'weekend') return this.RATE_WEEKEND;
+    if (t === 'friday') return this.RATE_FRIDAY;
+    return this.RATE_WEEKDAY;
+  },
 
   async render() {
     if (!['admin','superadmin'].includes(App.user.role)) {
@@ -17,40 +32,25 @@ const ShareholderTimesheet = {
       return;
     }
     document.getElementById('content').innerHTML = '<div class="empty-state"><div class="icon">⏳</div>로딩 중...</div>';
-    this.editMode = false;
-    this.selectedIds = new Set();
-    this.loadHidden();
     await this.load(this.currentYear, this.currentMonth);
   },
 
   async load(year, month) {
     this.currentYear = year;
     this.currentMonth = month;
-    this.loadHidden();
     try {
-      const raw = await API.get(`/api/timesheet?year=${year}&month=${month}`);
-      // 주주만 필터
-      raw.employees = raw.employees.filter(e => e.employee_type === '주주');
-      this.data = raw;
+      this.data = await API.get(`/api/sh-timesheet?year=${year}&month=${month}`);
       this.renderPage();
     } catch (e) {
       document.getElementById('content').innerHTML = `<div class="empty-state"><div class="icon">⚠️</div>${e.message}</div>`;
     }
   },
 
-  calc(emp) {
-    const totalHours = Object.values(emp.daily).reduce((s, d) => s + (d.hours || 0), 0);
-    const netPay = Math.round(totalHours * (emp.hourly_rate || 0) + (emp.adj || 0) * 10000 + (emp.adj1 || 0) * 10000);
-    const tax = Math.round(netPay * 0.03);
-    const localTax = Math.round(netPay * 0.003);
-    const transfer = netPay - tax - localTax;
-    return { totalHours, netPay, tax, localTax, transfer };
-  },
-
   renderPage() {
     const { year, month, days, employees, note } = this.data;
     const now = new Date();
 
+    // 월 탭
     const tabs = [];
     const startYear = 2026, startMonth = 6;
     let ty = startYear, tm = startMonth;
@@ -60,122 +60,63 @@ const ShareholderTimesheet = {
       tm++; if (tm > 12) { tm = 1; ty++; }
     }
 
-    const getDow = (d) => new Date(year, month - 1, d).getDay();
-    const dayHeaders = Array.from({length: days}, (_, i) => {
-      const d = i + 1, dow = getDow(d);
-      const c = dow === 0 ? 'color:#ff4444' : dow === 6 ? 'color:#4488ff' : '';
-      return `<th style="${c}">${d}</th>`;
-    }).join('');
+    // 달력 데이터: 참여 Set 구성
+    const partMap = {};
+    employees.forEach(e => { partMap[e.id] = new Set(e.days); });
 
-    let rowsHtml = '';
-    employees.forEach(emp => {
-      const dailyCells = Array.from({length: days}, (_, i) => {
-        const d = i + 1;
-        const dayData = emp.daily[d];
-        const h = dayData?.hours;
-        const isManual = dayData?.is_manual;
-        const dow = getDow(d);
-        const wkColor = dow === 0 ? 'color:#ff4444' : dow === 6 ? 'color:#4488ff' : '';
-        const manualColor = isManual ? 'color:#dc3545;font-weight:600' : wkColor;
-        return `<td id="sh-h-${emp.id}-${d}" style="text-align:center;cursor:pointer;${h ? manualColor : wkColor}"
-          onclick="ShareholderTimesheet.startEdit(this,${emp.id},${d})">${h || ''}</td>`;
-      }).join('');
+    // 달력 HTML 생성
+    const calHtml = this.buildCalendar(year, month, days, employees, partMap);
 
-      const { totalHours, netPay, tax, localTax, transfer } = this.calc(emp);
-      const isHidden = this.hiddenIds.has(emp.id);
-
-      let ssnDisplay = '-';
-      if (emp.ssn) {
-        const s = emp.ssn.replace(/-/g,'');
-        ssnDisplay = s.length === 13 ? s.substring(0,6)+'-'+s.substring(6) : emp.ssn;
-      }
-
-      rowsHtml += `<tr data-uid="${emp.id}" style="border-bottom:1px solid #dee2e6;${isHidden?'display:none':''}"
-        onmousedown="ShareholderTimesheet.onRowMouseDown(event,${emp.id})"
-        onmouseover="ShareholderTimesheet.onRowMouseOver(event,${emp.id})">
-        <td style="padding:3px 8px;font-weight:600;white-space:nowrap">${emp.name}</td>
-        <td id="sh-total-${emp.id}" style="text-align:center;font-weight:600">${totalHours || ''}</td>
-        ${dailyCells}
-        <td id="sh-adj-${emp.id}" style="text-align:center;cursor:pointer;color:#e67700"
-          onclick="ShareholderTimesheet.startEditAdj(this,${emp.id},'adj')">${emp.adj || ''}</td>
-        <td id="sh-adj1-${emp.id}" style="text-align:center;cursor:pointer;color:#e67700"
-          onclick="ShareholderTimesheet.startEditAdj(this,${emp.id},'adj1')">${emp.adj1 || ''}</td>
-        <td id="sh-netpay-${emp.id}" style="text-align:right;padding:3px 6px;white-space:nowrap">${netPay ? Utils.formatNum(netPay) : ''}</td>
-        <td id="sh-tax-${emp.id}" style="text-align:right;padding:3px 4px">${netPay ? Utils.formatNum(tax) : ''}</td>
-        <td id="sh-ltax-${emp.id}" style="text-align:right;padding:3px 4px">${netPay ? Utils.formatNum(localTax) : ''}</td>
-        <td id="sh-transfer-${emp.id}" style="text-align:right;padding:3px 6px;white-space:nowrap">${netPay ? Utils.formatNum(transfer) : ''}</td>
-        <td style="padding:3px 4px;font-size:10px;white-space:nowrap">${ssnDisplay}</td>
-        <td style="padding:3px 4px;font-size:10px;white-space:nowrap">${emp.bank_name ? emp.bank_name+' '+(emp.bank_account||'') : (emp.bank_account||'-')}</td>
-      </tr>`;
-    });
-
-    const grandTotals = employees.reduce((acc, emp) => {
-      const c = this.calc(emp);
-      acc.netPay += c.netPay; acc.tax += c.tax; acc.localTax += c.localTax; acc.transfer += c.transfer;
-      return acc;
-    }, { netPay: 0, tax: 0, localTax: 0, transfer: 0 });
+    // 요약 테이블
+    const summaryHtml = this.buildSummary(year, month, days, employees, partMap);
 
     document.getElementById('content').innerHTML = `
       <style>
-        #sh-table { border-collapse:collapse; font-size:11px; }
-        #sh-table th, #sh-table td { border:1px solid #ccc; }
-        #sh-table thead th { background:#495057; color:#fff; padding:5px 3px; text-align:center; position:sticky; top:0; z-index:2; white-space:nowrap; }
-        #sh-table thead th:first-child { text-align:left; padding-left:8px; }
-        #sh-table tfoot td { background:#495057; color:#fff; padding:5px 4px; font-weight:700; text-align:right; }
-        #sh-table tfoot td:first-child { text-align:left; padding-left:8px; }
-        #sh-table td:hover { background:#fffde7 !important; }
-        .sh-input { width:100%;border:none;text-align:center;background:#fff3cd;font-size:11px;outline:none; }
+        .sh-cal-wrap { overflow-x: auto; }
+        .sh-cal { border-collapse: collapse; width: 100%; min-width: 640px; font-size: 13px; }
+        .sh-cal th { background: #1b4332; color: #fff; text-align: center; padding: 8px 4px; border: 1px solid #495057; font-size: 12px; }
+        .sh-cal td { border: 1px solid #dee2e6; vertical-align: top; padding: 4px; min-width: 80px; }
+        .sh-day-num { font-size: 11px; font-weight: 700; margin-bottom: 4px; padding: 2px 4px; display: inline-block; border-radius: 4px; min-width: 22px; text-align: center; }
+        .sh-day-weekend { background: #fff0f0; }
+        .sh-day-friday { background: #fff8e1; }
+        .sh-name-badge {
+          display: inline-block; padding: 2px 7px; border-radius: 12px; font-size: 11px; font-weight: 600;
+          margin: 1px; cursor: pointer; user-select: none; transition: all 0.15s;
+        }
+        .sh-name-badge.on  { opacity: 1; }
+        .sh-name-badge.off { opacity: 0.2; filter: grayscale(1); }
+        .sh-sum-table { border-collapse: collapse; width: 100%; font-size: 13px; }
+        .sh-sum-table th { background: #1b4332; color: #fff; padding: 8px 12px; text-align: center; border: 1px solid #495057; }
+        .sh-sum-table td { padding: 9px 12px; border: 1px solid #dee2e6; text-align: center; }
+        .sh-sum-table tfoot td { background: #f8f9fa; font-weight: 700; }
       </style>
 
       <div style="margin-bottom:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         <div class="tabs" style="margin:0;flex-wrap:wrap">${tabs.join('')}</div>
-        <div style="margin-left:auto;display:flex;gap:6px;align-items:center">
-          <button id="sh-edit-btn" class="btn btn-secondary btn-sm" onclick="ShareholderTimesheet.toggleEditMode()">✏️ 행 숨김 편집</button>
-          <div id="sh-edit-tools" style="display:none;gap:6px">
-            <button class="btn btn-danger btn-sm" onclick="ShareholderTimesheet.hideSelected()">숨기기</button>
-            <button class="btn btn-success btn-sm" onclick="ShareholderTimesheet.showAll()">전체 표시</button>
-          </div>
-          <button class="btn btn-secondary btn-sm" onclick="ShareholderTimesheet.downloadExcel()">📥 엑셀 다운로드</button>
+        <div style="margin-left:auto;display:flex;gap:6px">
+          <button class="btn btn-secondary btn-sm" onclick="ShareholderTimesheet.downloadExcel()">📥 엑셀</button>
         </div>
       </div>
 
-      <div class="card" style="padding:10px;overflow-x:auto">
-        <div style="font-size:15px;font-weight:700;text-align:center;margin-bottom:8px">${year}년 ${month}월 주주 근무표</div>
-        <table id="sh-table">
-          <thead>
-            <tr>
-              <th style="min-width:72px;text-align:left;padding-left:8px">이름</th>
-              <th style="min-width:32px">합계</th>
-              ${dayHeaders}
-              <th style="min-width:34px;background:#6c5a1e;color:#fff">상여</th>
-              <th style="min-width:34px;background:#6c5a1e;color:#fff">조정</th>
-              <th style="min-width:70px">합계금액</th>
-              <th style="min-width:52px">국세</th>
-              <th style="min-width:52px">지방세</th>
-              <th style="min-width:70px">이체금액</th>
-              <th style="min-width:108px">주민등록번호</th>
-              <th style="min-width:130px">계좌번호</th>
-            </tr>
-          </thead>
-          <tbody id="sh-tbody">${rowsHtml}</tbody>
-          <tfoot>
-            <tr>
-              <td style="text-align:left;padding-left:8px">합계</td>
-              <td></td>
-              ${Array.from({length: days+2}, () => '<td></td>').join('')}
-              <td>${grandTotals.netPay ? Utils.formatNum(grandTotals.netPay) : ''}</td>
-              <td>${grandTotals.netPay ? Utils.formatNum(grandTotals.tax) : ''}</td>
-              <td>${grandTotals.netPay ? Utils.formatNum(grandTotals.localTax) : ''}</td>
-              <td>${grandTotals.netPay ? Utils.formatNum(grandTotals.transfer) : ''}</td>
-              <td colspan="2"></td>
-            </tr>
-          </tfoot>
-        </table>
+      <div class="card">
+        <div style="font-size:16px;font-weight:700;text-align:center;margin-bottom:16px;color:#1b4332">
+          📋 ${year}년 ${month}월 비욘더팜 주주 근무표
+        </div>
+        <p style="font-size:11px;color:#6c757d;text-align:center;margin-bottom:12px">
+          이름 뱃지를 클릭해서 참여 여부를 변경할 수 있습니다 &nbsp;|&nbsp;
+          💰 평일 20만 / 금요일 25만 / 주말 30만원
+        </p>
+        <div class="sh-cal-wrap">${calHtml}</div>
       </div>
 
       <div class="card" style="margin-top:0">
-        <div class="card-title">📝 ${year}년 ${month}월 주주 메모</div>
-        <textarea id="sh-note" style="width:100%;min-height:72px;padding:10px;border:1px solid #dee2e6;border-radius:6px;font-size:13px;resize:vertical">${note}</textarea>
+        <div class="card-title">📊 ${year}년 ${month}월 요약</div>
+        ${summaryHtml}
+      </div>
+
+      <div class="card" style="margin-top:0">
+        <div class="card-title">📝 고려사항 / 메모</div>
+        <textarea id="sh-note" style="width:100%;min-height:80px;padding:10px;border:1px solid #dee2e6;border-radius:6px;font-size:13px;resize:vertical">${note}</textarea>
         <div class="form-actions">
           <button class="btn btn-primary" onclick="ShareholderTimesheet.saveNote()">메모 저장</button>
         </div>
@@ -183,125 +124,226 @@ const ShareholderTimesheet = {
     `;
   },
 
-  startEdit(cell, userId, day) {
-    const emp = this.data.employees.find(e => e.id === userId);
-    const cur = emp.daily[day]?.hours || '';
-    cell.innerHTML = `<input class="sh-input" type="number" step="0.5" min="0" value="${cur}">`;
-    const input = cell.querySelector('input');
-    input.focus(); input.select();
-    const done = () => {
-      const val = parseFloat(input.value);
-      this.applyHours(cell, userId, day, isNaN(val) ? 0 : val);
+  buildCalendar(year, month, days, employees, partMap) {
+    const DOW_KR = ['일','월','화','수','목','금','토'];
+    const COLORS = {
+      '조상희': { on: '#2d6a4f', off: '#2d6a4f' },
+      '조상하': { on: '#1864ab', off: '#1864ab' },
+      '정재호': { on: '#862e9c', off: '#862e9c' },
+      '소재훈': { on: '#c0392b', off: '#c0392b' }
     };
-    input.addEventListener('blur', done);
-    input.addEventListener('keydown', e => {
-      if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); input.blur(); }
-      if (e.key === 'Escape') { this.renderCell(cell, userId, day); }
-    });
+
+    // 날짜를 주 단위로 묶기
+    const firstDow = new Date(year, month - 1, 1).getDay(); // 1일의 요일 (0=일)
+    const weeks = [];
+    let week = new Array(7).fill(null);
+    for (let d = 1; d <= days; d++) {
+      const dow = new Date(year, month - 1, d).getDay();
+      week[dow] = d;
+      if (dow === 6 || d === days) {
+        weeks.push([...week]);
+        week = new Array(7).fill(null);
+      }
+    }
+
+    const thRow = DOW_KR.map((k, i) => {
+      const c = i === 0 ? 'color:#ff8787' : i === 6 ? 'color:#74c0fc' : '';
+      return `<th style="${c}">${k}</th>`;
+    }).join('');
+
+    const bodyRows = weeks.map(wk => {
+      const cells = wk.map((d, dow) => {
+        if (!d) return `<td style="background:#f8f9fa"></td>`;
+        const isWeekend = dow === 0 || dow === 6;
+        const isFriday = dow === 5;
+        const cls = isWeekend ? 'sh-day-weekend' : isFriday ? 'sh-day-friday' : '';
+        const numColor = isWeekend ? '#e03131' : isFriday ? '#e67700' : '#212529';
+
+        const badges = employees.map(emp => {
+          const isOn = partMap[emp.id]?.has(d);
+          const color = COLORS[emp.name]?.on || '#495057';
+          const bgOn = color + '22';
+          const style = isOn
+            ? `background:${bgOn};color:${color};border:1.5px solid ${color}`
+            : `background:#f1f3f5;color:#adb5bd;border:1.5px solid #dee2e6`;
+          return `<span class="sh-name-badge ${isOn ? 'on' : 'off'}"
+            id="badge-${emp.id}-${d}"
+            style="${style}"
+            onclick="ShareholderTimesheet.toggle(${emp.id},${d},this)"
+          >${this.nick(emp.name)}</span>`;
+        }).join('');
+
+        return `<td class="${cls}">
+          <div class="sh-day-num" style="color:${numColor};background:${isWeekend?'#ffe3e3':isFriday?'#fff3bf':'transparent'}">${d}</div>
+          <div style="display:flex;flex-wrap:wrap;gap:2px">${badges}</div>
+        </td>`;
+      }).join('');
+      return `<tr>${cells}</tr>`;
+    }).join('');
+
+    return `<table class="sh-cal"><thead><tr>${thRow}</tr></thead><tbody>${bodyRows}</tbody></table>`;
   },
 
-  async applyHours(cell, userId, day, hours) {
+  buildSummary(year, month, days, employees, partMap) {
+    const rows = employees.map(emp => {
+      let weekday = 0, friday = 0, weekend = 0;
+      partMap[emp.id].forEach(d => {
+        const t = this.dayType(year, month, d);
+        if (t === 'weekend') weekend++;
+        else if (t === 'friday') friday++;
+        else weekday++;
+      });
+      const total = weekday + friday + weekend;
+      const weekdayAmt = weekday * this.RATE_WEEKDAY;
+      const fridayAmt = friday * this.RATE_FRIDAY;
+      const weekendAmt = weekend * this.RATE_WEEKEND;
+      const totalAmt = weekdayAmt + fridayAmt + weekendAmt;
+      const nick = this.nick(emp.name);
+      return { name: emp.name, nick, weekday, friday, weekend, total, weekdayAmt, fridayAmt, weekendAmt, totalAmt };
+    });
+
+    const totals = rows.reduce((a, r) => {
+      a.weekday += r.weekday; a.friday += r.friday; a.weekend += r.weekend; a.total += r.total;
+      a.weekdayAmt += r.weekdayAmt; a.fridayAmt += r.fridayAmt; a.weekendAmt += r.weekendAmt; a.totalAmt += r.totalAmt;
+      return a;
+    }, { weekday:0, friday:0, weekend:0, total:0, weekdayAmt:0, fridayAmt:0, weekendAmt:0, totalAmt:0 });
+
+    const bodyRows = rows.map(r => `
+      <tr>
+        <td style="font-weight:700">${r.nick}<br><span style="font-size:11px;color:#6c757d">${r.name}</span></td>
+        <td>${r.weekday}</td>
+        <td>${r.friday}</td>
+        <td>${r.weekend}</td>
+        <td><strong>${r.total}</strong></td>
+        <td style="color:#2d6a4f">${r.weekdayAmt ? Utils.formatNum(r.weekdayAmt) : '-'}</td>
+        <td style="color:#e67700">${r.fridayAmt ? Utils.formatNum(r.fridayAmt) : '-'}</td>
+        <td style="color:#c0392b">${r.weekendAmt ? Utils.formatNum(r.weekendAmt) : '-'}</td>
+        <td style="font-weight:700;color:#1b4332">${r.totalAmt ? Utils.formatNum(r.totalAmt)+'원' : '-'}</td>
+      </tr>`).join('');
+
+    return `<table class="sh-sum-table">
+      <thead>
+        <tr>
+          <th>이름</th>
+          <th>평일<br><span style="font-size:10px;font-weight:400">월~목</span></th>
+          <th>금요일</th>
+          <th>주말/공휴</th>
+          <th>합계</th>
+          <th>평일금액<br><span style="font-size:10px;font-weight:400">20만원</span></th>
+          <th>금요일금액<br><span style="font-size:10px;font-weight:400">25만원</span></th>
+          <th>주말금액<br><span style="font-size:10px;font-weight:400">30만원</span></th>
+          <th>총합계</th>
+        </tr>
+      </thead>
+      <tbody>${bodyRows}</tbody>
+      <tfoot>
+        <tr>
+          <td>합계</td>
+          <td>${totals.weekday}</td>
+          <td>${totals.friday}</td>
+          <td>${totals.weekend}</td>
+          <td>${totals.total}</td>
+          <td>${totals.weekdayAmt ? Utils.formatNum(totals.weekdayAmt) : '-'}</td>
+          <td>${totals.fridayAmt ? Utils.formatNum(totals.fridayAmt) : '-'}</td>
+          <td>${totals.weekendAmt ? Utils.formatNum(totals.weekendAmt) : '-'}</td>
+          <td>${totals.totalAmt ? Utils.formatNum(totals.totalAmt)+'원' : '-'}</td>
+        </tr>
+      </tfoot>
+    </table>`;
+  },
+
+  async toggle(userId, day, badge) {
     const emp = this.data.employees.find(e => e.id === userId);
-    if (hours > 0) emp.daily[day] = { hours, is_manual: true };
-    else delete emp.daily[day];
-    this.renderCell(cell, userId, day);
-    this.recalcRow(userId);
+    if (!emp) return;
+    const isOn = badge.classList.contains('on');
+    const newState = !isOn;
+
+    // 즉시 UI 업데이트
+    const COLORS = { '조상희': '#2d6a4f', '조상하': '#1864ab', '정재호': '#862e9c', '소재훈': '#c0392b' };
+    const color = COLORS[emp.name] || '#495057';
+    if (newState) {
+      badge.classList.replace('off', 'on');
+      badge.style.cssText = `background:${color}22;color:${color};border:1.5px solid ${color}`;
+      emp.days.push(day);
+    } else {
+      badge.classList.replace('on', 'off');
+      badge.style.cssText = `background:#f1f3f5;color:#adb5bd;border:1.5px solid #dee2e6`;
+      emp.days = emp.days.filter(d => d !== day);
+    }
+
+    // 요약 갱신
+    this.refreshSummary();
+
     try {
-      await API.put('/api/timesheet/hours', { user_id: userId, year: this.currentYear, month: this.currentMonth, day, hours });
+      await API.post('/api/sh-timesheet/toggle', {
+        user_id: userId, year: this.currentYear, month: this.currentMonth, day, participated: newState
+      });
     } catch (e) { Utils.showToast('저장 실패: ' + e.message, 'error'); }
   },
 
-  renderCell(cell, userId, day) {
-    const emp = this.data.employees.find(e => e.id === userId);
-    const dayData = emp.daily[day];
-    const h = dayData?.hours;
-    const isManual = dayData?.is_manual;
-    const dow = new Date(this.currentYear, this.currentMonth - 1, day).getDay();
-    const wkColor = dow === 0 ? '#ff4444' : dow === 6 ? '#4488ff' : '';
-    cell.innerHTML = h || '';
-    cell.style.color = h ? (isManual ? '#dc3545' : wkColor) : wkColor;
-    cell.style.fontWeight = isManual ? '600' : '';
+  refreshSummary() {
+    const { year, month, days, employees } = this.data;
+    const partMap = {};
+    employees.forEach(e => { partMap[e.id] = new Set(e.days); });
+    const summaryEl = document.querySelector('.sh-sum-table')?.closest('div');
+    if (!summaryEl) return;
+    summaryEl.innerHTML = this.buildSummary(year, month, days, employees, partMap);
   },
-
-  startEditAdj(cell, userId, field) {
-    const emp = this.data.employees.find(e => e.id === userId);
-    const cur = emp[field] || '';
-    cell.innerHTML = `<input class="sh-input" type="number" step="0.5" value="${cur}">`;
-    const input = cell.querySelector('input');
-    input.focus(); input.select();
-    const done = () => {
-      const val = parseFloat(input.value) || 0;
-      emp[field] = val;
-      cell.innerHTML = val || '';
-      cell.style.color = '#e67700';
-      this.recalcRow(userId);
-      API.put('/api/timesheet/adjustments', { user_id: userId, year: this.currentYear, month: this.currentMonth, adj: emp.adj || 0, adj1: emp.adj1 || 0 })
-        .catch(e => Utils.showToast('저장 실패: ' + e.message, 'error'));
-    };
-    input.addEventListener('blur', done);
-    input.addEventListener('keydown', e => {
-      if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); input.blur(); }
-      if (e.key === 'Escape') { cell.innerHTML = cur || ''; }
-    });
-  },
-
-  recalcRow(userId) {
-    const emp = this.data.employees.find(e => e.id === userId);
-    const { totalHours, netPay, tax, localTax, transfer } = this.calc(emp);
-    const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
-    set(`sh-total-${userId}`, totalHours || '');
-    set(`sh-netpay-${userId}`, netPay ? Utils.formatNum(netPay) : '');
-    set(`sh-tax-${userId}`, netPay ? Utils.formatNum(tax) : '');
-    set(`sh-ltax-${userId}`, netPay ? Utils.formatNum(localTax) : '');
-    set(`sh-transfer-${userId}`, netPay ? Utils.formatNum(transfer) : '');
-  },
-
-  toggleEditMode() {
-    this.editMode = !this.editMode;
-    this.selectedIds = new Set();
-    const btn = document.getElementById('sh-edit-btn');
-    const tools = document.getElementById('sh-edit-tools');
-    if (btn) { btn.style.background = this.editMode ? '#dc3545' : ''; btn.style.color = this.editMode ? '#fff' : ''; }
-    if (tools) tools.style.display = this.editMode ? 'flex' : 'none';
-    document.querySelectorAll('#sh-tbody tr').forEach(tr => {
-      const uid = parseInt(tr.dataset.uid);
-      if (this.hiddenIds.has(uid)) tr.style.display = this.editMode ? '' : 'none';
-      tr.style.opacity = (this.editMode && this.hiddenIds.has(uid)) ? '0.35' : '';
-      tr.style.cursor = this.editMode ? 'pointer' : '';
-    });
-  },
-
-  onRowMouseDown(e, uid) { if (!this.editMode || e.target.tagName === 'INPUT') return; this.isDragging = true; this.toggleRowSelect(uid); document.addEventListener('mouseup', () => { this.isDragging = false; }, { once: true }); },
-  onRowMouseOver(e, uid) { if (!this.editMode || !this.isDragging) return; this.toggleRowSelect(uid); },
-  toggleRowSelect(uid) {
-    if (this.selectedIds.has(uid)) this.selectedIds.delete(uid); else this.selectedIds.add(uid);
-    const tr = document.querySelector(`#sh-tbody tr[data-uid="${uid}"]`);
-    if (tr) tr.style.background = this.selectedIds.has(uid) ? '#fff3cd' : '';
-  },
-  hideSelected() { this.selectedIds.forEach(uid => this.hiddenIds.add(uid)); this.saveHidden(); this.selectedIds = new Set(); this.toggleEditMode(); this.renderPage(); },
-  showAll() { this.hiddenIds = new Set(); this.saveHidden(); this.selectedIds = new Set(); this.toggleEditMode(); this.renderPage(); },
 
   async saveNote() {
     const content = document.getElementById('sh-note')?.value || '';
     try {
-      await API.post('/api/timesheet/notes', { year: this.currentYear, month: this.currentMonth, content });
+      await API.post('/api/sh-timesheet/notes', { year: this.currentYear, month: this.currentMonth, content });
       Utils.showToast('메모가 저장되었습니다.');
     } catch (e) { Utils.showToast(e.message, 'error'); }
   },
 
   downloadExcel() {
-    if (!this.data || typeof XLSX === 'undefined') return;
+    if (!this.data || typeof XLSX === 'undefined') return Utils.showToast('XLSX 라이브러리 미로드', 'error');
     const { year, month, days, employees } = this.data;
-    const header = ['이름','합계',...Array.from({length:days},(_,i)=>i+1),'상여','조정','합계금액','국세','지방세','이체금액','주민등록번호','계좌번호'];
-    const rows = [[`${year}년 ${month}월 주주 근무표`], header];
-    employees.forEach(emp => {
-      const { totalHours, netPay, tax, localTax, transfer } = this.calc(emp);
-      const dailyVals = Array.from({length:days}, (_,i) => emp.daily[i+1]?.hours || '');
-      const s = (emp.ssn||'').replace(/-/g,'');
-      const ssn = s.length===13 ? s.substring(0,6)+'-'+s.substring(6) : emp.ssn || '';
-      rows.push([emp.name, totalHours||'', ...dailyVals, emp.adj||'', emp.adj1||'', netPay||'', netPay?tax:'', netPay?localTax:'', netPay?transfer:'', ssn, emp.bank_name ? emp.bank_name+' '+(emp.bank_account||'') : (emp.bank_account||'')]);
+    const partMap = {};
+    employees.forEach(e => { partMap[e.id] = new Set(e.days); });
+
+    const DOW_KR = ['일','월','화','수','목','금','토'];
+    const firstDow = new Date(year, month - 1, 1).getDay();
+    const weeks = [];
+    let week = new Array(7).fill(null);
+    for (let d = 1; d <= days; d++) {
+      const dow = new Date(year, month - 1, d).getDay();
+      week[dow] = d;
+      if (dow === 6 || d === days) { weeks.push([...week]); week = new Array(7).fill(null); }
+    }
+
+    const aoa = [];
+    aoa.push([`${year}년 ${month}월 비욘더팜 주주 근무표`]);
+    aoa.push([]);
+    aoa.push(['', ...DOW_KR]);
+    weeks.forEach(wk => {
+      const row = [''];
+      wk.forEach((d, dow) => {
+        if (!d) { row.push(''); return; }
+        const names = employees.filter(e => partMap[e.id].has(d)).map(e => this.nick(e.name)).join('/');
+        row.push(d + (names ? '\n'+names : ''));
+      });
+      aoa.push(row);
     });
-    const ws = XLSX.utils.aoa_to_sheet(rows);
+
+    aoa.push([]);
+    aoa.push(['이름', '평일(월~목)', '금요일', '주말/공휴', '합계', '평일금액(20만)', '금요일금액(25만)', '주말금액(30만)', '총합계']);
+    let totW=0, totF=0, totWe=0, totAmt=0;
+    employees.forEach(emp => {
+      let w=0, f=0, we=0;
+      partMap[emp.id].forEach(d => {
+        const t = this.dayType(year, month, d);
+        if (t==='weekend') we++; else if (t==='friday') f++; else w++;
+      });
+      const amt = w*this.RATE_WEEKDAY + f*this.RATE_FRIDAY + we*this.RATE_WEEKEND;
+      totW+=w; totF+=f; totWe+=we; totAmt+=amt;
+      aoa.push([`${this.nick(emp.name)}(${emp.name})`, w, f, we, w+f+we, w*this.RATE_WEEKDAY, f*this.RATE_FRIDAY, we*this.RATE_WEEKEND, amt]);
+    });
+    aoa.push(['합계', totW, totF, totWe, totW+totF+totWe, totW*this.RATE_WEEKDAY, totF*this.RATE_FRIDAY, totWe*this.RATE_WEEKEND, totAmt]);
+
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, `${month}월 주주근무표`);
     XLSX.writeFile(wb, `${year}년_${month}월_주주근무표.xlsx`);

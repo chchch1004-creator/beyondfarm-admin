@@ -162,6 +162,22 @@ async function init() {
     UNIQUE(year, month)
   )`);
 
+  tables.push(`CREATE TABLE IF NOT EXISTS shareholder_participation (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    year INTEGER NOT NULL,
+    month INTEGER NOT NULL,
+    day INTEGER NOT NULL,
+    participated INTEGER NOT NULL DEFAULT 0,
+    UNIQUE(user_id, year, month, day)
+  )`);
+  tables.push(`CREATE TABLE IF NOT EXISTS sh_notes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    year INTEGER NOT NULL,
+    month INTEGER NOT NULL,
+    content TEXT,
+    UNIQUE(year, month)
+  )`);
   tables.push(`CREATE TABLE IF NOT EXISTS google_tokens (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL UNIQUE,
