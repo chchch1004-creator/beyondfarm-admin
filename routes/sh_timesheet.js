@@ -62,6 +62,25 @@ router.post('/toggle', requireAdmin, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// 배치 저장 (자동입력용)
+router.post('/batch', requireAdmin, async (req, res) => {
+  try {
+    const { year, month, days } = req.body; // days: [{user_id, day, participated}]
+    if (!Array.isArray(days)) return res.status(400).json({ error: 'days 배열 필요' });
+    for (const item of days) {
+      if (item.participated) {
+        await db.prepare(`INSERT INTO shareholder_participation (user_id, year, month, day, participated)
+          VALUES (?,?,?,?,1) ON CONFLICT(user_id,year,month,day) DO UPDATE SET participated=1`)
+          .run(item.user_id, year, month, item.day);
+      } else {
+        await db.prepare(`DELETE FROM shareholder_participation WHERE user_id=? AND year=? AND month=? AND day=?`)
+          .run(item.user_id, year, month, item.day);
+      }
+    }
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // 메모 저장
 router.post('/notes', requireAdmin, async (req, res) => {
   try {

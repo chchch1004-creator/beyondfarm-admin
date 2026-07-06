@@ -139,6 +139,7 @@ const ShareholderTimesheet = {
       <div style="margin-bottom:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         <div class="tabs" style="margin:0;flex-wrap:wrap">${tabs.join('')}</div>
         <div style="margin-left:auto;display:flex;gap:6px">
+          <button class="btn btn-primary btn-sm" onclick="ShareholderTimesheet.autoFill()">📅 자동 입력</button>
           <button class="btn btn-secondary btn-sm" onclick="ShareholderTimesheet.downloadExcel()">📥 엑셀</button>
         </div>
       </div>
@@ -332,6 +333,150 @@ const ShareholderTimesheet = {
       await API.post('/api/sh-timesheet/notes', { year: this.currentYear, month: this.currentMonth, content });
       Utils.showToast('메모가 저장되었습니다.');
     } catch (e) { Utils.showToast(e.message, 'error'); }
+  },
+
+  // 규칙 기반 자동 입력
+  // 1. 샘: 일요일, 월요일(공휴일 제외)
+  // 2. 비드→캐리→빌리 순환: 화~금 평일(공휴일 제외)
+  // 3. 비드→빌리 순환: 토요일 + 공휴일(일요일 제외, 월요일 공휴일 포함)
+  // 특정 달의 시작 시점에서 순환 인덱스를 계산 (2026-06부터 연속 누적)
+  _calcRotationStart(targetYear, targetMonth) {
+    const START_YEAR = 2026, START_MONTH = 6;
+    let wdIdx = 0, weIdx = 0;
+    let y = START_YEAR, m = START_MONTH;
+    while (y < targetYear || (y === targetYear && m < targetMonth)) {
+      const d = new Date(y, m, 0).getDate();
+      for (let day = 1; day <= d; day++) {
+        const dow = new Date(y, m - 1, day).getDay();
+        const isHol = this.isHoliday(y, m, day);
+        const isSun = dow === 0;
+        const isMon = dow === 1;
+        const isSat = dow === 6;
+        if (isSun) continue;
+        if (isMon && !isHol) continue;
+        if (isHol || isSat) weIdx++;
+        else wdIdx++;
+      }
+      m++; if (m > 12) { m = 1; y++; }
+    }
+    return { wdIdx, weIdx };
+  },
+
+  autoFill() {
+    if (!this.data) return;
+    const { year, month, days, employees } = this.data;
+
+    const sam  = employees.find(e => e.name === '조상희');
+    const bid  = employees.find(e => e.name === '조상하');
+    const cari = employees.find(e => e.name === '정재호');
+    const billy= employees.find(e => e.name === '소재훈');
+    if (!sam || !bid || !cari || !billy) return Utils.showToast('주주 직원 4명이 모두 등록되어야 합니다', 'error');
+
+    const weekdayRot = [bid, cari, billy]; // 화~금 비공휴일
+    const weekendRot = [bid, billy];       // 토·공휴일
+
+    // 이전 달까지 누적 인덱스로 이번 달 시작점 계산
+    const { wdIdx: wdStart, weIdx: weStart } = this._calcRotationStart(year, month);
+    let wdIdx = wdStart, weIdx = weStart;
+
+    // 날짜별 담당자 계산
+    const schedule = {}; // { day: [userId, ...] }
+    for (let d = 1; d <= days; d++) {
+      const dow = new Date(year, month - 1, d).getDay(); // 0=일
+      const isHol = this.isHoliday(year, month, d);
+      const isSun = dow === 0;
+      const isMon = dow === 1;
+      const isSat = dow === 6;
+
+      if (isSun) {
+        schedule[d] = [sam.id];
+      } else if (isMon && !isHol) {
+        schedule[d] = [sam.id];
+      } else if (isHol || isSat) {
+        // 토요일 + 모든 공휴일(일요일 포함하지만 일요일은 위에서 처리)
+        schedule[d] = [weekendRot[weIdx % 2].id];
+        weIdx++;
+      } else {
+        // 화~금 비공휴일
+        schedule[d] = [weekdayRot[wdIdx % 3].id];
+        wdIdx++;
+      }
+    }
+
+    // 미리보기 생성
+    const DOW_KR = ['일','월','화','수','목','금','토'];
+    const NICK = this.NICK;
+    const nameOf = id => employees.find(e => e.id === id)?.name || '';
+    const nickOf = id => NICK[nameOf(id)] || nameOf(id);
+
+    const rows = [];
+    for (let d = 1; d <= days; d++) {
+      const dow = new Date(year, month - 1, d).getDay();
+      const isHol = this.isHoliday(year, month, d);
+      const assigned = schedule[d].map(nickOf).join(', ');
+      const typeLabel = isHol ? '🔴공휴' : dow === 0 ? '🔴일' : dow === 6 ? '🔵토' : DOW_KR[dow];
+      rows.push(`<tr><td style="text-align:center;padding:3px 8px">${d}</td><td style="text-align:center">${typeLabel}</td><td style="padding:3px 8px;font-weight:600">${assigned}</td></tr>`);
+    }
+
+    const preview = `
+      <div style="font-size:13px;margin-bottom:10px;color:#495057">
+        <b>${year}년 ${month}월</b> 근무표를 아래 규칙으로 자동 입력합니다.<br>
+        기존 데이터는 모두 덮어씁니다.
+      </div>
+      <div style="max-height:300px;overflow-y:auto;border:1px solid #dee2e6;border-radius:6px">
+        <table style="width:100%;border-collapse:collapse;font-size:12px">
+          <thead><tr style="background:#1b4332;color:#fff"><th style="padding:4px 8px">일</th><th>요일</th><th style="padding:4px 8px">담당</th></tr></thead>
+          <tbody>${rows.join('')}</tbody>
+        </table>
+      </div>`;
+
+    // 확인 모달
+    const modal = document.createElement('div');
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center';
+    modal.innerHTML = `
+      <div style="background:#fff;border-radius:12px;padding:24px;max-width:420px;width:90%;max-height:90vh;overflow-y:auto">
+        <div style="font-size:16px;font-weight:700;margin-bottom:12px">📅 자동 입력 확인</div>
+        ${preview}
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+          <button class="btn btn-secondary" onclick="this.closest('[style*=fixed]').remove()">취소</button>
+          <button class="btn btn-primary" id="confirm-autofill-btn">입력 실행</button>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+
+    modal.querySelector('#confirm-autofill-btn').onclick = async () => {
+      modal.remove();
+      await this._applyAutoFill(year, month, days, employees, schedule);
+    };
+  },
+
+  async _applyAutoFill(year, month, days, employees, schedule) {
+    Utils.showToast('자동 입력 중...', 'info');
+    try {
+      // 배치 데이터 구성: 모든 직원×모든 날짜
+      const batchDays = [];
+      employees.forEach(emp => {
+        for (let d = 1; d <= days; d++) {
+          const participated = !!(schedule[d] && schedule[d].includes(emp.id));
+          batchDays.push({ user_id: emp.id, day: d, participated });
+        }
+      });
+
+      await API.post('/api/sh-timesheet/batch', { year, month, days: batchDays });
+
+      // 로컬 데이터 갱신
+      employees.forEach(emp => {
+        emp.days = [];
+        for (let d = 1; d <= days; d++) {
+          if (schedule[d]?.includes(emp.id)) emp.days.push(d);
+        }
+      });
+
+      Utils.showToast('자동 입력 완료!');
+      this.renderPage();
+    } catch (e) {
+      Utils.showToast('자동 입력 실패: ' + e.message, 'error');
+    }
   },
 
   downloadExcel() {
