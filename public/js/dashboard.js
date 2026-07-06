@@ -3,6 +3,32 @@ const Dashboard = {
   calMonth: new Date().getMonth() + 1,
   gcalEvents: [],
 
+  HOLIDAYS: new Set([
+    '2025-01-01','2025-01-28','2025-01-29','2025-01-30',
+    '2025-03-01','2025-03-03',
+    '2025-05-05','2025-05-06',
+    '2025-06-06','2025-08-15','2025-10-03',
+    '2025-10-05','2025-10-06','2025-10-07','2025-10-08',
+    '2025-10-09','2025-12-25',
+    '2026-01-01','2026-02-16','2026-02-17','2026-02-18',
+    '2026-03-01','2026-03-02',
+    '2026-05-05','2026-05-24','2026-05-25',
+    '2026-06-06','2026-07-17',
+    '2026-08-15','2026-08-17',
+    '2026-09-24','2026-09-25','2026-09-26','2026-09-28',
+    '2026-10-03','2026-10-05','2026-10-09','2026-12-25',
+    '2027-01-01','2027-02-06','2027-02-07','2027-02-08','2027-02-09',
+    '2027-03-01','2027-05-05','2027-05-13',
+    '2027-06-06','2027-07-17',
+    '2027-08-15','2027-08-16',
+    '2027-10-03','2027-10-04','2027-10-09','2027-10-11',
+    '2027-10-14','2027-10-15','2027-10-16',
+    '2027-12-25','2027-12-27',
+  ]),
+  isHoliday(y, m, d) {
+    return this.HOLIDAYS.has(`${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`);
+  },
+
   async render() {
     const content = document.getElementById('content');
     content.innerHTML = '<div class="empty-state"><div class="icon">⏳</div>로딩 중...</div>';
@@ -147,18 +173,21 @@ const Dashboard = {
       const dow = new Date(year, month - 1, d).getDay();
       const dateStr = `${year}-${String(month).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
       const isToday = dateStr === todayStr;
-      const isWeekend = dow === 0 || dow === 6;
+      const isHol = this.isHoliday(year, month, d);
+      const isSun = dow === 0;
+      const isSat = dow === 6;
+      const isRed = isHol || isSun;
       const evts = eventMap[d] || [];
 
       const numStyle = isToday
         ? 'background:#1b4332;color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-weight:700'
-        : isWeekend ? `color:${dow===0?'#e03131':'#1c7ed6'};font-weight:600` : 'color:#212529';
+        : isRed ? 'color:#e03131;font-weight:600' : isSat ? 'color:#1c7ed6;font-weight:600' : 'color:#212529';
 
       const evtHtml = evts.slice(0, 2).map(e =>
         `<div style="background:#d3f9d8;color:#2b8a3e;border-radius:3px;padding:1px 4px;font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px" title="${e.title}">${e.title}</div>`
       ).join('') + (evts.length > 2 ? `<div style="font-size:9px;color:#6c757d">+${evts.length-2}개</div>` : '');
 
-      const bg = isToday ? '#f0fff4' : isWeekend ? '#fafafa' : '';
+      const bg = isToday ? '#f0fff4' : isRed ? '#fff5f5' : isSat ? '#f0f5ff' : '';
 
       cells.push(`<td style="padding:4px 3px;vertical-align:top;background:${bg};border:1px solid #f1f3f5;min-height:52px">
         <div style="${numStyle};font-size:12px">${d}</div>
