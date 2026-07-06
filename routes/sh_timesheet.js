@@ -16,11 +16,20 @@ router.get('/', requireAdmin, async (req, res) => {
     const m = parseInt(req.query.month) || new Date().getMonth() + 1;
     const days = new Date(y, m, 0).getDate();
 
-    const employees = await db.prepare(
+    let employees = await db.prepare(
       `SELECT id, name FROM users
        WHERE status = 'active' AND employee_type = '주주'
        ORDER BY CASE name WHEN '조상희' THEN 1 WHEN '조상하' THEN 2 WHEN '정재호' THEN 3 WHEN '소재훈' THEN 4 ELSE 5 END`
     ).all();
+
+    // 주주 타입 직원이 없으면 이름으로 직접 조회
+    if (employees.length === 0) {
+      employees = await db.prepare(
+        `SELECT id, name FROM users
+         WHERE status = 'active' AND name IN ('조상희','조상하','정재호','소재훈')
+         ORDER BY CASE name WHEN '조상희' THEN 1 WHEN '조상하' THEN 2 WHEN '정재호' THEN 3 WHEN '소재훈' THEN 4 ELSE 5 END`
+      ).all();
+    }
 
     const participations = await db.prepare(
       `SELECT user_id, day FROM shareholder_participation
