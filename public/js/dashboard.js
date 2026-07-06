@@ -205,7 +205,7 @@ const Dashboard = {
       : `<div style="font-size:11px;color:#adb5bd;margin-top:8px;text-align:right">구글캘린더 미연동 (설정에서 연동 가능)</div>`;
 
     el.innerHTML = `
-      <table style="width:100%;border-collapse:collapse">
+      <table style="width:100%;border-collapse:collapse;table-layout:fixed">
         <thead><tr>${thRow}</tr></thead>
         <tbody>${rows}</tbody>
       </table>
