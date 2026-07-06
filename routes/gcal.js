@@ -86,19 +86,27 @@ router.get('/events', requireAuth, requireAdmin, async (req, res) => {
     auth.setCredentials({ access_token: token.access_token, refresh_token: token.refresh_token, expiry_date: token.expiry_date });
 
     const calendar = google.calendar({ version: 'v3', auth });
-    const now = new Date();
-    const oneMonthLater = new Date(now); oneMonthLater.setMonth(oneMonthLater.getMonth() + 1);
+    // 과거 1년 ~ 미래 2년 범위로 전체 조회 (페이지네이션 처리)
+    const timeMin = new Date(); timeMin.setFullYear(timeMin.getFullYear() - 1);
+    const timeMax = new Date(); timeMax.setFullYear(timeMax.getFullYear() + 2);
 
-    const response = await calendar.events.list({
-      calendarId: token.calendar_id || 'primary',
-      timeMin: now.toISOString(),
-      timeMax: oneMonthLater.toISOString(),
-      maxResults: 50,
-      singleEvents: true,
-      orderBy: 'startTime'
-    });
+    let allItems = [];
+    let pageToken = undefined;
+    do {
+      const response = await calendar.events.list({
+        calendarId: token.calendar_id || 'primary',
+        timeMin: timeMin.toISOString(),
+        timeMax: timeMax.toISOString(),
+        maxResults: 2500,
+        singleEvents: true,
+        orderBy: 'startTime',
+        pageToken,
+      });
+      allItems = allItems.concat(response.data.items || []);
+      pageToken = response.data.nextPageToken;
+    } while (pageToken);
 
-    const events = (response.data.items || []).map(e => ({
+    const events = allItems.map(e => ({
       id: e.id,
       title: e.summary || '(제목 없음)',
       start: e.start?.dateTime || e.start?.date,

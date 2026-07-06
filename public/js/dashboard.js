@@ -130,12 +130,15 @@ const Dashboard = {
   calNext() { this.calMonth++; if (this.calMonth > 12) { this.calMonth = 1; this.calYear++; } this.renderCalendar(); },
 
   async loadGcalEvents() {
+    const btn = document.querySelector('[onclick="Dashboard.loadGcalEvents()"]');
+    if (btn) btn.textContent = '⏳';
     try {
       const events = await API.get('/api/gcal/events');
       this.gcalEvents = events || [];
     } catch {
       this.gcalEvents = [];
     }
+    if (btn) btn.textContent = '🔄';
     this.renderCalendar();
   },
 
