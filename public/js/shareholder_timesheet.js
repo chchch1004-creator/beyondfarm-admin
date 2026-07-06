@@ -256,7 +256,7 @@ const ShareholderTimesheet = {
             : `background:#f1f3f5;color:#adb5bd;border:1.5px solid #dee2e6`;
           return `<span class="sh-name-badge ${isOn ? 'on' : 'off'}"
             id="badge-${emp.id}-${d}"
-            style="${style};font-size:12px;padding:3px 6px"
+            style="${style};font-size:12px;padding:3px 6px;text-align:center"
             onclick="ShareholderTimesheet.toggle(${emp.id},${d},this)"
           >${this.nick(emp.name)}</span>`;
         }).join('');
