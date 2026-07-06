@@ -102,21 +102,67 @@ const ShareholderTimesheet = {
         API.get(`/api/sh-timesheet?year=${year}&month=${month}`),
         API.get(`/api/sh-timesheet/extra?year=${year}&month=${month}`)
       ]);
+      // 데이터가 비어있는 달이면 자동 입력
+      const isEmpty = this.data.employees.every(e => e.days.length === 0);
+      if (isEmpty) await this._silentAutoFill(year, month, this.data.days, this.data.employees);
       this.renderPage();
     } catch (e) {
       document.getElementById('content').innerHTML = `<div class="empty-state"><div class="icon">⚠️</div>${e.message}</div>`;
     }
   },
 
+  async _silentAutoFill(year, month, days, employees) {
+    const find = (fullName, nick) =>
+      employees.find(e => e.name === fullName) ||
+      employees.find(e => this.nick(e.name) === nick) ||
+      employees.find(e => e.name.includes(fullName.slice(1)));
+    const sam = find('조상희','샘'), bid = find('조상하','비드');
+    const cari = find('정재호','캐리'), billy = find('소재훈','빌리');
+    if (!sam || !bid || !cari || !billy) return;
+
+    const weekdayRot = [bid, cari, billy];
+    const weekendRot = [bid, billy];
+    const { wdIdx: wdStart, weIdx: weStart } = this._calcRotationStart(year, month);
+    let wdIdx = wdStart, weIdx = weStart;
+
+    const schedule = {};
+    for (let d = 1; d <= days; d++) {
+      const dow = new Date(year, month - 1, d).getDay();
+      const isHol = this.isHoliday(year, month, d);
+      if (dow === 0) { schedule[d] = [sam.id]; }
+      else if (dow === 1 && !isHol) { schedule[d] = [sam.id]; }
+      else if (isHol || dow === 6) { schedule[d] = [weekendRot[weIdx++ % 2].id]; }
+      else { schedule[d] = [weekdayRot[wdIdx++ % 3].id]; }
+    }
+
+    const batchDays = [];
+    employees.forEach(emp => {
+      for (let d = 1; d <= days; d++) {
+        batchDays.push({ user_id: emp.id, day: d, participated: !!(schedule[d]?.includes(emp.id)) });
+      }
+    });
+    try {
+      await API.post('/api/sh-timesheet/batch', { year, month, days: batchDays });
+      employees.forEach(emp => {
+        emp.days = [];
+        for (let d = 1; d <= days; d++) {
+          if (schedule[d]?.includes(emp.id)) emp.days.push(d);
+        }
+      });
+    } catch {}
+  },
+
   renderPage() {
     const { year, month, days, employees, note } = this.data;
     const now = new Date();
 
-    // 월 탭
+    // 월 탭 (현재 +2개월까지)
     const tabs = [];
     const startYear = 2026, startMonth = 6;
+    let maxTm = now.getMonth() + 3, maxTy = now.getFullYear();
+    if (maxTm > 12) { maxTm -= 12; maxTy++; }
     let ty = startYear, tm = startMonth;
-    while (ty < now.getFullYear() || (ty === now.getFullYear() && tm <= now.getMonth() + 1)) {
+    while (ty < maxTy || (ty === maxTy && tm <= maxTm)) {
       const active = (ty === year && tm === month) ? 'active' : '';
       tabs.push(`<button class="tab ${active}" onclick="ShareholderTimesheet.load(${ty},${tm})">${ty}년 ${tm}월</button>`);
       tm++; if (tm > 12) { tm = 1; ty++; }

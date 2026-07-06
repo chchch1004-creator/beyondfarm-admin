@@ -37,19 +37,16 @@ const Dashboard = {
       const requests = [
         API.get('/api/employees'),
         API.get('/api/leaves?year=' + new Date().getFullYear()),
-        API.get('/api/attendance?year=' + new Date().getFullYear() + '&month=' + (new Date().getMonth() + 1)),
+        API.get('/api/sh-timesheet?year=' + new Date().getFullYear() + '&month=' + (new Date().getMonth() + 1)),
       ];
-      const [employees, leaves, attendance] = await Promise.all(requests);
+      const [employees, leaves, shTimesheet] = await Promise.all(requests);
 
       const testKeywords = ['테스트','TEST','관리자'];
       const isTest = e => testKeywords.some(k => e.name?.includes(k)) || e.name === 'T';
       const activeEmp = employees.filter(e => e.status === 'active' && !isTest(e)).length;
       const pendingLeaves = leaves.filter(l => l.status === 'pending').length;
       const todayStr = Utils.today();
-      const todayAtt = attendance.filter(a => a.date === todayStr);
-      const checkedIn = todayAtt.filter(a => a.check_in).length;
-
-      const recentLeaves = leaves.filter(l => l.status === 'pending').slice(0, 5);
+      const checkedIn = 0;
 
       content.innerHTML = `
         <div class="stats-grid">
@@ -86,35 +83,10 @@ const Dashboard = {
             <div id="dash-calendar"></div>
           </div>
 
-          <!-- 휴가 대기 -->
-          <div class="card">
-            <div class="card-title">📋 휴가 승인 대기 <span class="badge badge-warning">${pendingLeaves}</span></div>
-            ${recentLeaves.length === 0
-              ? '<div class="empty-state" style="padding:24px"><div class="icon">✅</div>대기 중인 휴가 신청이 없습니다</div>'
-              : `<div class="table-wrap"><table>
-                  <thead><tr><th>직원</th><th>유형</th><th>기간</th>${isAdmin?'<th>관리</th>':''}</tr></thead>
-                  <tbody>${recentLeaves.map(l => `
-                    <tr>
-                      <td>${l.user_name}</td>
-                      <td>${Utils.leaveTypeName(l.type)}</td>
-                      <td style="font-size:11px">${l.start_date}~${l.end_date}</td>
-                      ${isAdmin ? `<td>
-                        <button class="btn btn-success btn-sm" onclick="Dashboard.approveLeave(${l.id},'approved')">승인</button>
-                        <button class="btn btn-danger btn-sm" onclick="Dashboard.approveLeave(${l.id},'rejected')">반려</button>
-                      </td>` : ''}
-                    </tr>`).join('')}
-                  </tbody></table></div>`
-            }
-
-            <!-- 오늘 출근 현황 -->
-            <div class="card-title" style="margin-top:16px;border-top:1px solid #dee2e6;padding-top:16px">🕐 오늘 출근 현황</div>
-            ${todayAtt.length === 0
-              ? '<div style="color:#6c757d;font-size:13px;padding:8px 0">오늘 출근 기록이 없습니다</div>'
-              : `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px">${todayAtt.map(a => `
-                  <span class="badge ${a.check_out ? 'badge-secondary' : 'badge-success'}" style="font-size:12px;padding:4px 10px">
-                    ${a.user_name || a.user_id} ${a.check_in ? a.check_in.slice(0,5) : ''} ${a.check_out ? '→'+a.check_out.slice(0,5) : '근무중'}
-                  </span>`).join('')}</div>`
-            }
+          <!-- 주주 근무표 -->
+          <div class="card" style="padding:12px">
+            <div class="card-title" style="margin-bottom:10px">📋 주주 근무표 <span style="font-size:12px;font-weight:400;color:#6c757d">${new Date().getFullYear()}년 ${new Date().getMonth()+1}월</span></div>
+            ${this.renderShTimesheet(shTimesheet)}
           </div>
         </div>
       `;
@@ -239,6 +211,57 @@ const Dashboard = {
       </table>
       ${gcalNote}
     `;
+  },
+
+  renderShTimesheet(data) {
+    if (!data || !data.employees || data.employees.length === 0) {
+      return '<div style="color:#adb5bd;font-size:13px;text-align:center;padding:20px">주주 근무표 데이터 없음</div>';
+    }
+    const { year, month, days, employees } = data;
+    const NICK = { '조상희':'샘', '조상하':'비드', '정재호':'캐리', '소재훈':'빌리' };
+    const COLORS = { '조상희':'#2d6a4f', '조상하':'#1864ab', '정재호':'#862e9c', '소재훈':'#c0392b' };
+    const nick = name => NICK[name] || name;
+    const partMap = {};
+    employees.forEach(e => { partMap[e.id] = new Set(e.days); });
+
+    const firstDow = new Date(year, month - 1, 1).getDay();
+    const weeks = [];
+    let week = new Array(7).fill(null);
+    for (let d = 1; d <= days; d++) {
+      const dow = new Date(year, month - 1, d).getDay();
+      week[dow] = d;
+      if (dow === 6 || d === days) { weeks.push([...week]); week = new Array(7).fill(null); }
+    }
+    const DOW_KR = ['일','월','화','수','목','금','토'];
+    const thRow = DOW_KR.map((k,i) => `<th style="padding:4px 2px;text-align:center;font-size:10px;font-weight:600;border-bottom:2px solid #dee2e6;color:${i===0?'#e03131':i===6?'#1c7ed6':'#495057'}">${k}</th>`).join('');
+    const pad = n => String(n).padStart(2,'0');
+
+    const bodyRows = weeks.map(wk => {
+      const cells = wk.map((d, dow) => {
+        if (!d) return `<td style="border:1px solid #f1f3f5"></td>`;
+        const dateStr = `${year}-${pad(month)}-${pad(d)}`;
+        const isHol = this.HOLIDAYS.has(dateStr);
+        const isRed = dow === 0 || isHol;
+        const isSat = dow === 6;
+        const bg = isRed ? '#fff5f5' : isSat ? '#f0f5ff' : '';
+        const numColor = isRed ? '#e03131' : isSat ? '#1c7ed6' : '#212529';
+        const present = employees.filter(e => partMap[e.id].has(d));
+        const badges = present.map(e => {
+          const color = COLORS[e.name] || '#495057';
+          return `<span style="display:inline-block;padding:1px 5px;border-radius:10px;font-size:10px;font-weight:600;background:${color}22;color:${color};border:1px solid ${color};margin:1px">${nick(e.name)}</span>`;
+        }).join('');
+        return `<td style="padding:3px;vertical-align:top;${bg?'background:'+bg:''};border:1px solid #f1f3f5">
+          <div style="font-size:11px;font-weight:700;color:${numColor};margin-bottom:2px">${d}</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:1px">${badges}</div>
+        </td>`;
+      }).join('');
+      return `<tr>${cells}</tr>`;
+    }).join('');
+
+    return `<table style="width:100%;border-collapse:collapse;font-size:11px">
+      <thead><tr>${thRow}</tr></thead>
+      <tbody>${bodyRows}</tbody>
+    </table>`;
   },
 
   async approveLeave(id, status) {
