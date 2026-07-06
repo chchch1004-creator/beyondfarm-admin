@@ -34,12 +34,16 @@ const Dashboard = {
     content.innerHTML = '<div class="empty-state"><div class="icon">⏳</div>로딩 중...</div>';
     try {
       const isAdmin = ['admin','superadmin'].includes(App.user.role);
+      const now = new Date();
+      const cy = now.getFullYear(), cm = now.getMonth() + 1;
+      let ny = cy, nm = cm + 1; if (nm > 12) { nm = 1; ny++; }
       const requests = [
         API.get('/api/employees'),
-        API.get('/api/leaves?year=' + new Date().getFullYear()),
-        API.get('/api/sh-timesheet?year=' + new Date().getFullYear() + '&month=' + (new Date().getMonth() + 1)),
+        API.get('/api/leaves?year=' + cy),
+        API.get(`/api/sh-timesheet?year=${cy}&month=${cm}`),
+        API.get(`/api/sh-timesheet?year=${ny}&month=${nm}`),
       ];
-      const [employees, leaves, shTimesheet] = await Promise.all(requests);
+      const [employees, leaves, shTimesheet, shTimesheetNext] = await Promise.all(requests);
 
       const testKeywords = ['테스트','TEST','관리자'];
       const isTest = e => testKeywords.some(k => e.name?.includes(k)) || e.name === 'T';
@@ -83,10 +87,12 @@ const Dashboard = {
             <div id="dash-calendar"></div>
           </div>
 
-          <!-- 주주 근무표 -->
+          <!-- 주주 근무표 (현재달 + 다음달) -->
           <div class="card" style="padding:12px">
-            <div class="card-title" style="margin-bottom:10px">📋 주주 근무표 <span style="font-size:12px;font-weight:400;color:#6c757d">${new Date().getFullYear()}년 ${new Date().getMonth()+1}월</span></div>
+            <div style="font-weight:700;font-size:13px;color:#1b4332;margin-bottom:8px">📋 ${cy}년 ${cm}월 주주 근무표</div>
             ${this.renderShTimesheet(shTimesheet)}
+            <div style="font-weight:700;font-size:13px;color:#1b4332;margin:14px 0 8px">📋 ${ny}년 ${nm}월 주주 근무표</div>
+            ${this.renderShTimesheet(shTimesheetNext)}
           </div>
         </div>
       `;
