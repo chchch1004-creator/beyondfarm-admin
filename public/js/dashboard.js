@@ -155,32 +155,31 @@ const Dashboard = {
 
     // 날짜별 이벤트 맵 (기간 이벤트도 각 날짜에 전개)
     const eventMap = {};
-    const monthStart = new Date(year, month - 1, 1);
-    const monthEnd   = new Date(year, month, 0); // 말일
+    const pad = n => String(n).padStart(2, '0');
+    const monthPrefix = `${year}-${pad(month)}`;
+    const monthEndStr = `${year}-${pad(month)}-${pad(days)}`;
+    const monthStartStr = `${year}-${pad(month)}-01`;
 
     this.gcalEvents.forEach(e => {
       const rawStart = (e.start || '').slice(0, 10);
-      // allDay end는 exclusive (8/21 = 8/20까지), dateTime은 inclusive
+      // allDay end는 exclusive (구글은 마지막날+1을 보냄), dateTime은 당일
       let rawEnd = (e.end || e.start || '').slice(0, 10);
-      if (e.allDay) {
-        // Google의 allDay end는 exclusive이므로 하루 빼기
-        const endD = new Date(rawEnd);
-        endD.setDate(endD.getDate() - 1);
-        rawEnd = endD.toISOString().slice(0, 10);
+      if (e.allDay && rawEnd > rawStart) {
+        // YYYY-MM-DD 에서 하루 빼기
+        const [ey, em, ed] = rawEnd.split('-').map(Number);
+        const endD = new Date(ey, em - 1, ed - 1);
+        rawEnd = `${endD.getFullYear()}-${pad(endD.getMonth()+1)}-${pad(endD.getDate())}`;
       }
-      const evtStart = new Date(rawStart);
-      const evtEnd   = new Date(rawEnd);
 
-      // 이벤트 기간과 이번 달이 겹치는지 확인
-      if (evtEnd < monthStart || evtStart > monthEnd) return;
+      // 이번 달과 겹치는지 문자열 비교 (YYYY-MM-DD는 사전순 정렬 가능)
+      if (rawEnd < monthStartStr || rawStart > monthEndStr) return;
 
       // 이번 달 안에 해당하는 날짜마다 이벤트 추가
       for (let d = 1; d <= days; d++) {
-        const cur = new Date(year, month - 1, d);
-        if (cur >= evtStart && cur <= evtEnd) {
+        const dateStr = `${year}-${pad(month)}-${pad(d)}`;
+        if (dateStr >= rawStart && dateStr <= rawEnd) {
           if (!eventMap[d]) eventMap[d] = [];
-          // 시작일이면 제목 표시, 중간/끝이면 연속 표시
-          const isFirst = cur.getTime() === evtStart.getTime();
+          const isFirst = dateStr === rawStart;
           eventMap[d].push({ ...e, _isFirst: isFirst });
         }
       }
