@@ -178,12 +178,12 @@ const Dashboard = {
         ? 'background:#1b4332;color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-weight:700'
         : isRed ? 'color:#e03131;font-weight:600' : isSat ? 'color:#1c7ed6;font-weight:600' : 'color:#212529';
 
-      const evtHtml = evts.slice(0, 2).map(e => {
+      const evtHtml = evts.map(e => {
         const label = e._isFirst ? e.title : '↳ ' + e.title;
         const bg = e._isFirst ? '#d3f9d8' : '#e8f5e9';
         const border = e._isFirst ? '' : 'border-left:2px solid #2b8a3e;border-radius:0 3px 3px 0;';
-        return `<div style="background:${bg};color:#2b8a3e;${border}border-radius:3px;padding:1px 4px;font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px" title="${e.title}">${label}</div>`;
-      }).join('') + (evts.length > 2 ? `<div style="font-size:9px;color:#6c757d">+${evts.length-2}개</div>` : '');
+        return `<div style="background:${bg};color:#2b8a3e;${border}border-radius:3px;padding:1px 4px;font-size:9px;word-break:break-all;margin-top:2px">${label}</div>`;
+      }).join('');
 
       const bg = isToday ? '#f0fff4' : isRed ? '#fff5f5' : isSat ? '#f0f5ff' : '';
 
@@ -205,7 +205,7 @@ const Dashboard = {
       : `<div style="font-size:11px;color:#adb5bd;margin-top:8px;text-align:right">구글캘린더 미연동 (설정에서 연동 가능)</div>`;
 
     el.innerHTML = `
-      <table style="width:100%;border-collapse:collapse;table-layout:fixed">
+      <table style="width:100%;border-collapse:collapse">
         <thead><tr>${thRow}</tr></thead>
         <tbody>${rows}</tbody>
       </table>
