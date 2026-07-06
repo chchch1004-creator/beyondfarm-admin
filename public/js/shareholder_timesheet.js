@@ -366,11 +366,16 @@ const ShareholderTimesheet = {
     if (!this.data) return;
     const { year, month, days, employees } = this.data;
 
-    const sam  = employees.find(e => e.name === '조상희');
-    const bid  = employees.find(e => e.name === '조상하');
-    const cari = employees.find(e => e.name === '정재호');
-    const billy= employees.find(e => e.name === '소재훈');
-    if (!sam || !bid || !cari || !billy) return Utils.showToast('주주 직원 4명이 모두 등록되어야 합니다', 'error');
+    // 닉네임 기준으로 매핑 (이름이 살짝 달라도 동작)
+    const byNick = name => employees.find(e => this.nick(e.name) === name) || employees.find(e => e.name.includes(name));
+    const sam  = byNick('샘');
+    const bid  = byNick('비드');
+    const cari = byNick('캐리');
+    const billy= byNick('빌리');
+    if (!sam || !bid || !cari || !billy) {
+      const found = employees.map(e => `${e.name}(${this.nick(e.name)})`).join(', ');
+      return Utils.showToast(`직원 매핑 실패. 등록된 주주: ${found || '없음'}`, 'error');
+    }
 
     const weekdayRot = [bid, cari, billy]; // 화~금 비공휴일
     const weekendRot = [bid, billy];       // 토·공휴일
