@@ -128,10 +128,8 @@ const Timesheet = {
           const inMain = shDaysSet.has(d);
           const inExtra = shExtraDaysSet.has(d);
           if (inMain || inExtra) {
-            const parts = [];
-            if (inMain) parts.push(`<span style="color:#2d6a4f;font-weight:700">${this.shRate(year, month, d)}</span>`);
-            if (inExtra) parts.push(`<span style="color:#1864ab;font-weight:700">${this.shExtraRate(year, month, d)}</span>`);
-            return `<td style="text-align:center;background:#f0fff4;border:1px solid #ccc">${parts.join('<span style="color:#aaa">+</span>')}</td>`;
+            const total = (inMain ? this.shRate(year, month, d) : 0) + (inExtra ? this.shExtraRate(year, month, d) : 0);
+            return `<td style="text-align:center;font-weight:700;color:#2d6a4f;background:#f0fff4">${total}</td>`;
           }
           return `<td style="text-align:center;${wkColor}"></td>`;
         }
