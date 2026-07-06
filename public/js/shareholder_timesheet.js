@@ -135,12 +135,10 @@ const ShareholderTimesheet = {
     document.getElementById('content').innerHTML = `
       <style>
         .sh-cal-wrap { overflow-x: auto; }
-        .sh-cal { border-collapse: collapse; width: 100%; min-width: 640px; font-size: 13px; }
+        .sh-cal { border-collapse: collapse; width: 100%; font-size: 13px; }
         .sh-cal th { background: #1b4332; color: #fff; text-align: center; padding: 8px 4px; border: 1px solid #495057; font-size: 12px; }
-        .sh-cal td { border: 1px solid #dee2e6; vertical-align: top; padding: 4px; min-width: 80px; }
+        .sh-cal td { border: 1px solid #dee2e6; vertical-align: top; padding: 4px; }
         .sh-day-num { font-size: 11px; font-weight: 700; margin-bottom: 4px; padding: 2px 4px; display: inline-block; border-radius: 4px; min-width: 22px; text-align: center; }
-        .sh-day-weekend { background: #fff0f0; }
-        .sh-day-friday { background: #fff8e1; }
         .sh-name-badge {
           display: inline-block; padding: 2px 7px; border-radius: 12px; font-size: 11px; font-weight: 600;
           margin: 1px; cursor: pointer; user-select: none; transition: all 0.15s;
@@ -151,6 +149,8 @@ const ShareholderTimesheet = {
         .sh-sum-table th { background: #1b4332; color: #fff; padding: 8px 12px; text-align: center; border: 1px solid #495057; }
         .sh-sum-table td { padding: 9px 12px; border: 1px solid #dee2e6; text-align: center; }
         .sh-sum-table tfoot td { background: #f8f9fa; font-weight: 700; }
+        .sh-extra-cal .sh-name-badge { padding: 2px 5px; font-size: 10px; }
+        .sh-extra-cal .sh-cal td { padding: 3px; }
       </style>
 
       <div style="margin-bottom:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
@@ -161,21 +161,29 @@ const ShareholderTimesheet = {
         </div>
       </div>
 
-      <div class="card">
-        <div style="font-size:16px;font-weight:700;text-align:center;margin-bottom:16px;color:#1b4332">
-          📋 ${year}년 ${month}월 비욘더팜 주주 근무표
+      <!-- 두 달력 가로 배치 -->
+      <div class="card" style="padding:16px">
+        <div style="display:flex;gap:16px;align-items:flex-start">
+          <!-- 주주근무표 달력 (2/3) -->
+          <div style="flex:2;min-width:0">
+            <div style="font-size:15px;font-weight:700;text-align:center;margin-bottom:12px;color:#1b4332">
+              📋 ${year}년 ${month}월 주주 근무표
+            </div>
+            <div class="sh-cal-wrap">${calHtml}</div>
+          </div>
+          <!-- 추가출근 달력 (1/3) -->
+          <div style="flex:1;min-width:0" class="sh-extra-cal">
+            <div style="font-size:15px;font-weight:700;text-align:center;margin-bottom:12px;color:#495057">
+              ➕ 추가 출근
+            </div>
+            <div class="sh-cal-wrap">${this.buildExtraCalendar(year, month, days)}</div>
+          </div>
         </div>
-        <div class="sh-cal-wrap">${calHtml}</div>
       </div>
 
       <div class="card" style="margin-top:0">
-        <div class="card-title">📊 ${year}년 ${month}월 요약</div>
+        <div class="card-title">📊 ${year}년 ${month}월 요약 <span style="font-size:11px;font-weight:400;color:#6c757d">(담당자 외 / 월~목 20만 · 금 25만 · 주말·공휴 30만원)</span></div>
         ${summaryHtml}
-      </div>
-
-      <div class="card" style="margin-top:0" id="extra-card">
-        <div class="card-title">➕ 추가 출근 <span style="font-size:11px;font-weight:400;color:#6c757d">(담당자 외 / 월~목 10만 · 금 15만 · 주말·공휴 20만원)</span></div>
-        ${this.buildExtraCalendar(year, month, days)}
       </div>
 
       <div class="card" style="margin-top:0">
@@ -285,9 +293,9 @@ const ShareholderTimesheet = {
       <thead>
         <tr>
           <th>이름</th>
-          <th>주중횟수<br><span style="font-size:10px;font-weight:400">20만원(월~목)</span></th>
-          <th>금요일횟수<br><span style="font-size:10px;font-weight:400">25만원</span></th>
-          <th>주말/공휴횟수<br><span style="font-size:10px;font-weight:400">30만원</span></th>
+          <th>주중횟수</th>
+          <th>금요일횟수</th>
+          <th>주말/공휴횟수</th>
           <th>합계</th>
           <th>총합계</th>
         </tr>
@@ -381,9 +389,6 @@ const ShareholderTimesheet = {
         const cellBg = isRedDay ? '#fff5f5' : isSat ? '#f0f5ff' : '';
         const numColor = isRedDay ? '#e03131' : isSat ? '#1971c2' : '#212529';
         const numBg = isRedDay ? '#ffe3e3' : isSat ? '#dbe4ff' : 'transparent';
-        const rate = this.extraRate(year, month, d);
-        const rateLabel = `<span style="font-size:9px;color:#adb5bd;display:block;margin-bottom:2px">${Utils.formatNum(rate/10000)}만</span>`;
-
         const badges = emps.map(emp => {
           const isOn = emp.days.includes(d);
           const color = COLORS[emp.name] || '#495057';
@@ -399,7 +404,6 @@ const ShareholderTimesheet = {
 
         return `<td style="${cellBg ? 'background:'+cellBg : ''}">
           <div class="sh-day-num" style="color:${numColor};background:${numBg}">${d}</div>
-          ${rateLabel}
           <div style="display:flex;flex-wrap:wrap;gap:2px">${badges}</div>
         </td>`;
       }).join('');
@@ -433,7 +437,7 @@ const ShareholderTimesheet = {
         <table class="sh-sum-table">
           <thead><tr>
             <th>이름</th>
-            <th>주중(10만)</th><th>금요일(15만)</th><th>주말/공휴(20만)</th>
+            <th>주중</th><th>금요일</th><th>주말/공휴</th>
             <th>총합계</th>
           </tr></thead>
           <tbody id="extra-summary-body">${summaryRows}</tbody>
