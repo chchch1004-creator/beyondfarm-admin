@@ -70,6 +70,9 @@ const Timesheet = {
     }
   },
 
+  SH_FIXED_DAY: 10,
+  SH_FIXED: { '조상희': 130, '조상하': 80, '정재호': 80, '소재훈': 200 },
+
   isShareholder(emp) { return emp.sh_days !== null && emp.sh_days !== undefined; },
 
   calc(emp) {
@@ -78,7 +81,8 @@ const Timesheet = {
       const shExtraDays = emp.sh_extra_days || [];
       const shTotal = shDays.reduce((s, d) => s + this.shRate(this.currentYear, this.currentMonth, d) * 10000, 0);
       const shExtraTotal = shExtraDays.reduce((s, d) => s + this.shExtraRate(this.currentYear, this.currentMonth, d) * 10000, 0);
-      const netPay = Math.round(shTotal + shExtraTotal + (emp.adj || 0) * 10000 + (emp.adj1 || 0) * 10000);
+      const fixedAmt = (this.SH_FIXED[emp.name] || 0) * 10000;
+      const netPay = Math.round(shTotal + shExtraTotal + fixedAmt + (emp.adj || 0) * 10000 + (emp.adj1 || 0) * 10000);
       const tax = Math.round(netPay * 0.03);
       const localTax = Math.round(netPay * 0.003);
       const transfer = netPay - tax - localTax;
@@ -127,9 +131,13 @@ const Timesheet = {
         if (shDaysSet) {
           const inMain = shDaysSet.has(d);
           const inExtra = shExtraDaysSet.has(d);
-          if (inMain || inExtra) {
-            const total = (inMain ? this.shRate(year, month, d) : 0) + (inExtra ? this.shExtraRate(year, month, d) : 0);
-            return `<td style="text-align:center;font-weight:700;color:#2d6a4f;background:#f0fff4">${total}</td>`;
+          const fixedAmt = (d === this.SH_FIXED_DAY) ? (this.SH_FIXED[emp.name] || 0) : 0;
+          const workAmt = (inMain ? this.shRate(year, month, d) : 0) + (inExtra ? this.shExtraRate(year, month, d) : 0);
+          const total = fixedAmt + workAmt;
+          if (total > 0) {
+            const bg = fixedAmt > 0 ? '#fff9e6' : '#f0fff4';
+            const color = fixedAmt > 0 && workAmt === 0 ? '#c17f00' : '#2d6a4f';
+            return `<td style="text-align:center;font-weight:700;color:${color};background:${bg}">${total}</td>`;
           }
           return `<td style="text-align:center;${wkColor}"></td>`;
         }
