@@ -98,7 +98,8 @@ const App = {
       leaves: '휴가 관리', salary: '급여 관리', finance: '수입/지출', inventory: '재고 현황',
       settings: '시스템 설정',
       mypage: '마이페이지',
-      timesheet: '근무표'
+      timesheet: '근무표',
+      shareholder_timesheet: '주주근무표'
     };
     document.getElementById('page-title').textContent = titles[page] || page;
     const mpt = document.getElementById('mobile-page-title');
@@ -118,13 +119,15 @@ const App = {
     });
     const tsEl = document.getElementById('nav-timesheet');
     if (tsEl) tsEl.style.display = isSuperAdmin ? '' : 'none';
+    const shEl = document.getElementById('nav-sh-timesheet');
+    if (shEl) shEl.style.display = isAdmin ? '' : 'none';
 
-    const adminOnly = ['leaves', 'finance', 'inventory', 'settings'];
+    const adminOnly = ['leaves', 'finance', 'inventory', 'settings', 'shareholder_timesheet'];
     if (adminOnly.includes(page) && !['admin','superadmin'].includes(App.user.role)) {
       document.getElementById('content').innerHTML = '<div class="empty-state"><div class="icon">🔒</div>관리자만 접근 가능합니다</div>';
       return;
     }
-    const pages = { dashboard: Dashboard, employees: Employees, attendance: Attendance, leaves: Leaves, salary: Salary, finance: Finance, inventory: Inventory, settings: Settings, mypage: MyPage, timesheet: Timesheet };
+    const pages = { dashboard: Dashboard, employees: Employees, attendance: Attendance, leaves: Leaves, salary: Salary, finance: Finance, inventory: Inventory, settings: Settings, mypage: MyPage, timesheet: Timesheet, shareholder_timesheet: ShareholderTimesheet };
     pages[page]?.render();
     App.closeSidebar(); // 모바일에서 메뉴 선택 후 사이드바 닫기
   }
