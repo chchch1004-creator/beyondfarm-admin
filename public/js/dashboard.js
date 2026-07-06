@@ -268,7 +268,6 @@ const Dashboard = {
       return `<tr>${cells}</tr>`;
     }).join('');
 
-    const COLORS = { '조상희':'#2d6a4f', '조상하':'#1864ab', '정재호':'#862e9c', '소재훈':'#c0392b' };
     const summary = employees.map(e => {
       const cnt = partMap[e.id].size;
       const color = COLORS[e.name] || '#495057';
