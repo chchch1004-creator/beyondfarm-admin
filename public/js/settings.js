@@ -102,6 +102,24 @@ const Settings = {
         </div>
       </div>
 
+      <!-- 구글캘린더 연동 -->
+      <div class="card" style="max-width:640px;margin-top:0">
+        <div class="card-title">📅 구글캘린더 연동</div>
+        <p style="color:#6c757d;font-size:12px;margin-bottom:16px">
+          연동하면 ①홈페이지에서 구글캘린더 일정을 확인하고 ②휴가 승인 시 캘린더에 자동 등록되며 ③직접 이벤트를 캘린더로 보낼 수 있습니다.
+        </p>
+        <div id="gcal-status-area" style="padding:12px;background:#f8f9fa;border-radius:8px;font-size:13px;margin-bottom:12px">
+          확인 중...
+        </div>
+        <div id="gcal-events-area" style="display:none;margin-bottom:12px"></div>
+        <div class="form-actions">
+          <button id="gcal-connect-btn" class="btn btn-primary" onclick="Settings.gcalConnect()" style="display:none">🔗 구글 계정 연동</button>
+          <button id="gcal-disconnect-btn" class="btn btn-danger btn-sm" onclick="Settings.gcalDisconnect()" style="display:none">연동 해제</button>
+          <button id="gcal-fetch-btn" class="btn btn-secondary" onclick="Settings.gcalFetch()" style="display:none">📥 캘린더 일정 가져오기</button>
+          <button id="gcal-push-btn" class="btn btn-success btn-sm" onclick="Settings.gcalPushForm()" style="display:none">📤 일정 등록</button>
+        </div>
+      </div>
+
       <!-- 모바일 접속 안내 -->
       <div class="card" style="max-width:640px;margin-top:0">
         <div class="card-title">📱 모바일 접속 안내</div>
@@ -116,6 +134,7 @@ const Settings = {
     `;
 
     this.loadServerIP();
+    this.gcalCheckStatus();
   },
 
   async loadServerIP() {
@@ -160,6 +179,104 @@ const Settings = {
       await API.post('/api/settings', body);
       Utils.showToast(`근무지 ${num} 설정이 저장되었습니다.`);
     } catch (e) { Utils.showToast(e.message, 'error'); }
+  },
+
+  async gcalCheckStatus() {
+    try {
+      const s = await API.get('/api/gcal/status');
+      const area = document.getElementById('gcal-status-area');
+      if (!area) return;
+      if (s.connected) {
+        area.innerHTML = `<span style="color:#198754;font-weight:600">✅ 구글캘린더 연동됨</span><br><span style="color:#6c757d;font-size:11px">최근 업데이트: ${s.updated_at || '-'}</span>`;
+        document.getElementById('gcal-disconnect-btn').style.display = '';
+        document.getElementById('gcal-fetch-btn').style.display = '';
+        document.getElementById('gcal-push-btn').style.display = '';
+        document.getElementById('gcal-connect-btn').style.display = 'none';
+      } else {
+        area.innerHTML = `<span style="color:#6c757d">❌ 연동되지 않음</span><br><span style="font-size:11px;color:#adb5bd">구글 계정을 연결하면 캘린더와 동기화됩니다</span>`;
+        document.getElementById('gcal-connect-btn').style.display = '';
+        document.getElementById('gcal-disconnect-btn').style.display = 'none';
+        document.getElementById('gcal-fetch-btn').style.display = 'none';
+        document.getElementById('gcal-push-btn').style.display = 'none';
+      }
+    } catch(e) {
+      const area = document.getElementById('gcal-status-area');
+      if (area) area.innerHTML = `<span style="color:#dc3545">오류: ${e.message}</span>`;
+    }
+  },
+
+  async gcalConnect() {
+    try {
+      const { url } = await API.get('/api/gcal/auth-url');
+      const popup = window.open(url, 'gcal-auth', 'width=500,height=600');
+      window.addEventListener('message', async (e) => {
+        if (e.data?.type === 'gcal-connected') {
+          popup?.close();
+          Utils.showToast('구글캘린더 연동이 완료되었습니다!');
+          await Settings.gcalCheckStatus();
+        }
+      }, { once: true });
+    } catch (e) { Utils.showToast(e.message, 'error'); }
+  },
+
+  async gcalDisconnect() {
+    if (!confirm('구글캘린더 연동을 해제하시겠습니까?')) return;
+    try {
+      await API.delete('/api/gcal/disconnect');
+      Utils.showToast('연동이 해제되었습니다.');
+      await Settings.gcalCheckStatus();
+    } catch (e) { Utils.showToast(e.message, 'error'); }
+  },
+
+  async gcalFetch() {
+    const area = document.getElementById('gcal-events-area');
+    area.style.display = '';
+    area.innerHTML = '<div style="color:#6c757d;font-size:13px">📅 일정 불러오는 중...</div>';
+    try {
+      const events = await API.get('/api/gcal/events');
+      if (!events.length) {
+        area.innerHTML = '<div style="color:#6c757d;font-size:13px">앞으로 1개월 내 일정이 없습니다</div>';
+        return;
+      }
+      area.innerHTML = `
+        <div style="font-size:13px;font-weight:600;margin-bottom:8px">📅 구글캘린더 일정 (앞으로 1개월)</div>
+        <div style="border:1px solid #dee2e6;border-radius:8px;overflow:hidden">
+          ${events.map(e => `
+            <div style="padding:10px 14px;border-bottom:1px solid #dee2e6;display:flex;gap:10px;align-items:flex-start">
+              <div style="min-width:100px;font-size:11px;color:#6c757d">${e.start?.slice(0,10) || ''}</div>
+              <div>
+                <div style="font-weight:600;font-size:13px">${e.title}</div>
+                ${e.description ? `<div style="font-size:11px;color:#6c757d;margin-top:2px">${e.description}</div>` : ''}
+              </div>
+            </div>
+          `).join('')}
+        </div>`;
+    } catch (e) {
+      area.innerHTML = `<div style="color:#dc3545;font-size:13px">오류: ${e.message}</div>`;
+    }
+  },
+
+  gcalPushForm() {
+    const today = Utils.today();
+    Utils.modal('📤 구글캘린더에 일정 등록',
+      `<div class="form-grid">
+        <div class="form-group"><label>제목 *</label><input id="f-gcal-title" placeholder="일정 제목"></div>
+        <div class="form-group"><label>시작일 *</label><input type="date" id="f-gcal-start" value="${today}"></div>
+        <div class="form-group"><label>종료일</label><input type="date" id="f-gcal-end" value="${today}"></div>
+        <div class="form-group" style="grid-column:1/-1"><label>내용</label><textarea id="f-gcal-desc" placeholder="일정 내용 (선택)"></textarea></div>
+      </div>`,
+      async () => {
+        const body = { title: Utils.val('f-gcal-title'), start: Utils.val('f-gcal-start'), end: Utils.val('f-gcal-end'), description: Utils.val('f-gcal-desc'), allDay: true };
+        if (!body.title || !body.start) return Utils.showToast('제목과 시작일을 입력하세요', 'error');
+        try {
+          await API.post('/api/gcal/push-event', body);
+          Utils.showToast('구글캘린더에 등록되었습니다!');
+          Utils.closeModal();
+          Settings.gcalFetch();
+        } catch (e) { Utils.showToast(e.message, 'error'); }
+      },
+      '캘린더에 등록'
+    );
   },
 
   async saveGeneral() {

@@ -162,6 +162,24 @@ async function init() {
     UNIQUE(year, month)
   )`);
 
+  tables.push(`CREATE TABLE IF NOT EXISTS google_tokens (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL UNIQUE,
+    access_token TEXT,
+    refresh_token TEXT NOT NULL,
+    expiry_date INTEGER,
+    calendar_id TEXT DEFAULT 'primary',
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`);
+  tables.push(`CREATE TABLE IF NOT EXISTS gcal_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    source TEXT NOT NULL,
+    source_id INTEGER,
+    gcal_event_id TEXT NOT NULL,
+    user_id INTEGER,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`);
+
   for (const sql of tables) {
     await client.execute({ sql, args: [] });
   }

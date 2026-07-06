@@ -2,6 +2,8 @@ const express = require('express');
 const { getDb } = require('../db/database');
 const db = { prepare: (...a) => getDb().prepare(...a) };
 const router = express.Router();
+let gcal;
+try { gcal = require('./gcal'); } catch {}
 
 function requireLogin(req, res, next) {
   if (!req.session.user) return res.status(401).json({ error: '로그인 필요' });
@@ -48,6 +50,19 @@ router.put('/:id/status', requireLogin, async (req, res) => {
   try {
     await db.prepare(`UPDATE leaves SET status=?, approved_by=?, approved_at=datetime('now') WHERE id=?`)
       .run(req.body.status, req.session.user.id, req.params.id);
+
+    // 승인 시 구글캘린더에 등록
+    if (req.body.status === 'approved' && gcal?.pushLeaveToCalendar) {
+      const leave = await db.prepare(`SELECT l.*, u.name as user_name FROM leaves l JOIN users u ON l.user_id=u.id WHERE l.id=?`).get(req.params.id);
+      if (leave) {
+        gcal.pushLeaveToCalendar(req.session.user.id, {
+          leaveId: leave.id, userName: leave.user_name,
+          type: leave.type, start_date: leave.start_date,
+          end_date: leave.end_date, reason: leave.reason
+        }).catch(() => {});
+      }
+    }
+
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
