@@ -101,4 +101,52 @@ router.post('/notes', requireAdmin, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// 추가 출근 조회
+router.get('/extra', requireAdmin, async (req, res) => {
+  try {
+    const y = parseInt(req.query.year) || new Date().getFullYear();
+    const m = parseInt(req.query.month) || new Date().getMonth() + 1;
+
+    let employees = await db.prepare(
+      `SELECT id, name FROM users WHERE status = 'active' AND employee_type = '주주'
+       ORDER BY CASE name WHEN '조상희' THEN 1 WHEN '조상하' THEN 2 WHEN '정재호' THEN 3 WHEN '소재훈' THEN 4 ELSE 5 END`
+    ).all();
+    if (employees.length === 0) {
+      employees = await db.prepare(
+        `SELECT id, name FROM users WHERE status = 'active' AND name IN ('조상희','조상하','정재호','소재훈')
+         ORDER BY CASE name WHEN '조상희' THEN 1 WHEN '조상하' THEN 2 WHEN '정재호' THEN 3 WHEN '소재훈' THEN 4 ELSE 5 END`
+      ).all();
+    }
+
+    const extras = await db.prepare(
+      `SELECT user_id, day FROM shareholder_extra WHERE year=? AND month=? AND participated=1`
+    ).all(y, m);
+
+    const extraMap = {};
+    employees.forEach(e => { extraMap[e.id] = new Set(); });
+    extras.forEach(r => { if (extraMap[r.user_id]) extraMap[r.user_id].add(r.day); });
+
+    res.json({
+      year: y, month: m,
+      employees: employees.map(e => ({ id: e.id, name: e.name, days: [...extraMap[e.id]] }))
+    });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// 추가 출근 토글
+router.post('/extra/toggle', requireAdmin, async (req, res) => {
+  try {
+    const { user_id, year, month, day, participated } = req.body;
+    if (participated) {
+      await db.prepare(`INSERT INTO shareholder_extra (user_id,year,month,day,participated)
+        VALUES (?,?,?,?,1) ON CONFLICT(user_id,year,month,day) DO UPDATE SET participated=1`)
+        .run(user_id, year, month, day);
+    } else {
+      await db.prepare(`DELETE FROM shareholder_extra WHERE user_id=? AND year=? AND month=? AND day=?`)
+        .run(user_id, year, month, day);
+    }
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 module.exports = router;

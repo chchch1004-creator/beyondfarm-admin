@@ -187,6 +187,15 @@ async function init() {
     calendar_id TEXT DEFAULT 'primary',
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   )`);
+  tables.push(`CREATE TABLE IF NOT EXISTS shareholder_extra (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    year INTEGER NOT NULL,
+    month INTEGER NOT NULL,
+    day INTEGER NOT NULL,
+    participated INTEGER NOT NULL DEFAULT 0,
+    UNIQUE(user_id, year, month, day)
+  )`);
   tables.push(`CREATE TABLE IF NOT EXISTS gcal_events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     source TEXT NOT NULL,

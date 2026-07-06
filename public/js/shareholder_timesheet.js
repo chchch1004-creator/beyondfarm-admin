@@ -1,7 +1,11 @@
 const ShareholderTimesheet = {
   data: null,
+  extraData: null,
   currentYear: new Date().getFullYear(),
   currentMonth: new Date().getMonth() + 1,
+
+  RATE_EXTRA_WEEKDAY: 100000,
+  RATE_EXTRA_WEEKEND: 200000,
 
   // 이름 → 닉네임
   NICK: { '조상희': '샘', '조상하': '비드', '정재호': '캐리', '소재훈': '빌리' },
@@ -84,7 +88,10 @@ const ShareholderTimesheet = {
     this.currentYear = year;
     this.currentMonth = month;
     try {
-      this.data = await API.get(`/api/sh-timesheet?year=${year}&month=${month}`);
+      [this.data, this.extraData] = await Promise.all([
+        API.get(`/api/sh-timesheet?year=${year}&month=${month}`),
+        API.get(`/api/sh-timesheet/extra?year=${year}&month=${month}`)
+      ]);
       this.renderPage();
     } catch (e) {
       document.getElementById('content').innerHTML = `<div class="empty-state"><div class="icon">⚠️</div>${e.message}</div>`;
@@ -154,6 +161,11 @@ const ShareholderTimesheet = {
       <div class="card" style="margin-top:0">
         <div class="card-title">📊 ${year}년 ${month}월 요약</div>
         ${summaryHtml}
+      </div>
+
+      <div class="card" style="margin-top:0" id="extra-card">
+        <div class="card-title">➕ 추가 출근 수당 <span style="font-size:11px;font-weight:400;color:#6c757d">(담당자 외 추가 출근 / 주중 10만 · 주말·공휴 20만원)</span></div>
+        ${this.buildExtraSection(year, month, days, employees)}
       </div>
 
       <div class="card" style="margin-top:0">
@@ -333,6 +345,155 @@ const ShareholderTimesheet = {
       await API.post('/api/sh-timesheet/notes', { year: this.currentYear, month: this.currentMonth, content });
       Utils.showToast('메모가 저장되었습니다.');
     } catch (e) { Utils.showToast(e.message, 'error'); }
+  },
+
+  buildExtraSection(year, month, days, employees) {
+    if (!this.extraData) return '<div style="color:#adb5bd;font-size:13px;padding:8px">데이터 로딩 실패</div>';
+    const extraEmployees = this.extraData.employees;
+    const COLORS = { '조상희': '#2d6a4f', '조상하': '#1864ab', '정재호': '#862e9c', '소재훈': '#c0392b' };
+
+    // 날짜별 행 생성
+    const rows = [];
+    for (let d = 1; d <= days; d++) {
+      const dow = new Date(year, month - 1, d).getDay();
+      const isHol = this.isHoliday(year, month, d);
+      const isSun = dow === 0;
+      const isSat = dow === 6;
+      const isRedDay = isSun || isHol;
+      const isWeekend = isSun || isSat || isHol;
+      const DOW_KR = ['일','월','화','수','목','금','토'];
+      const numColor = isRedDay ? '#e03131' : isSat ? '#1971c2' : '#495057';
+      const rowBg = isRedDay ? '#fff5f5' : isSat ? '#f0f5ff' : '';
+
+      const badges = extraEmployees.map(emp => {
+        const isOn = emp.days.includes(d);
+        const color = COLORS[emp.name] || '#495057';
+        const style = isOn
+          ? `background:${color}22;color:${color};border:1.5px solid ${color}`
+          : `background:#f1f3f5;color:#adb5bd;border:1.5px solid #dee2e6`;
+        return `<span class="sh-name-badge ${isOn ? 'on' : 'off'}"
+          id="extra-badge-${emp.id}-${d}"
+          style="${style};font-size:11px"
+          onclick="ShareholderTimesheet.toggleExtra(${emp.id},${d},this)"
+        >${this.nick(emp.name)}</span>`;
+      }).join('');
+
+      const rate = isWeekend ? this.RATE_EXTRA_WEEKEND : this.RATE_EXTRA_WEEKDAY;
+      const activeCount = extraEmployees.filter(e => e.days.includes(d)).length;
+      const dayTotal = activeCount * rate;
+
+      rows.push(`<tr style="${rowBg ? 'background:'+rowBg : ''}">
+        <td style="text-align:center;font-weight:600;color:${numColor};width:40px">${d}</td>
+        <td style="text-align:center;color:${numColor};width:30px;font-size:11px">${DOW_KR[dow]}${isHol?'🔴':''}</td>
+        <td style="text-align:center;width:60px;font-size:11px;color:#6c757d">${isWeekend ? '20만' : '10만'}</td>
+        <td style="padding:4px 8px">${badges}</td>
+        <td id="extra-day-total-${d}" style="text-align:right;font-size:12px;font-weight:600;color:#1b4332;width:80px">${dayTotal ? Utils.formatNum(dayTotal)+'원' : '-'}</td>
+      </tr>`);
+    }
+
+    // 인원별 합계
+    const summaryRows = extraEmployees.map(emp => {
+      let wd = 0, we = 0;
+      emp.days.forEach(d => {
+        const isWeekend = (() => { const dow = new Date(year, month-1, d).getDay(); return dow===0||dow===6||this.isHoliday(year,month,d); })();
+        if (isWeekend) we++; else wd++;
+      });
+      const amt = wd * this.RATE_EXTRA_WEEKDAY + we * this.RATE_EXTRA_WEEKEND;
+      if (!amt) return '';
+      return `<tr>
+        <td style="font-weight:700">${this.nick(emp.name)}<span style="font-size:11px;color:#6c757d;margin-left:4px">${emp.name}</span></td>
+        <td>${wd}회 (${Utils.formatNum(wd*this.RATE_EXTRA_WEEKDAY)}원)</td>
+        <td>${we}회 (${Utils.formatNum(we*this.RATE_EXTRA_WEEKEND)}원)</td>
+        <td style="font-weight:700;color:#1b4332">${Utils.formatNum(amt)}원</td>
+      </tr>`;
+    }).filter(Boolean).join('');
+
+    return `
+      <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:12px">
+          <thead>
+            <tr style="background:#f8f9fa">
+              <th style="padding:6px;text-align:center;border-bottom:2px solid #dee2e6">일</th>
+              <th style="padding:6px;text-align:center;border-bottom:2px solid #dee2e6">요일</th>
+              <th style="padding:6px;text-align:center;border-bottom:2px solid #dee2e6">단가</th>
+              <th style="padding:6px;border-bottom:2px solid #dee2e6">추가 출근자</th>
+              <th style="padding:6px;text-align:right;border-bottom:2px solid #dee2e6">일계</th>
+            </tr>
+          </thead>
+          <tbody>${rows.join('')}</tbody>
+        </table>
+      </div>
+      ${summaryRows ? `
+        <div style="font-weight:700;margin-bottom:6px;color:#495057">💰 추가 수당 합계</div>
+        <table id="extra-summary-table" style="width:100%;border-collapse:collapse;font-size:13px">
+          <thead><tr style="background:#1b4332;color:#fff">
+            <th style="padding:8px 12px">이름</th>
+            <th style="padding:8px 12px">주중</th>
+            <th style="padding:8px 12px">주말/공휴</th>
+            <th style="padding:8px 12px">합계</th>
+          </tr></thead>
+          <tbody id="extra-summary-body">${summaryRows}</tbody>
+        </table>` : `<div id="extra-summary-body" style="color:#adb5bd;font-size:13px;padding:8px 0">추가 출근 기록 없음</div>`}`;
+  },
+
+  async toggleExtra(userId, day, badge) {
+    const emp = this.extraData?.employees.find(e => e.id === userId);
+    if (!emp) return;
+    const isOn = badge.classList.contains('on');
+    const newState = !isOn;
+    const COLORS = { '조상희': '#2d6a4f', '조상하': '#1864ab', '정재호': '#862e9c', '소재훈': '#c0392b' };
+    const color = COLORS[emp.name] || '#495057';
+
+    if (newState) {
+      badge.classList.replace('off', 'on');
+      badge.style.cssText = `background:${color}22;color:${color};border:1.5px solid ${color};font-size:11px`;
+      emp.days.push(day);
+    } else {
+      badge.classList.replace('on', 'off');
+      badge.style.cssText = `background:#f1f3f5;color:#adb5bd;border:1.5px solid #dee2e6;font-size:11px`;
+      emp.days = emp.days.filter(d => d !== day);
+    }
+
+    // 해당 날짜 일계 갱신
+    const { year, month } = this.data;
+    const isWeekend = (() => { const dow = new Date(year, month-1, day).getDay(); return dow===0||dow===6||this.isHoliday(year,month,day); })();
+    const rate = isWeekend ? this.RATE_EXTRA_WEEKEND : this.RATE_EXTRA_WEEKDAY;
+    const count = this.extraData.employees.filter(e => e.days.includes(day)).length;
+    const totalEl = document.getElementById(`extra-day-total-${day}`);
+    if (totalEl) totalEl.textContent = count ? Utils.formatNum(count * rate) + '원' : '-';
+
+    // 합계 갱신
+    this.refreshExtraSummary();
+
+    try {
+      await API.post('/api/sh-timesheet/extra/toggle', {
+        user_id: userId, year: this.currentYear, month: this.currentMonth, day, participated: newState
+      });
+    } catch (e) { Utils.showToast('저장 실패: ' + e.message, 'error'); }
+  },
+
+  refreshExtraSummary() {
+    const { year, month } = this.data;
+    const employees = this.extraData?.employees || [];
+    const rows = employees.map(emp => {
+      let wd = 0, we = 0;
+      emp.days.forEach(d => {
+        const dow = new Date(year, month-1, d).getDay();
+        const isWeekend = dow===0||dow===6||this.isHoliday(year,month,d);
+        if (isWeekend) we++; else wd++;
+      });
+      const amt = wd * this.RATE_EXTRA_WEEKDAY + we * this.RATE_EXTRA_WEEKEND;
+      if (!amt) return '';
+      return `<tr>
+        <td style="font-weight:700">${this.nick(emp.name)}<span style="font-size:11px;color:#6c757d;margin-left:4px">${emp.name}</span></td>
+        <td>${wd}회 (${Utils.formatNum(wd*this.RATE_EXTRA_WEEKDAY)}원)</td>
+        <td>${we}회 (${Utils.formatNum(we*this.RATE_EXTRA_WEEKEND)}원)</td>
+        <td style="font-weight:700;color:#1b4332">${Utils.formatNum(amt)}원</td>
+      </tr>`;
+    }).filter(Boolean).join('');
+
+    const body = document.getElementById('extra-summary-body');
+    if (body) body.innerHTML = rows || '<tr><td colspan="4" style="color:#adb5bd;font-size:13px;padding:8px">추가 출근 기록 없음</td></tr>';
   },
 
   // 규칙 기반 자동 입력
