@@ -366,12 +366,14 @@ const ShareholderTimesheet = {
     if (!this.data) return;
     const { year, month, days, employees } = this.data;
 
-    // 닉네임 기준으로 매핑 (이름이 살짝 달라도 동작)
-    const byNick = name => employees.find(e => this.nick(e.name) === name) || employees.find(e => e.name.includes(name));
-    const sam  = byNick('샘');
-    const bid  = byNick('비드');
-    const cari = byNick('캐리');
-    const billy= byNick('빌리');
+    const find = (fullName, nick) =>
+      employees.find(e => e.name === fullName) ||
+      employees.find(e => this.nick(e.name) === nick) ||
+      employees.find(e => e.name.includes(fullName.slice(1)));
+    const sam  = find('조상희', '샘');
+    const bid  = find('조상하', '비드');
+    const cari = find('정재호', '캐리');
+    const billy= find('소재훈', '빌리');
     if (!sam || !bid || !cari || !billy) {
       const found = employees.map(e => `${e.name}(${this.nick(e.name)})`).join(', ');
       return Utils.showToast(`직원 매핑 실패. 등록된 주주: ${found || '없음'}`, 'error');
