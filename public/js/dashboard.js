@@ -97,7 +97,7 @@ const Dashboard = {
       `;
 
       this.renderCalendar();
-      if (isAdmin) this.loadGcalEvents();
+      this.loadGcalEvents();
     } catch (e) {
       content.innerHTML = `<div class="empty-state"><div class="icon">⚠️</div>${e.message}</div>`;
     }
@@ -183,12 +183,11 @@ const Dashboard = {
         ? 'background:#1b4332;color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-weight:700'
         : isRed ? 'color:#e03131;font-weight:600' : isSat ? 'color:#1c7ed6;font-weight:600' : 'color:#212529';
 
-      const isAdmin = ['admin','superadmin'].includes(App.user?.role);
       const evtHtml = evts.map(e => {
         const label = e._isFirst ? e.title : '↳ ' + e.title;
         const bg = e._isFirst ? '#d3f9d8' : '#e8f5e9';
         const border = e._isFirst ? '' : 'border-left:2px solid #2b8a3e;border-radius:0 3px 3px 0;';
-        const clickAttr = isAdmin && e._isFirst
+        const clickAttr = e._isFirst
           ? `onclick="event.stopPropagation();Dashboard.openDeleteEvent('${e.id}','${e.title.replace(/'/g,"\\'")}')" style="background:${bg};color:#2b8a3e;${border}border-radius:3px;padding:1px 4px;font-size:9px;word-break:break-all;margin-top:2px;cursor:pointer"`
           : `style="background:${bg};color:#2b8a3e;${border}border-radius:3px;padding:1px 4px;font-size:9px;word-break:break-all;margin-top:2px"`;
         return `<div ${clickAttr}>${label}</div>`;
@@ -196,8 +195,8 @@ const Dashboard = {
 
       const bg = isToday ? '#f0fff4' : isRed ? '#fff5f5' : isSat ? '#f0f5ff' : '';
 
-      cells.push(`<td style="padding:4px 3px;vertical-align:top;background:${bg};border:1px solid #f1f3f5;${isAdmin?'cursor:pointer':''}"
-        ${isAdmin ? `onclick="Dashboard.openAddEvent('${dateStr}')"` : ''}>
+      cells.push(`<td style="padding:4px 3px;vertical-align:top;background:${bg};border:1px solid #f1f3f5;cursor:pointer"
+        onclick="Dashboard.openAddEvent('${dateStr}')">
         <div style="${numStyle};font-size:12px">${d}</div>
         ${evtHtml}
       </td>`);

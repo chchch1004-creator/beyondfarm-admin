@@ -76,9 +76,9 @@ router.delete('/disconnect', requireAuth, requireAdmin, async (req, res) => {
 });
 
 // 구글캘린더 → 홈페이지로 가져오기
-router.get('/events', requireAuth, requireAdmin, async (req, res) => {
+router.get('/events', requireAuth, async (req, res) => {
   const db = getDb();
-  const token = await db.prepare('SELECT * FROM google_tokens WHERE user_id = ?').get(req.session.user.id);
+  const token = await getSharedToken(db, req.session.user.id);
   if (!token) return res.status(400).json({ error: '구글캘린더가 연동되지 않았습니다' });
 
   try {
@@ -122,13 +122,33 @@ router.get('/events', requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
+async function getAnyAdminToken(db) {
+  const token = await db.prepare('SELECT * FROM google_tokens WHERE user_id = ?').get(0); // placeholder
+  // 본인 토큰 우선, 없으면 superadmin/admin 토큰 사용
+  return token;
+}
+
+async function getSharedToken(db, userId) {
+  let token = await db.prepare('SELECT * FROM google_tokens WHERE user_id = ?').get(userId);
+  if (!token) {
+    token = await db.prepare(`
+      SELECT gt.* FROM google_tokens gt
+      JOIN users u ON u.id = gt.user_id
+      WHERE u.role IN ('superadmin','admin')
+      ORDER BY CASE u.role WHEN 'superadmin' THEN 0 ELSE 1 END
+      LIMIT 1
+    `).get();
+  }
+  return token;
+}
+
 // 홈페이지 → 구글캘린더 이벤트 생성
-router.post('/push-event', requireAuth, requireAdmin, async (req, res) => {
+router.post('/push-event', requireAuth, async (req, res) => {
   const { title, start, end, description, allDay } = req.body;
   if (!title || !start) return res.status(400).json({ error: '제목과 시작일은 필수입니다' });
 
   const db = getDb();
-  const token = await db.prepare('SELECT * FROM google_tokens WHERE user_id = ?').get(req.session.user.id);
+  const token = await getSharedToken(db, req.session.user.id);
   if (!token) return res.status(400).json({ error: '구글캘린더가 연동되지 않았습니다' });
 
   try {
@@ -153,9 +173,9 @@ router.post('/push-event', requireAuth, requireAdmin, async (req, res) => {
 });
 
 // 구글캘린더 이벤트 삭제
-router.delete('/events/:eventId', requireAuth, requireAdmin, async (req, res) => {
+router.delete('/events/:eventId', requireAuth, async (req, res) => {
   const db = getDb();
-  const token = await db.prepare('SELECT * FROM google_tokens WHERE user_id = ?').get(req.session.user.id);
+  const token = await getSharedToken(db, req.session.user.id);
   if (!token) return res.status(400).json({ error: '구글캘린더가 연동되지 않았습니다' });
 
   try {
