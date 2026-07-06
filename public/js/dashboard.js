@@ -184,15 +184,18 @@ const Dashboard = {
         ? 'background:#1b4332;color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-weight:700'
         : isRed ? 'color:#e03131;font-weight:600' : isSat ? 'color:#1c7ed6;font-weight:600' : 'color:#212529';
 
+      const isAdmin = ['admin','superadmin'].includes(App.user?.role);
       const evtHtml = evts.map(e => {
         const label = e._isFirst ? e.title : '↳ ' + e.title;
         const bg = e._isFirst ? '#d3f9d8' : '#e8f5e9';
         const border = e._isFirst ? '' : 'border-left:2px solid #2b8a3e;border-radius:0 3px 3px 0;';
-        return `<div style="background:${bg};color:#2b8a3e;${border}border-radius:3px;padding:1px 4px;font-size:9px;word-break:break-all;margin-top:2px">${label}</div>`;
+        const clickAttr = isAdmin && e._isFirst
+          ? `onclick="event.stopPropagation();Dashboard.openDeleteEvent('${e.id}','${e.title.replace(/'/g,"\\'")}')" style="background:${bg};color:#2b8a3e;${border}border-radius:3px;padding:1px 4px;font-size:9px;word-break:break-all;margin-top:2px;cursor:pointer"`
+          : `style="background:${bg};color:#2b8a3e;${border}border-radius:3px;padding:1px 4px;font-size:9px;word-break:break-all;margin-top:2px"`;
+        return `<div ${clickAttr}>${label}</div>`;
       }).join('');
 
       const bg = isToday ? '#f0fff4' : isRed ? '#fff5f5' : isSat ? '#f0f5ff' : '';
-      const isAdmin = ['admin','superadmin'].includes(App.user?.role);
 
       cells.push(`<td style="padding:4px 3px;vertical-align:top;background:${bg};border:1px solid #f1f3f5;${isAdmin?'cursor:pointer':''}"
         ${isAdmin ? `onclick="Dashboard.openAddEvent('${dateStr}')"` : ''}>
@@ -344,6 +347,42 @@ const Dashboard = {
     } catch (e) {
       Utils.showToast('등록 실패: ' + e.message, 'error');
       if (btn) { btn.disabled = false; btn.textContent = '저장'; }
+    }
+  },
+
+  openDeleteEvent(eventId, title) {
+    const existing = document.getElementById('gcal-del-modal');
+    if (existing) existing.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'gcal-del-modal';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9999;display:flex;align-items:center;justify-content:center';
+    modal.innerHTML = `
+      <div style="background:#fff;border-radius:12px;padding:24px;width:320px;box-shadow:0 8px 32px rgba(0,0,0,0.18)">
+        <div style="font-size:16px;font-weight:700;margin-bottom:10px">🗑️ 일정 삭제</div>
+        <div style="font-size:13px;color:#495057;margin-bottom:20px">
+          <strong>"${title}"</strong><br>이 일정을 구글캘린더에서 삭제할까요?
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end">
+          <button class="btn btn-secondary" onclick="document.getElementById('gcal-del-modal').remove()">취소</button>
+          <button class="btn btn-danger" onclick="Dashboard.confirmDeleteEvent('${eventId}')">삭제</button>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+    modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+  },
+
+  async confirmDeleteEvent(eventId) {
+    const btn = document.querySelector('#gcal-del-modal .btn-danger');
+    if (btn) { btn.disabled = true; btn.textContent = '삭제 중...'; }
+    try {
+      await API.delete(`/api/gcal/events/${eventId}`);
+      document.getElementById('gcal-del-modal')?.remove();
+      Utils.showToast('일정이 삭제되었습니다.');
+      await this.loadGcalEvents();
+    } catch (e) {
+      Utils.showToast('삭제 실패: ' + e.message, 'error');
+      if (btn) { btn.disabled = false; btn.textContent = '삭제'; }
     }
   },
 

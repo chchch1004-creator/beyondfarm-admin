@@ -152,6 +152,24 @@ router.post('/push-event', requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
+// 구글캘린더 이벤트 삭제
+router.delete('/events/:eventId', requireAuth, requireAdmin, async (req, res) => {
+  const db = getDb();
+  const token = await db.prepare('SELECT * FROM google_tokens WHERE user_id = ?').get(req.session.user.id);
+  if (!token) return res.status(400).json({ error: '구글캘린더가 연동되지 않았습니다' });
+
+  try {
+    const auth = getOAuth2Client();
+    auth.setCredentials({ access_token: token.access_token, refresh_token: token.refresh_token, expiry_date: token.expiry_date });
+    const calendar = google.calendar({ version: 'v3', auth });
+    await calendar.events.delete({ calendarId: token.calendar_id || 'primary', eventId: req.params.eventId });
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('GCal delete error:', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // 휴가 승인 시 캘린더에 자동 등록 (leaves route에서 호출)
 async function pushLeaveToCalendar(userId, leaveData) {
   const db = getDb();
