@@ -192,8 +192,10 @@ const Dashboard = {
       }).join('');
 
       const bg = isToday ? '#f0fff4' : isRed ? '#fff5f5' : isSat ? '#f0f5ff' : '';
+      const isAdmin = ['admin','superadmin'].includes(App.user?.role);
 
-      cells.push(`<td style="padding:4px 3px;vertical-align:top;background:${bg};border:1px solid #f1f3f5">
+      cells.push(`<td style="padding:4px 3px;vertical-align:top;background:${bg};border:1px solid #f1f3f5;${isAdmin?'cursor:pointer':''}"
+        ${isAdmin ? `onclick="Dashboard.openAddEvent('${dateStr}')"` : ''}>
         <div style="${numStyle};font-size:12px">${d}</div>
         ${evtHtml}
       </td>`);
@@ -268,6 +270,81 @@ const Dashboard = {
       <thead><tr>${thRow}</tr></thead>
       <tbody>${bodyRows}</tbody>
     </table>`;
+  },
+
+  openAddEvent(dateStr) {
+    const existing = document.getElementById('gcal-add-modal');
+    if (existing) existing.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'gcal-add-modal';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9999;display:flex;align-items:center;justify-content:center';
+    modal.innerHTML = `
+      <div style="background:#fff;border-radius:12px;padding:24px;width:360px;box-shadow:0 8px 32px rgba(0,0,0,0.18)">
+        <div style="font-size:16px;font-weight:700;margin-bottom:16px">📅 일정 추가 <span style="font-size:13px;font-weight:400;color:#6c757d">${dateStr}</span></div>
+        <div class="form-group">
+          <label class="form-label">제목 *</label>
+          <input id="gcal-title" class="form-control" placeholder="일정 제목을 입력하세요" autofocus>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:10px">
+          <div class="form-group" style="flex:1">
+            <label class="form-label">시작 시간</label>
+            <input id="gcal-start-time" type="time" class="form-control" value="09:00">
+          </div>
+          <div class="form-group" style="flex:1">
+            <label class="form-label">종료 시간</label>
+            <input id="gcal-end-time" type="time" class="form-control" value="18:00">
+          </div>
+        </div>
+        <div class="form-group" style="margin-top:10px">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px">
+            <input type="checkbox" id="gcal-allday" onchange="Dashboard.toggleAllDay(this)"> 종일 일정
+          </label>
+        </div>
+        <div class="form-group" style="margin-top:10px">
+          <label class="form-label">메모 (선택)</label>
+          <textarea id="gcal-desc" class="form-control" rows="2" placeholder="메모"></textarea>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+          <button class="btn btn-secondary" onclick="document.getElementById('gcal-add-modal').remove()">취소</button>
+          <button class="btn btn-primary" onclick="Dashboard.submitAddEvent('${dateStr}')">저장</button>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+    modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+    setTimeout(() => document.getElementById('gcal-title')?.focus(), 50);
+  },
+
+  toggleAllDay(cb) {
+    const timeRow = cb.closest('.form-group').previousElementSibling;
+    if (timeRow) timeRow.style.display = cb.checked ? 'none' : 'flex';
+  },
+
+  async submitAddEvent(dateStr) {
+    const title = document.getElementById('gcal-title')?.value.trim();
+    if (!title) { Utils.showToast('제목을 입력해주세요', 'error'); return; }
+
+    const allDay = document.getElementById('gcal-allday')?.checked;
+    const startTime = document.getElementById('gcal-start-time')?.value || '09:00';
+    const endTime = document.getElementById('gcal-end-time')?.value || '18:00';
+    const desc = document.getElementById('gcal-desc')?.value.trim();
+
+    const btn = document.querySelector('#gcal-add-modal .btn-primary');
+    if (btn) { btn.disabled = true; btn.textContent = '저장 중...'; }
+
+    try {
+      const payload = allDay
+        ? { title, start: dateStr, end: dateStr, description: desc, allDay: true }
+        : { title, start: `${dateStr}T${startTime}:00`, end: `${dateStr}T${endTime}:00`, description: desc, allDay: false };
+
+      await API.post('/api/gcal/push-event', payload);
+      document.getElementById('gcal-add-modal')?.remove();
+      Utils.showToast('일정이 구글캘린더에 등록되었습니다.');
+      await this.loadGcalEvents(); // 달력 즉시 갱신
+    } catch (e) {
+      Utils.showToast('등록 실패: ' + e.message, 'error');
+      if (btn) { btn.disabled = false; btn.textContent = '저장'; }
+    }
   },
 
   async approveLeave(id, status) {
