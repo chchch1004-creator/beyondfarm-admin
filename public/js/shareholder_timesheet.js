@@ -164,14 +164,12 @@ const ShareholderTimesheet = {
       <!-- 두 달력 가로 배치 -->
       <div class="card" style="padding:16px">
         <div style="display:flex;gap:16px;align-items:flex-start">
-          <!-- 주주근무표 달력 (2/3) -->
           <div style="flex:2;min-width:0">
             <div style="font-size:15px;font-weight:700;text-align:center;margin-bottom:12px;color:#1b4332">
               📋 ${year}년 ${month}월 주주 근무표
             </div>
             <div class="sh-cal-wrap">${calHtml}</div>
           </div>
-          <!-- 추가출근 달력 (1/3) -->
           <div style="flex:1;min-width:0" class="sh-extra-cal">
             <div style="font-size:15px;font-weight:700;text-align:center;margin-bottom:12px;color:#495057">
               ➕ 추가 출근
@@ -181,9 +179,24 @@ const ShareholderTimesheet = {
         </div>
       </div>
 
+      <!-- 주주근무표 요약 + 추가수당합계 나란히 -->
+      <div class="card" style="margin-top:0;padding:16px">
+        <div style="display:flex;gap:24px;align-items:flex-start">
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:700;margin-bottom:8px;color:#495057">📋 주주 근무표 요약 <span style="font-size:11px;font-weight:400;color:#6c757d">(월~목 20만 · 금 25만 · 주말·공휴 30만원)</span></div>
+            <div id="main-summary-wrap">${summaryHtml}</div>
+          </div>
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:700;margin-bottom:8px;color:#495057">➕ 추가 출근 요약 <span style="font-size:11px;font-weight:400;color:#6c757d">(월~목 10만 · 금 15만 · 주말·공휴 20만원)</span></div>
+            <div id="extra-summary-wrap">${this.buildExtraSummaryTable(year, month)}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 합계 (담당+추가 합산) -->
       <div class="card" style="margin-top:0">
-        <div class="card-title">📊 ${year}년 ${month}월 요약 <span style="font-size:11px;font-weight:400;color:#6c757d">(담당자 외 / 월~목 20만 · 금 25만 · 주말·공휴 30만원)</span></div>
-        ${summaryHtml}
+        <div class="card-title">📊 ${year}년 ${month}월 합계</div>
+        <div id="grand-total-wrap">${this.buildGrandTotal(year, month, days, employees, partMap)}</div>
       </div>
 
       <div class="card" style="margin-top:0">
@@ -347,9 +360,10 @@ const ShareholderTimesheet = {
     const { year, month, days, employees } = this.data;
     const partMap = {};
     employees.forEach(e => { partMap[e.id] = new Set(e.days); });
-    const summaryEl = document.querySelector('.sh-sum-table')?.closest('div');
-    if (!summaryEl) return;
-    summaryEl.innerHTML = this.buildSummary(year, month, days, employees, partMap);
+    const wrap = document.getElementById('main-summary-wrap');
+    if (wrap) wrap.innerHTML = this.buildSummary(year, month, days, employees, partMap);
+    const grandWrap = document.getElementById('grand-total-wrap');
+    if (grandWrap) grandWrap.innerHTML = this.buildGrandTotal(year, month, days, employees, partMap);
   },
 
   async saveNote() {
@@ -410,10 +424,13 @@ const ShareholderTimesheet = {
       return `<tr>${cells}</tr>`;
     }).join('');
 
-    const calHtml = `<table class="sh-cal"><thead><tr>${thRow}</tr></thead><tbody>${bodyRows}</tbody></table>`;
+    return `<table class="sh-cal"><thead><tr>${thRow}</tr></thead><tbody>${bodyRows}</tbody></table>`;
+  },
 
-    // 합계 테이블
-    const summaryRows = emps.map(emp => {
+  buildExtraSummaryTable(year, month) {
+    if (!this.extraData) return '<div style="color:#adb5bd;font-size:13px">데이터 없음</div>';
+    const emps = this.extraData.employees;
+    const rows = emps.map(emp => {
       let wd = 0, fri = 0, we = 0;
       emp.days.forEach(d => {
         const t = this.dayType(year, month, d);
@@ -422,26 +439,56 @@ const ShareholderTimesheet = {
         else wd++;
       });
       const amt = wd * this.RATE_EXTRA_WEEKDAY + fri * this.RATE_EXTRA_FRIDAY + we * this.RATE_EXTRA_WEEKEND;
-      if (!amt) return '';
-      return `<tr>
-        <td style="font-weight:700">${this.nick(emp.name)}<br><span style="font-size:11px;color:#6c757d">${emp.name}</span></td>
-        <td>${wd}</td><td>${fri}</td><td>${we}</td>
-        <td style="font-weight:700;color:#1b4332">${Utils.formatNum(amt)}원</td>
-      </tr>`;
-    }).filter(Boolean).join('');
+      return { nick: this.nick(emp.name), name: emp.name, wd, fri, we, total: wd+fri+we, amt };
+    });
+    const totals = rows.reduce((a,r) => { a.wd+=r.wd; a.fri+=r.fri; a.we+=r.we; a.total+=r.total; a.amt+=r.amt; return a; }, {wd:0,fri:0,we:0,total:0,amt:0});
+    return `<table class="sh-sum-table">
+      <thead><tr><th>이름</th><th>주중횟수</th><th>금요일횟수</th><th>주말/공휴횟수</th><th>합계</th><th>총합계</th></tr></thead>
+      <tbody id="extra-summary-body">${rows.map(r => `<tr>
+        <td style="font-weight:700">${r.nick}<br><span style="font-size:11px;color:#6c757d">${r.name}</span></td>
+        <td>${r.wd}</td><td>${r.fri}</td><td>${r.we}</td><td><strong>${r.total}</strong></td>
+        <td style="font-weight:700;color:#1b4332">${r.amt ? Utils.formatNum(r.amt)+'원' : '-'}</td>
+      </tr>`).join('')}</tbody>
+      <tfoot><tr><td>합계</td><td>${totals.wd}</td><td>${totals.fri}</td><td>${totals.we}</td><td>${totals.total}</td><td>${totals.amt ? Utils.formatNum(totals.amt)+'원' : '-'}</td></tr></tfoot>
+    </table>`;
+  },
 
-    return `
-      <div class="sh-cal-wrap">${calHtml}</div>
-      ${summaryRows ? `
-        <div style="font-weight:700;margin:14px 0 6px;color:#495057">💰 추가 수당 합계</div>
-        <table class="sh-sum-table">
-          <thead><tr>
-            <th>이름</th>
-            <th>주중</th><th>금요일</th><th>주말/공휴</th>
-            <th>총합계</th>
-          </tr></thead>
-          <tbody id="extra-summary-body">${summaryRows}</tbody>
-        </table>` : `<div id="extra-summary-body" style="color:#adb5bd;font-size:13px;padding:12px 0">추가 출근 기록 없음</div>`}`;
+  buildGrandTotal(year, month, days, employees, partMap) {
+    if (!this.extraData) return '';
+    const extraEmps = this.extraData.employees;
+    const rows = employees.map(emp => {
+      // 담당 수당
+      let wd=0, fri=0, we=0;
+      (partMap[emp.id] || new Set()).forEach(d => {
+        const t = this.dayType(year, month, d);
+        if (t==='sunday'||t==='saturday'||t==='holiday') we++;
+        else if (t==='friday') fri++;
+        else wd++;
+      });
+      const mainAmt = wd*this.RATE_WEEKDAY + fri*this.RATE_FRIDAY + we*this.RATE_WEEKEND;
+      // 추가 수당
+      let ewd=0, efri=0, ewe=0;
+      const extraEmp = extraEmps.find(e => e.id === emp.id);
+      (extraEmp?.days || []).forEach(d => {
+        const t = this.dayType(year, month, d);
+        if (t==='sunday'||t==='saturday'||t==='holiday') ewe++;
+        else if (t==='friday') efri++;
+        else ewd++;
+      });
+      const extraAmt = ewd*this.RATE_EXTRA_WEEKDAY + efri*this.RATE_EXTRA_FRIDAY + ewe*this.RATE_EXTRA_WEEKEND;
+      return { nick: this.nick(emp.name), name: emp.name, mainAmt, extraAmt, total: mainAmt+extraAmt };
+    });
+    const totals = rows.reduce((a,r) => { a.mainAmt+=r.mainAmt; a.extraAmt+=r.extraAmt; a.total+=r.total; return a; }, {mainAmt:0,extraAmt:0,total:0});
+    return `<table class="sh-sum-table">
+      <thead><tr><th>이름</th><th>담당 수당</th><th>추가 수당</th><th>최종 합계</th></tr></thead>
+      <tbody>${rows.map(r => `<tr>
+        <td style="font-weight:700">${r.nick}<br><span style="font-size:11px;color:#6c757d">${r.name}</span></td>
+        <td>${r.mainAmt ? Utils.formatNum(r.mainAmt)+'원' : '-'}</td>
+        <td>${r.extraAmt ? Utils.formatNum(r.extraAmt)+'원' : '-'}</td>
+        <td style="font-weight:700;color:#1b4332">${r.total ? Utils.formatNum(r.total)+'원' : '-'}</td>
+      </tr>`).join('')}</tbody>
+      <tfoot><tr><td>합계</td><td>${totals.mainAmt ? Utils.formatNum(totals.mainAmt)+'원' : '-'}</td><td>${totals.extraAmt ? Utils.formatNum(totals.extraAmt)+'원' : '-'}</td><td style="font-weight:700">${totals.total ? Utils.formatNum(totals.total)+'원' : '-'}</td></tr></tfoot>
+    </table>`;
   },
 
   async toggleExtra(userId, day, badge) {
@@ -472,26 +519,17 @@ const ShareholderTimesheet = {
 
   refreshExtraSummary() {
     const { year, month } = this.data;
-    const emps = this.extraData?.employees || [];
-    const rows = emps.map(emp => {
-      let wd = 0, fri = 0, we = 0;
-      emp.days.forEach(d => {
-        const t = this.dayType(year, month, d);
-        if (t === 'sunday' || t === 'saturday' || t === 'holiday') we++;
-        else if (t === 'friday') fri++;
-        else wd++;
-      });
-      const amt = wd * this.RATE_EXTRA_WEEKDAY + fri * this.RATE_EXTRA_FRIDAY + we * this.RATE_EXTRA_WEEKEND;
-      if (!amt) return '';
-      return `<tr>
-        <td style="font-weight:700">${this.nick(emp.name)}<br><span style="font-size:11px;color:#6c757d">${emp.name}</span></td>
-        <td>${wd}</td><td>${fri}</td><td>${we}</td>
-        <td style="font-weight:700;color:#1b4332">${Utils.formatNum(amt)}원</td>
-      </tr>`;
-    }).filter(Boolean).join('');
-
-    const body = document.getElementById('extra-summary-body');
-    if (body) body.innerHTML = rows || '<tr><td colspan="5" style="color:#adb5bd;padding:8px">추가 출근 기록 없음</td></tr>';
+    // 추가 출근 요약 테이블 전체 교체
+    const wrap = document.getElementById('extra-summary-wrap');
+    if (wrap) wrap.innerHTML = this.buildExtraSummaryTable(year, month);
+    // 합계 테이블도 갱신
+    const grandWrap = document.getElementById('grand-total-wrap');
+    if (grandWrap) {
+      const { days, employees } = this.data;
+      const partMap = {};
+      employees.forEach(e => { partMap[e.id] = new Set(e.days); });
+      grandWrap.innerHTML = this.buildGrandTotal(year, month, days, employees, partMap);
+    }
   },
 
   // 규칙 기반 자동 입력
