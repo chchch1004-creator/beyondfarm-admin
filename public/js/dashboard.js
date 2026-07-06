@@ -153,16 +153,37 @@ const Dashboard = {
     const firstDow = new Date(year, month - 1, 1).getDay();
     const todayStr = Utils.today();
 
-    // 이번 달 이벤트 필터링 (구글캘린더 + 휴가 표시)
-    const monthStr = `${year}-${String(month).padStart(2,'0')}`;
-    const monthEvents = this.gcalEvents.filter(e => (e.start || '').startsWith(monthStr));
-
-    // 날짜별 이벤트 맵
+    // 날짜별 이벤트 맵 (기간 이벤트도 각 날짜에 전개)
     const eventMap = {};
-    monthEvents.forEach(e => {
-      const d = parseInt((e.start || '').slice(8, 10));
-      if (!eventMap[d]) eventMap[d] = [];
-      eventMap[d].push(e);
+    const monthStart = new Date(year, month - 1, 1);
+    const monthEnd   = new Date(year, month, 0); // 말일
+
+    this.gcalEvents.forEach(e => {
+      const rawStart = (e.start || '').slice(0, 10);
+      // allDay end는 exclusive (8/21 = 8/20까지), dateTime은 inclusive
+      let rawEnd = (e.end || e.start || '').slice(0, 10);
+      if (e.allDay) {
+        // Google의 allDay end는 exclusive이므로 하루 빼기
+        const endD = new Date(rawEnd);
+        endD.setDate(endD.getDate() - 1);
+        rawEnd = endD.toISOString().slice(0, 10);
+      }
+      const evtStart = new Date(rawStart);
+      const evtEnd   = new Date(rawEnd);
+
+      // 이벤트 기간과 이번 달이 겹치는지 확인
+      if (evtEnd < monthStart || evtStart > monthEnd) return;
+
+      // 이번 달 안에 해당하는 날짜마다 이벤트 추가
+      for (let d = 1; d <= days; d++) {
+        const cur = new Date(year, month - 1, d);
+        if (cur >= evtStart && cur <= evtEnd) {
+          if (!eventMap[d]) eventMap[d] = [];
+          // 시작일이면 제목 표시, 중간/끝이면 연속 표시
+          const isFirst = cur.getTime() === evtStart.getTime();
+          eventMap[d].push({ ...e, _isFirst: isFirst });
+        }
+      }
     });
 
     const DOW_KR = ['일','월','화','수','목','금','토'];
@@ -186,9 +207,12 @@ const Dashboard = {
         ? 'background:#1b4332;color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-weight:700'
         : isRed ? 'color:#e03131;font-weight:600' : isSat ? 'color:#1c7ed6;font-weight:600' : 'color:#212529';
 
-      const evtHtml = evts.slice(0, 2).map(e =>
-        `<div style="background:#d3f9d8;color:#2b8a3e;border-radius:3px;padding:1px 4px;font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px" title="${e.title}">${e.title}</div>`
-      ).join('') + (evts.length > 2 ? `<div style="font-size:9px;color:#6c757d">+${evts.length-2}개</div>` : '');
+      const evtHtml = evts.slice(0, 2).map(e => {
+        const label = e._isFirst ? e.title : '↳ ' + e.title;
+        const bg = e._isFirst ? '#d3f9d8' : '#e8f5e9';
+        const border = e._isFirst ? '' : 'border-left:2px solid #2b8a3e;border-radius:0 3px 3px 0;';
+        return `<div style="background:${bg};color:#2b8a3e;${border}border-radius:3px;padding:1px 4px;font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px" title="${e.title}">${label}</div>`;
+      }).join('') + (evts.length > 2 ? `<div style="font-size:9px;color:#6c757d">+${evts.length-2}개</div>` : '');
 
       const bg = isToday ? '#f0fff4' : isRed ? '#fff5f5' : isSat ? '#f0f5ff' : '';
 
