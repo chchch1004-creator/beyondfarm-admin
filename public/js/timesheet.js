@@ -7,6 +7,32 @@ const Timesheet = {
   selectedIds: new Set(),
   isDragging: false,
 
+  HOLIDAYS: new Set([
+    '2025-01-01','2025-01-28','2025-01-29','2025-01-30',
+    '2025-03-01','2025-03-03','2025-05-05','2025-05-06',
+    '2025-06-06','2025-08-15','2025-10-03','2025-10-05',
+    '2025-10-06','2025-10-07','2025-10-08','2025-10-09','2025-12-25',
+    '2026-01-01','2026-02-16','2026-02-17','2026-02-18',
+    '2026-03-01','2026-03-02','2026-05-05','2026-05-24','2026-05-25',
+    '2026-06-06','2026-07-17','2026-08-15','2026-08-17',
+    '2026-09-24','2026-09-25','2026-09-26','2026-09-28',
+    '2026-10-03','2026-10-05','2026-10-09','2026-12-25',
+    '2027-01-01','2027-02-06','2027-02-07','2027-02-08','2027-02-09',
+    '2027-03-01','2027-05-05','2027-05-13','2027-06-06','2027-07-17',
+    '2027-08-15','2027-08-16','2027-10-03','2027-10-04','2027-10-09',
+    '2027-10-11','2027-10-14','2027-10-15','2027-10-16','2027-12-25','2027-12-27',
+  ]),
+
+  shRate(year, month, day) {
+    const dow = new Date(year, month - 1, day).getDay();
+    const pad = n => String(n).padStart(2,'0');
+    const dateStr = `${year}-${pad(month)}-${pad(day)}`;
+    const isHol = this.HOLIDAYS.has(dateStr);
+    if (isHol || dow === 0 || dow === 6) return 30;
+    if (dow === 5) return 25;
+    return 20;
+  },
+
   getStorageKey() { return `ts-hidden-${this.currentYear}-${this.currentMonth}`; },
   loadHidden() { try { this.hiddenIds = new Set(JSON.parse(localStorage.getItem(this.getStorageKey()) || '[]')); } catch { this.hiddenIds = new Set(); } },
   saveHidden() { localStorage.setItem(this.getStorageKey(), JSON.stringify([...this.hiddenIds])); },
@@ -34,7 +60,18 @@ const Timesheet = {
     }
   },
 
+  isShareholder(emp) { return emp.sh_days !== null && emp.sh_days !== undefined; },
+
   calc(emp) {
+    if (this.isShareholder(emp)) {
+      const shDays = emp.sh_days || [];
+      const shTotal = shDays.reduce((s, d) => s + this.shRate(this.currentYear, this.currentMonth, d) * 10000, 0);
+      const netPay = Math.round(shTotal + (emp.adj || 0) * 10000 + (emp.adj1 || 0) * 10000);
+      const tax = Math.round(netPay * 0.03);
+      const localTax = Math.round(netPay * 0.003);
+      const transfer = netPay - tax - localTax;
+      return { totalHours: shDays.length, netPay, tax, localTax, transfer };
+    }
     const totalHours = Object.values(emp.daily).reduce((s, d) => s + (d.hours || 0), 0);
     const netPay = Math.round(totalHours * (emp.hourly_rate || 0) + (emp.adj || 0) * 10000 + (emp.adj1 || 0) * 10000);
     const tax = Math.round(netPay * 0.03);
@@ -69,19 +106,29 @@ const Timesheet = {
     // 직원 행 생성
     let rowsHtml = '';
     employees.forEach(emp => {
+      const shDaysSet = this.isShareholder(emp) ? new Set(emp.sh_days || []) : null;
       const dailyCells = Array.from({length: days}, (_, i) => {
         const d = i + 1;
+        const dow = getDow(d);
+        const wkColor = dow === 0 ? 'color:#ff4444' : dow === 6 ? 'color:#4488ff' : '';
+        if (shDaysSet) {
+          // 주주: 참여일에 금액 표시
+          if (shDaysSet.has(d)) {
+            const amt = this.shRate(year, month, d);
+            return `<td style="text-align:center;font-weight:700;color:#2d6a4f;background:#f0fff4;${wkColor?';'+wkColor:''}">${amt}</td>`;
+          }
+          return `<td style="text-align:center;${wkColor}"></td>`;
+        }
         const dayData = emp.daily[d];
         const h = dayData?.hours;
         const isManual = dayData?.is_manual;
-        const dow = getDow(d);
-        const wkColor = dow === 0 ? 'color:#ff4444' : dow === 6 ? 'color:#4488ff' : '';
         const manualColor = isManual ? 'color:#dc3545;font-weight:600' : wkColor;
         return `<td id="h-${emp.id}-${d}" style="text-align:center;cursor:pointer;${h ? manualColor : wkColor}"
           onclick="Timesheet.startEdit(this,${emp.id},${d})">${h || ''}</td>`;
       }).join('');
 
       const { totalHours, netPay, tax, localTax, transfer } = this.calc(emp);
+      const totalLabel = this.isShareholder(emp) ? (totalHours ? totalHours + '일' : '') : (totalHours || '');
 
       // 주민번호 포맷
       let ssnDisplay = '-';
@@ -95,7 +142,7 @@ const Timesheet = {
         onmousedown="Timesheet.onRowMouseDown(event,${emp.id})"
         onmouseover="Timesheet.onRowMouseOver(event,${emp.id})">
         <td style="padding:3px 8px;font-weight:600;white-space:nowrap">${emp.name}</td>
-        <td id="total-${emp.id}" style="text-align:center;font-weight:600">${totalHours || ''}</td>
+        <td id="total-${emp.id}" style="text-align:center;font-weight:600">${totalLabel}</td>
         ${dailyCells}
         <td id="adj-${emp.id}" style="text-align:center;cursor:pointer;color:#e67700"
           onclick="Timesheet.startEditAdj(this,${emp.id},'adj')">${emp.adj || ''}</td>
@@ -264,7 +311,8 @@ const Timesheet = {
     const emp = this.data.employees.find(e => e.id === userId);
     const { totalHours, netPay, tax, localTax, transfer } = this.calc(emp);
     const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
-    set(`total-${userId}`, totalHours || '');
+    const totalLabel = this.isShareholder(emp) ? (totalHours ? totalHours + '일' : '') : (totalHours || '');
+    set(`total-${userId}`, totalLabel);
     set(`netpay-${userId}`, netPay ? Utils.formatNum(netPay) : '');
     set(`tax-${userId}`, netPay ? Utils.formatNum(tax) : '');
     set(`ltax-${userId}`, netPay ? Utils.formatNum(localTax) : '');

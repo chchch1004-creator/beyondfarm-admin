@@ -268,20 +268,11 @@ const Dashboard = {
       return `<tr>${cells}</tr>`;
     }).join('');
 
-    const summary = employees.map(e => {
-      const cnt = partMap[e.id].size;
-      const color = COLORS[e.name] || '#495057';
-      return `<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:12px;background:${color}15;border:1px solid ${color}40;font-size:11px;font-weight:600;color:${color}">
-        ${nick(e.name)} <span style="font-size:13px;font-weight:700">${cnt}</span>일
-      </span>`;
-    }).join('');
-
     return `
       <table style="width:100%;border-collapse:collapse;font-size:11px;table-layout:fixed">
         <thead><tr>${thRow}</tr></thead>
         <tbody>${bodyRows}</tbody>
-      </table>
-      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;padding-top:8px;border-top:1px solid #f1f3f5">${summary}</div>`;
+      </table>`;
   },
 
   openAddEvent(dateStr) {

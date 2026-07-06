@@ -74,6 +74,18 @@ router.get('/', requireSuperAdmin, async (req, res) => {
       `SELECT content FROM timesheet_notes WHERE year = ? AND month = ?`
     ).get(y, m);
 
+    const shareholderNames = ['조상희','조상하','정재호','소재훈'];
+    const shareholderIds = employees.filter(e => shareholderNames.includes(e.name)).map(e => e.id);
+    let shParticipations = [];
+    if (shareholderIds.length > 0) {
+      shParticipations = await db.prepare(
+        `SELECT user_id, day FROM shareholder_participation WHERE year=? AND month=? AND participated=1`
+      ).all(y, m);
+    }
+    const shMap = {};
+    shareholderIds.forEach(id => { shMap[id] = new Set(); });
+    shParticipations.forEach(p => { if (shMap[p.user_id] !== undefined) shMap[p.user_id].add(p.day); });
+
     const data = employees.map(emp => {
       // 출근 기록에서 시간 계산
       const attDaily = {};
@@ -115,6 +127,7 @@ router.get('/', requireSuperAdmin, async (req, res) => {
         daily,
         adj: adj_row?.adj || 0,
         adj1: adj_row?.adj1 || 0,
+        sh_days: shMap[emp.id] ? [...shMap[emp.id]] : null,
       };
     });
 
