@@ -188,7 +188,7 @@ const Dashboard = {
         const bg = e._isFirst ? '#d3f9d8' : '#e8f5e9';
         const border = e._isFirst ? '' : 'border-left:2px solid #2b8a3e;border-radius:0 3px 3px 0;';
         const clickAttr = e._isFirst
-          ? `onclick="event.stopPropagation();Dashboard.openDeleteEvent('${e.id}','${e.title.replace(/'/g,"\\'")}')" style="background:${bg};color:#2b8a3e;${border}border-radius:3px;padding:1px 4px;font-size:9px;word-break:break-all;margin-top:2px;cursor:pointer"`
+          ? `onclick="event.stopPropagation();Dashboard.openEditEvent('${e.id}')" style="background:${bg};color:#2b8a3e;${border}border-radius:3px;padding:1px 4px;font-size:9px;word-break:break-all;margin-top:2px;cursor:pointer"`
           : `style="background:${bg};color:#2b8a3e;${border}border-radius:3px;padding:1px 4px;font-size:9px;word-break:break-all;margin-top:2px"`;
         return `<div ${clickAttr}>${label}</div>`;
       }).join('');
@@ -349,6 +349,101 @@ const Dashboard = {
     }
   },
 
+  openEditEvent(eventId) {
+    const ev = this.gcalEvents.find(e => e.id === eventId);
+    if (!ev) return;
+
+    const existing = document.getElementById('gcal-edit-modal');
+    if (existing) existing.remove();
+
+    const isAllDay = ev.allDay;
+    const startRaw = ev.start || '';
+    const endRaw = ev.end || '';
+    const startDate = startRaw.slice(0, 10);
+    const startTime = isAllDay ? '09:00' : (startRaw.slice(11, 16) || '09:00');
+    let endDate = endRaw.slice(0, 10) || startDate;
+    const endTime = isAllDay ? '18:00' : (endRaw.slice(11, 16) || '18:00');
+
+    // allDay end는 exclusive였으므로 이미 -1 처리된 상태
+    const modal = document.createElement('div');
+    modal.id = 'gcal-edit-modal';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9999;display:flex;align-items:center;justify-content:center';
+    modal.innerHTML = `
+      <div style="background:#fff;border-radius:12px;padding:24px;width:380px;box-shadow:0 8px 32px rgba(0,0,0,0.18)">
+        <div style="font-size:16px;font-weight:700;margin-bottom:16px">✏️ 일정 수정</div>
+        <div class="form-group">
+          <label class="form-label">제목 *</label>
+          <input id="gcal-edit-title" class="form-control" value="${ev.title.replace(/"/g,'&quot;')}" autofocus>
+        </div>
+        <div class="form-group" style="margin-top:10px">
+          <label class="form-label">날짜</label>
+          <input id="gcal-edit-date" type="date" class="form-control" value="${startDate}">
+        </div>
+        <div id="gcal-edit-time-row" style="display:${isAllDay ? 'none' : 'flex'};gap:10px;margin-top:10px">
+          <div class="form-group" style="flex:1">
+            <label class="form-label">시작 시간</label>
+            <input id="gcal-edit-start-time" type="time" class="form-control" value="${startTime}">
+          </div>
+          <div class="form-group" style="flex:1">
+            <label class="form-label">종료 시간</label>
+            <input id="gcal-edit-end-time" type="time" class="form-control" value="${endTime}">
+          </div>
+        </div>
+        <div class="form-group" style="margin-top:10px">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px">
+            <input type="checkbox" id="gcal-edit-allday" ${isAllDay ? 'checked' : ''} onchange="Dashboard.toggleEditAllDay(this)"> 종일 일정
+          </label>
+        </div>
+        <div class="form-group" style="margin-top:10px">
+          <label class="form-label">메모 (선택)</label>
+          <textarea id="gcal-edit-desc" class="form-control" rows="2">${ev.description || ''}</textarea>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:space-between;margin-top:16px">
+          <button class="btn btn-danger btn-sm" onclick="Dashboard.confirmDeleteEvent('${eventId}','gcal-edit-modal')">삭제</button>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-secondary" onclick="document.getElementById('gcal-edit-modal').remove()">취소</button>
+            <button id="gcal-edit-save-btn" class="btn btn-primary" onclick="Dashboard.submitEditEvent('${eventId}')">저장</button>
+          </div>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+    modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+    setTimeout(() => document.getElementById('gcal-edit-title')?.focus(), 50);
+  },
+
+  toggleEditAllDay(cb) {
+    const timeRow = document.getElementById('gcal-edit-time-row');
+    if (timeRow) timeRow.style.display = cb.checked ? 'none' : 'flex';
+  },
+
+  async submitEditEvent(eventId) {
+    const title = document.getElementById('gcal-edit-title')?.value.trim();
+    if (!title) { Utils.showToast('제목을 입력해주세요', 'error'); return; }
+
+    const allDay = document.getElementById('gcal-edit-allday')?.checked;
+    const date = document.getElementById('gcal-edit-date')?.value;
+    const startTime = document.getElementById('gcal-edit-start-time')?.value || '09:00';
+    const endTime = document.getElementById('gcal-edit-end-time')?.value || '18:00';
+    const desc = document.getElementById('gcal-edit-desc')?.value.trim();
+
+    const btn = document.getElementById('gcal-edit-save-btn');
+    if (btn) { btn.disabled = true; btn.textContent = '저장 중...'; }
+
+    try {
+      const payload = allDay
+        ? { title, start: date, end: date, description: desc, allDay: true }
+        : { title, start: `${date}T${startTime}:00`, end: `${date}T${endTime}:00`, description: desc, allDay: false };
+
+      await API.put(`/api/gcal/events/${eventId}`, payload);
+      document.getElementById('gcal-edit-modal')?.remove();
+      Utils.showToast('일정이 수정되었습니다.');
+      await this.loadGcalEvents();
+    } catch (e) {
+      Utils.showToast('수정 실패: ' + e.message, 'error');
+      if (btn) { btn.disabled = false; btn.textContent = '저장'; }
+    }
+  },
+
   openDeleteEvent(eventId, title) {
     const existing = document.getElementById('gcal-del-modal');
     if (existing) existing.remove();
@@ -371,12 +466,13 @@ const Dashboard = {
     modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
   },
 
-  async confirmDeleteEvent(eventId) {
-    const btn = document.querySelector('#gcal-del-modal .btn-danger');
+  async confirmDeleteEvent(eventId, modalId) {
+    const mid = modalId || 'gcal-del-modal';
+    const btn = document.querySelector(`#${mid} .btn-danger`);
     if (btn) { btn.disabled = true; btn.textContent = '삭제 중...'; }
     try {
       await API.delete(`/api/gcal/events/${eventId}`);
-      document.getElementById('gcal-del-modal')?.remove();
+      document.getElementById(mid)?.remove();
       Utils.showToast('일정이 삭제되었습니다.');
       await this.loadGcalEvents();
     } catch (e) {

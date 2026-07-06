@@ -172,6 +172,33 @@ router.post('/push-event', requireAuth, async (req, res) => {
   }
 });
 
+// 구글캘린더 이벤트 수정
+router.put('/events/:eventId', requireAuth, async (req, res) => {
+  const { title, start, end, description, allDay } = req.body;
+  if (!title || !start) return res.status(400).json({ error: '제목과 시작일은 필수입니다' });
+
+  const db = getDb();
+  const token = await getSharedToken(db, req.session.user.id);
+  if (!token) return res.status(400).json({ error: '구글캘린더가 연동되지 않았습니다' });
+
+  try {
+    const auth = getOAuth2Client();
+    auth.setCredentials({ access_token: token.access_token, refresh_token: token.refresh_token, expiry_date: token.expiry_date });
+    const calendar = google.calendar({ version: 'v3', auth });
+    const event = {
+      summary: title,
+      description: description || '',
+      start: allDay ? { date: start } : { dateTime: start, timeZone: 'Asia/Seoul' },
+      end: allDay ? { date: end || start } : { dateTime: end || start, timeZone: 'Asia/Seoul' }
+    };
+    await calendar.events.patch({ calendarId: token.calendar_id || 'primary', eventId: req.params.eventId, requestBody: event });
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('GCal update error:', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // 구글캘린더 이벤트 삭제
 router.delete('/events/:eventId', requireAuth, async (req, res) => {
   const db = getDb();
