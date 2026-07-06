@@ -7,22 +7,47 @@ const ShareholderTimesheet = {
   NICK: { '조상희': '샘', '조상하': '비드', '정재호': '캐리', '소재훈': '빌리' },
   // 요금
   RATE_WEEKDAY: 200000,
-  RATE_FRIDAY: 250000,
+  RATE_FRIDAY: 200000,
   RATE_WEEKEND: 300000,
+
+  // 공휴일 목록 YYYY-MM-DD
+  HOLIDAYS: new Set([
+    // 2025
+    '2025-01-01','2025-01-28','2025-01-29','2025-01-30',
+    '2025-03-01','2025-05-05','2025-05-06','2025-06-06',
+    '2025-08-15','2025-10-03','2025-10-05','2025-10-06','2025-10-07','2025-10-09',
+    '2025-12-25',
+    // 2026
+    '2026-01-01','2026-02-16','2026-02-17','2026-02-18',
+    '2026-03-01','2026-05-05','2026-05-24',
+    '2026-06-06','2026-08-15',
+    '2026-09-24','2026-09-25','2026-09-26',
+    '2026-10-03','2026-10-09','2026-12-25',
+    // 2027
+    '2027-01-01','2027-02-06','2027-02-07','2027-02-08',
+    '2027-03-01','2027-05-05','2027-05-13',
+    '2027-06-06','2027-08-15',
+    '2027-10-03','2027-10-09','2027-10-14','2027-10-15','2027-10-16',
+    '2027-12-25',
+  ]),
 
   nick(name) { return this.NICK[name] || name; },
 
+  isHoliday(year, month, day) {
+    return this.HOLIDAYS.has(`${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`);
+  },
+
   dayType(year, month, day) {
+    if (this.isHoliday(year, month, day)) return 'holiday';
     const dow = new Date(year, month - 1, day).getDay();
-    if (dow === 0 || dow === 6) return 'weekend';
-    if (dow === 5) return 'friday';
+    if (dow === 0) return 'sunday';
+    if (dow === 6) return 'saturday';
     return 'weekday';
   },
 
   rate(year, month, day) {
     const t = this.dayType(year, month, day);
-    if (t === 'weekend') return this.RATE_WEEKEND;
-    if (t === 'friday') return this.RATE_FRIDAY;
+    if (t === 'sunday' || t === 'saturday' || t === 'holiday') return this.RATE_WEEKEND;
     return this.RATE_WEEKDAY;
   },
 
@@ -102,10 +127,6 @@ const ShareholderTimesheet = {
         <div style="font-size:16px;font-weight:700;text-align:center;margin-bottom:16px;color:#1b4332">
           📋 ${year}년 ${month}월 비욘더팜 주주 근무표
         </div>
-        <p style="font-size:11px;color:#6c757d;text-align:center;margin-bottom:12px">
-          이름 뱃지를 클릭해서 참여 여부를 변경할 수 있습니다 &nbsp;|&nbsp;
-          💰 평일 20만 / 금요일 25만 / 주말 30만원
-        </p>
         <div class="sh-cal-wrap">${calHtml}</div>
       </div>
 
@@ -154,10 +175,13 @@ const ShareholderTimesheet = {
     const bodyRows = weeks.map(wk => {
       const cells = wk.map((d, dow) => {
         if (!d) return `<td style="background:#f8f9fa"></td>`;
-        const isWeekend = dow === 0 || dow === 6;
-        const isFriday = dow === 5;
-        const cls = isWeekend ? 'sh-day-weekend' : isFriday ? 'sh-day-friday' : '';
-        const numColor = isWeekend ? '#e03131' : isFriday ? '#e67700' : '#212529';
+        const dtype = this.dayType(year, month, d);
+        const isRedDay = dtype === 'sunday' || dtype === 'holiday';
+        const isSat = dtype === 'saturday';
+        const isSpecial = isRedDay || isSat;
+        const cellBg = isRedDay ? '#fff5f5' : isSat ? '#f0f5ff' : '';
+        const numColor = isRedDay ? '#e03131' : isSat ? '#1971c2' : '#212529';
+        const numBg = isRedDay ? '#ffe3e3' : isSat ? '#dbe4ff' : 'transparent';
 
         const badges = employees.map(emp => {
           const isOn = partMap[emp.id]?.has(d);
@@ -173,8 +197,8 @@ const ShareholderTimesheet = {
           >${this.nick(emp.name)}</span>`;
         }).join('');
 
-        return `<td class="${cls}">
-          <div class="sh-day-num" style="color:${numColor};background:${isWeekend?'#ffe3e3':isFriday?'#fff3bf':'transparent'}">${d}</div>
+        return `<td style="${cellBg ? 'background:'+cellBg : ''}">
+          <div class="sh-day-num" style="color:${numColor};background:${numBg}">${d}</div>
           <div style="display:flex;flex-wrap:wrap;gap:2px">${badges}</div>
         </td>`;
       }).join('');
@@ -186,37 +210,33 @@ const ShareholderTimesheet = {
 
   buildSummary(year, month, days, employees, partMap) {
     const rows = employees.map(emp => {
-      let weekday = 0, friday = 0, weekend = 0;
+      let weekday = 0, weekend = 0;
       partMap[emp.id].forEach(d => {
         const t = this.dayType(year, month, d);
-        if (t === 'weekend') weekend++;
-        else if (t === 'friday') friday++;
+        if (t === 'sunday' || t === 'saturday' || t === 'holiday') weekend++;
         else weekday++;
       });
-      const total = weekday + friday + weekend;
+      const total = weekday + weekend;
       const weekdayAmt = weekday * this.RATE_WEEKDAY;
-      const fridayAmt = friday * this.RATE_FRIDAY;
       const weekendAmt = weekend * this.RATE_WEEKEND;
-      const totalAmt = weekdayAmt + fridayAmt + weekendAmt;
+      const totalAmt = weekdayAmt + weekendAmt;
       const nick = this.nick(emp.name);
-      return { name: emp.name, nick, weekday, friday, weekend, total, weekdayAmt, fridayAmt, weekendAmt, totalAmt };
+      return { name: emp.name, nick, weekday, weekend, total, weekdayAmt, weekendAmt, totalAmt };
     });
 
     const totals = rows.reduce((a, r) => {
-      a.weekday += r.weekday; a.friday += r.friday; a.weekend += r.weekend; a.total += r.total;
-      a.weekdayAmt += r.weekdayAmt; a.fridayAmt += r.fridayAmt; a.weekendAmt += r.weekendAmt; a.totalAmt += r.totalAmt;
+      a.weekday += r.weekday; a.weekend += r.weekend; a.total += r.total;
+      a.weekdayAmt += r.weekdayAmt; a.weekendAmt += r.weekendAmt; a.totalAmt += r.totalAmt;
       return a;
-    }, { weekday:0, friday:0, weekend:0, total:0, weekdayAmt:0, fridayAmt:0, weekendAmt:0, totalAmt:0 });
+    }, { weekday:0, weekend:0, total:0, weekdayAmt:0, weekendAmt:0, totalAmt:0 });
 
     const bodyRows = rows.map(r => `
       <tr>
         <td style="font-weight:700">${r.nick}<br><span style="font-size:11px;color:#6c757d">${r.name}</span></td>
         <td>${r.weekday}</td>
-        <td>${r.friday}</td>
         <td>${r.weekend}</td>
         <td><strong>${r.total}</strong></td>
         <td style="color:#2d6a4f">${r.weekdayAmt ? Utils.formatNum(r.weekdayAmt) : '-'}</td>
-        <td style="color:#e67700">${r.fridayAmt ? Utils.formatNum(r.fridayAmt) : '-'}</td>
         <td style="color:#c0392b">${r.weekendAmt ? Utils.formatNum(r.weekendAmt) : '-'}</td>
         <td style="font-weight:700;color:#1b4332">${r.totalAmt ? Utils.formatNum(r.totalAmt)+'원' : '-'}</td>
       </tr>`).join('');
@@ -225,13 +245,11 @@ const ShareholderTimesheet = {
       <thead>
         <tr>
           <th>이름</th>
-          <th>평일<br><span style="font-size:10px;font-weight:400">월~목</span></th>
-          <th>금요일</th>
-          <th>주말/공휴</th>
+          <th>주중횟수<br><span style="font-size:10px;font-weight:400">20만원</span></th>
+          <th>주말/공휴횟수<br><span style="font-size:10px;font-weight:400">30만원</span></th>
           <th>합계</th>
-          <th>평일금액<br><span style="font-size:10px;font-weight:400">20만원</span></th>
-          <th>금요일금액<br><span style="font-size:10px;font-weight:400">25만원</span></th>
-          <th>주말금액<br><span style="font-size:10px;font-weight:400">30만원</span></th>
+          <th>주중금액</th>
+          <th>주말/공휴금액</th>
           <th>총합계</th>
         </tr>
       </thead>
@@ -240,11 +258,9 @@ const ShareholderTimesheet = {
         <tr>
           <td>합계</td>
           <td>${totals.weekday}</td>
-          <td>${totals.friday}</td>
           <td>${totals.weekend}</td>
           <td>${totals.total}</td>
           <td>${totals.weekdayAmt ? Utils.formatNum(totals.weekdayAmt) : '-'}</td>
-          <td>${totals.fridayAmt ? Utils.formatNum(totals.fridayAmt) : '-'}</td>
           <td>${totals.weekendAmt ? Utils.formatNum(totals.weekendAmt) : '-'}</td>
           <td>${totals.totalAmt ? Utils.formatNum(totals.totalAmt)+'원' : '-'}</td>
         </tr>
@@ -329,19 +345,19 @@ const ShareholderTimesheet = {
     });
 
     aoa.push([]);
-    aoa.push(['이름', '평일(월~목)', '금요일', '주말/공휴', '합계', '평일금액(20만)', '금요일금액(25만)', '주말금액(30만)', '총합계']);
-    let totW=0, totF=0, totWe=0, totAmt=0;
+    aoa.push(['이름', '주중횟수(20만)', '주말/공휴횟수(30만)', '합계', '주중금액', '주말금액', '총합계']);
+    let totW=0, totWe=0, totAmt=0;
     employees.forEach(emp => {
-      let w=0, f=0, we=0;
+      let w=0, we=0;
       partMap[emp.id].forEach(d => {
         const t = this.dayType(year, month, d);
-        if (t==='weekend') we++; else if (t==='friday') f++; else w++;
+        if (t==='sunday'||t==='saturday'||t==='holiday') we++; else w++;
       });
-      const amt = w*this.RATE_WEEKDAY + f*this.RATE_FRIDAY + we*this.RATE_WEEKEND;
-      totW+=w; totF+=f; totWe+=we; totAmt+=amt;
-      aoa.push([`${this.nick(emp.name)}(${emp.name})`, w, f, we, w+f+we, w*this.RATE_WEEKDAY, f*this.RATE_FRIDAY, we*this.RATE_WEEKEND, amt]);
+      const amt = w*this.RATE_WEEKDAY + we*this.RATE_WEEKEND;
+      totW+=w; totWe+=we; totAmt+=amt;
+      aoa.push([`${this.nick(emp.name)}(${emp.name})`, w, we, w+we, w*this.RATE_WEEKDAY, we*this.RATE_WEEKEND, amt]);
     });
-    aoa.push(['합계', totW, totF, totWe, totW+totF+totWe, totW*this.RATE_WEEKDAY, totF*this.RATE_FRIDAY, totWe*this.RATE_WEEKEND, totAmt]);
+    aoa.push(['합계', totW, totWe, totW+totWe, totW*this.RATE_WEEKDAY, totWe*this.RATE_WEEKEND, totAmt]);
 
     const ws = XLSX.utils.aoa_to_sheet(aoa);
     const wb = XLSX.utils.book_new();
