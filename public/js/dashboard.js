@@ -187,7 +187,7 @@ const Dashboard = {
 
       const bg = isToday ? '#f0fff4' : isRed ? '#fff5f5' : isSat ? '#f0f5ff' : '';
 
-      cells.push(`<td style="padding:4px 3px;vertical-align:top;background:${bg};border:1px solid #f1f3f5;min-height:52px">
+      cells.push(`<td style="padding:4px 3px;vertical-align:top;background:${bg};border:1px solid #f1f3f5">
         <div style="${numStyle};font-size:12px">${d}</div>
         ${evtHtml}
       </td>`);
