@@ -12,12 +12,12 @@ function getOAuth2Client() {
 }
 
 function requireAuth(req, res, next) {
-  if (!req.session?.userId) return res.status(401).json({ error: '로그인이 필요합니다' });
+  if (!req.session?.user) return res.status(401).json({ error: '로그인이 필요합니다' });
   next();
 }
 
 function requireAdmin(req, res, next) {
-  if (!['admin','superadmin'].includes(req.session?.role)) return res.status(403).json({ error: '관리자 권한이 필요합니다' });
+  if (!['admin','superadmin'].includes(req.session?.user?.role)) return res.status(403).json({ error: '관리자 권한이 필요합니다' });
   next();
 }
 
@@ -28,7 +28,7 @@ router.get('/auth-url', requireAuth, requireAdmin, (req, res) => {
     access_type: 'offline',
     prompt: 'consent',
     scope: ['https://www.googleapis.com/auth/calendar'],
-    state: String(req.session.userId)
+    state: String(req.session.user.id)
   });
   res.json({ url });
 });
@@ -64,21 +64,21 @@ router.get('/callback', async (req, res) => {
 // 연동 상태 확인
 router.get('/status', requireAuth, requireAdmin, async (req, res) => {
   const db = getDb();
-  const token = await db.prepare('SELECT id, calendar_id, updated_at FROM google_tokens WHERE user_id = ?').get(req.session.userId);
+  const token = await db.prepare('SELECT id, calendar_id, updated_at FROM google_tokens WHERE user_id = ?').get(req.session.user.id);
   res.json({ connected: !!token, calendar_id: token?.calendar_id || 'primary', updated_at: token?.updated_at });
 });
 
 // 연동 해제
 router.delete('/disconnect', requireAuth, requireAdmin, async (req, res) => {
   const db = getDb();
-  await db.prepare('DELETE FROM google_tokens WHERE user_id = ?').run(req.session.userId);
+  await db.prepare('DELETE FROM google_tokens WHERE user_id = ?').run(req.session.user.id);
   res.json({ ok: true });
 });
 
 // 구글캘린더 → 홈페이지로 가져오기
 router.get('/events', requireAuth, requireAdmin, async (req, res) => {
   const db = getDb();
-  const token = await db.prepare('SELECT * FROM google_tokens WHERE user_id = ?').get(req.session.userId);
+  const token = await db.prepare('SELECT * FROM google_tokens WHERE user_id = ?').get(req.session.user.id);
   if (!token) return res.status(400).json({ error: '구글캘린더가 연동되지 않았습니다' });
 
   try {
@@ -120,7 +120,7 @@ router.post('/push-event', requireAuth, requireAdmin, async (req, res) => {
   if (!title || !start) return res.status(400).json({ error: '제목과 시작일은 필수입니다' });
 
   const db = getDb();
-  const token = await db.prepare('SELECT * FROM google_tokens WHERE user_id = ?').get(req.session.userId);
+  const token = await db.prepare('SELECT * FROM google_tokens WHERE user_id = ?').get(req.session.user.id);
   if (!token) return res.status(400).json({ error: '구글캘린더가 연동되지 않았습니다' });
 
   try {
