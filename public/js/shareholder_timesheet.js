@@ -145,9 +145,9 @@ const ShareholderTimesheet = {
         }
         .sh-name-badge.on  { opacity: 1; }
         .sh-name-badge.off { opacity: 0.2; filter: grayscale(1); }
-        .sh-sum-table { border-collapse: collapse; width: 100%; font-size: 13px; }
-        .sh-sum-table th { background: #1b4332; color: #fff; padding: 8px 12px; text-align: center; border: 1px solid #495057; }
-        .sh-sum-table td { padding: 9px 12px; border: 1px solid #dee2e6; text-align: center; }
+        .sh-sum-table { border-collapse: collapse; width: 100%; font-size: 12px; }
+        .sh-sum-table th { background: #1b4332; color: #fff; padding: 5px 8px; text-align: center; border: 1px solid #495057; }
+        .sh-sum-table td { padding: 5px 8px; border: 1px solid #dee2e6; text-align: center; }
         .sh-sum-table tfoot td { background: #f8f9fa; font-weight: 700; }
         .sh-extra-cal .sh-name-badge { padding: 2px 5px; font-size: 10px; }
         .sh-extra-cal .sh-cal td { padding: 3px; }
@@ -179,10 +179,10 @@ const ShareholderTimesheet = {
         </div>
       </div>
 
-      <!-- 주주근무표 요약 + 추가수당합계 나란히 -->
+      <!-- 주주근무표 요약 + 추가수당합계 나란히 (2/3 + 1/3) -->
       <div class="card" style="margin-top:0;padding:16px">
-        <div style="display:flex;gap:24px;align-items:flex-start">
-          <div style="flex:1;min-width:0">
+        <div style="display:flex;gap:16px;align-items:flex-start">
+          <div style="flex:2;min-width:0">
             <div style="font-weight:700;margin-bottom:8px;color:#495057">📋 주주 근무표 요약 <span style="font-size:11px;font-weight:400;color:#6c757d">(월~목 20만 · 금 25만 · 주말·공휴 30만원)</span></div>
             <div id="main-summary-wrap">${summaryHtml}</div>
           </div>
@@ -256,14 +256,14 @@ const ShareholderTimesheet = {
             : `background:#f1f3f5;color:#adb5bd;border:1.5px solid #dee2e6`;
           return `<span class="sh-name-badge ${isOn ? 'on' : 'off'}"
             id="badge-${emp.id}-${d}"
-            style="${style}"
+            style="${style};font-size:12px;padding:3px 6px"
             onclick="ShareholderTimesheet.toggle(${emp.id},${d},this)"
           >${this.nick(emp.name)}</span>`;
         }).join('');
 
         return `<td style="${cellBg ? 'background:'+cellBg : ''}">
           <div class="sh-day-num" style="color:${numColor};background:${numBg}">${d}</div>
-          <div style="display:flex;flex-wrap:wrap;gap:2px">${badges}</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:2px">${badges}</div>
         </td>`;
       }).join('');
       return `<tr>${cells}</tr>`;
