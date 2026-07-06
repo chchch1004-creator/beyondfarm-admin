@@ -76,15 +76,17 @@ router.get('/', requireSuperAdmin, async (req, res) => {
 
     const shareholderNames = ['조상희','조상하','정재호','소재훈'];
     const shareholderIds = employees.filter(e => shareholderNames.includes(e.name)).map(e => e.id);
-    let shParticipations = [];
+    let shParticipations = [], shExtras = [];
     if (shareholderIds.length > 0) {
-      shParticipations = await db.prepare(
-        `SELECT user_id, day FROM shareholder_participation WHERE year=? AND month=? AND participated=1`
-      ).all(y, m);
+      [shParticipations, shExtras] = await Promise.all([
+        db.prepare(`SELECT user_id, day FROM shareholder_participation WHERE year=? AND month=? AND participated=1`).all(y, m),
+        db.prepare(`SELECT user_id, day FROM shareholder_extra WHERE year=? AND month=? AND participated=1`).all(y, m),
+      ]);
     }
-    const shMap = {};
-    shareholderIds.forEach(id => { shMap[id] = new Set(); });
+    const shMap = {}, shExtraMap = {};
+    shareholderIds.forEach(id => { shMap[id] = new Set(); shExtraMap[id] = new Set(); });
     shParticipations.forEach(p => { if (shMap[p.user_id] !== undefined) shMap[p.user_id].add(p.day); });
+    shExtras.forEach(p => { if (shExtraMap[p.user_id] !== undefined) shExtraMap[p.user_id].add(p.day); });
 
     const data = employees.map(emp => {
       // 출근 기록에서 시간 계산
@@ -128,6 +130,7 @@ router.get('/', requireSuperAdmin, async (req, res) => {
         adj: adj_row?.adj || 0,
         adj1: adj_row?.adj1 || 0,
         sh_days: shMap[emp.id] ? [...shMap[emp.id]] : null,
+        sh_extra_days: shExtraMap[emp.id] ? [...shExtraMap[emp.id]] : null,
       };
     });
 

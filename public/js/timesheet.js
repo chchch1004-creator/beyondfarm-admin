@@ -33,6 +33,16 @@ const Timesheet = {
     return 20;
   },
 
+  shExtraRate(year, month, day) {
+    const dow = new Date(year, month - 1, day).getDay();
+    const pad = n => String(n).padStart(2,'0');
+    const dateStr = `${year}-${pad(month)}-${pad(day)}`;
+    const isHol = this.HOLIDAYS.has(dateStr);
+    if (isHol || dow === 0 || dow === 6) return 20;
+    if (dow === 5) return 15;
+    return 10;
+  },
+
   getStorageKey() { return `ts-hidden-${this.currentYear}-${this.currentMonth}`; },
   loadHidden() { try { this.hiddenIds = new Set(JSON.parse(localStorage.getItem(this.getStorageKey()) || '[]')); } catch { this.hiddenIds = new Set(); } },
   saveHidden() { localStorage.setItem(this.getStorageKey(), JSON.stringify([...this.hiddenIds])); },
@@ -65,8 +75,10 @@ const Timesheet = {
   calc(emp) {
     if (this.isShareholder(emp)) {
       const shDays = emp.sh_days || [];
+      const shExtraDays = emp.sh_extra_days || [];
       const shTotal = shDays.reduce((s, d) => s + this.shRate(this.currentYear, this.currentMonth, d) * 10000, 0);
-      const netPay = Math.round(shTotal + (emp.adj || 0) * 10000 + (emp.adj1 || 0) * 10000);
+      const shExtraTotal = shExtraDays.reduce((s, d) => s + this.shExtraRate(this.currentYear, this.currentMonth, d) * 10000, 0);
+      const netPay = Math.round(shTotal + shExtraTotal + (emp.adj || 0) * 10000 + (emp.adj1 || 0) * 10000);
       const tax = Math.round(netPay * 0.03);
       const localTax = Math.round(netPay * 0.003);
       const transfer = netPay - tax - localTax;
@@ -107,15 +119,19 @@ const Timesheet = {
     let rowsHtml = '';
     employees.forEach(emp => {
       const shDaysSet = this.isShareholder(emp) ? new Set(emp.sh_days || []) : null;
+      const shExtraDaysSet = this.isShareholder(emp) ? new Set(emp.sh_extra_days || []) : null;
       const dailyCells = Array.from({length: days}, (_, i) => {
         const d = i + 1;
         const dow = getDow(d);
         const wkColor = dow === 0 ? 'color:#ff4444' : dow === 6 ? 'color:#4488ff' : '';
         if (shDaysSet) {
-          // 주주: 참여일에 금액 표시
-          if (shDaysSet.has(d)) {
-            const amt = this.shRate(year, month, d);
-            return `<td style="text-align:center;font-weight:700;color:#2d6a4f;background:#f0fff4;${wkColor?';'+wkColor:''}">${amt}</td>`;
+          const inMain = shDaysSet.has(d);
+          const inExtra = shExtraDaysSet.has(d);
+          if (inMain || inExtra) {
+            const parts = [];
+            if (inMain) parts.push(`<span style="color:#2d6a4f;font-weight:700">${this.shRate(year, month, d)}</span>`);
+            if (inExtra) parts.push(`<span style="color:#1864ab;font-weight:700">${this.shExtraRate(year, month, d)}</span>`);
+            return `<td style="text-align:center;background:#f0fff4;border:1px solid #ccc">${parts.join('<span style="color:#aaa">+</span>')}</td>`;
           }
           return `<td style="text-align:center;${wkColor}"></td>`;
         }
@@ -128,7 +144,7 @@ const Timesheet = {
       }).join('');
 
       const { totalHours, netPay, tax, localTax, transfer } = this.calc(emp);
-      const totalLabel = this.isShareholder(emp) ? (totalHours ? totalHours + '일' : '') : (totalHours || '');
+      const totalLabel = this.isShareholder(emp) ? '' : (totalHours || '');
 
       // 주민번호 포맷
       let ssnDisplay = '-';
@@ -311,7 +327,7 @@ const Timesheet = {
     const emp = this.data.employees.find(e => e.id === userId);
     const { totalHours, netPay, tax, localTax, transfer } = this.calc(emp);
     const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
-    const totalLabel = this.isShareholder(emp) ? (totalHours ? totalHours + '일' : '') : (totalHours || '');
+    const totalLabel = this.isShareholder(emp) ? '' : (totalHours || '');
     set(`total-${userId}`, totalLabel);
     set(`netpay-${userId}`, netPay ? Utils.formatNum(netPay) : '');
     set(`tax-${userId}`, netPay ? Utils.formatNum(tax) : '');
