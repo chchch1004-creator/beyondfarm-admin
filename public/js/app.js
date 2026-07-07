@@ -119,17 +119,21 @@ const App = {
     });
     const tsEl = document.getElementById('nav-timesheet');
     if (tsEl) tsEl.style.display = isSuperAdmin ? '' : 'none';
-    // 주주근무표: 관리자도 열람 가능
+    // 주주근무표: 총괄관리자 전용
     const shEl = document.getElementById('nav-sh-timesheet');
-    if (shEl) shEl.style.display = isAdminOrSuper ? '' : 'none';
+    if (shEl) shEl.style.display = isSuperAdmin ? '' : 'none';
 
-    const superAdminOnly = ['leaves', 'finance', 'inventory', 'settings'];
+    // 급여관리: 관리자도 열람 가능 (nav는 admin-only 클래스 없으므로 별도 처리)
+    const salEl = document.getElementById('nav-salary') || document.querySelector('[data-page="salary"]');
+    if (salEl) salEl.style.display = isAdminOrSuper ? '' : 'none';
+
+    const superAdminOnly = ['leaves', 'finance', 'inventory', 'settings', 'shareholder_timesheet'];
     if (superAdminOnly.includes(page) && !isSuperAdmin) {
       document.getElementById('content').innerHTML = '<div class="empty-state"><div class="icon">🔒</div>총괄관리자만 접근 가능합니다</div>';
       return;
     }
-    if (page === 'shareholder_timesheet' && !isAdminOrSuper) {
-      document.getElementById('content').innerHTML = '<div class="empty-state"><div class="icon">🔒</div>관리자 이상만 접근 가능합니다</div>';
+    if (page === 'salary' && !isAdminOrSuper) {
+      document.getElementById('content').innerHTML = '<div class="empty-state"><div class="icon">🔒</div>접근 권한이 없습니다</div>';
       return;
     }
     const pages = { dashboard: Dashboard, employees: Employees, attendance: Attendance, leaves: Leaves, salary: Salary, finance: Finance, inventory: Inventory, settings: Settings, mypage: MyPage, timesheet: Timesheet, shareholder_timesheet: ShareholderTimesheet };

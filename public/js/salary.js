@@ -5,10 +5,11 @@ const Salary = {
 
   async render() {
     const content = document.getElementById('content');
-    const isAdmin = App.user.role === 'superadmin';
+    const canViewAll = ['admin','superadmin'].includes(App.user.role);
+    const canEdit = App.user.role === 'superadmin';
     const now = new Date();
     try {
-      if (isAdmin) {
+      if (canViewAll) {
         this.employees = await API.get('/api/employees');
         this.departments = [...new Set(this.employees.filter(e=>e.department).map(e=>e.department))].sort();
       }
@@ -18,7 +19,7 @@ const Salary = {
         <div class="card">
           <div class="card-title" style="flex-wrap:wrap;gap:8px">
             💰 급여 관리
-            ${isAdmin ? `
+            ${canEdit ? `
               <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
                 <select id="sync-year" style="padding:6px;border:1px solid #dee2e6;border-radius:6px;font-size:13px">
                   ${[now.getFullYear(), now.getFullYear()-1].map(y=>`<option>${y}</option>`).join('')}
@@ -34,7 +35,7 @@ const Salary = {
 
           <!-- 조회 필터 -->
           <div class="filter-bar">
-            ${isAdmin ? `
+            ${canViewAll ? `
               <select id="sal-dept" onchange="Salary.reload()">
                 <option value="">전체 부서</option>
                 ${this.departments.map(d=>`<option>${d}</option>`).join('')}
@@ -57,11 +58,11 @@ const Salary = {
             <table>
               <thead>
                 <tr>
-                  ${isAdmin?'<th>직원</th><th>부서</th>':''}
+                  ${canViewAll?'<th>직원</th><th>부서</th>':''}
                   <th>연도</th><th>월</th>
                   <th>월급여</th><th>상여금</th><th>공제</th><th>실수령액</th>
                   <th>비고</th>
-                  ${isAdmin?'<th>관리</th>':''}
+                  ${canEdit?'<th>관리</th>':''}
                 </tr>
               </thead>
               <tbody id="sal-tbody"></tbody>
@@ -92,7 +93,8 @@ const Salary = {
     const tbody = document.getElementById('sal-tbody');
     const tfoot = document.getElementById('sal-tfoot');
     if (!tbody) return;
-    const isAdmin = App.user.role === 'superadmin';
+    const canViewAll = ['admin','superadmin'].includes(App.user.role);
+    const canEdit = App.user.role === 'superadmin';
 
     if (this.data.length === 0) {
       tbody.innerHTML = `<tr><td colspan="10"><div class="empty-state">급여 내역이 없습니다</div></td></tr>`;
@@ -102,14 +104,14 @@ const Salary = {
 
     tbody.innerHTML = this.data.map(s => `
       <tr>
-        ${isAdmin ? `<td><strong>${s.name}</strong></td><td>${s.department||'-'}</td>` : ''}
+        ${canViewAll ? `<td><strong>${s.name}</strong></td><td>${s.department||'-'}</td>` : ''}
         <td>${s.year}</td><td>${s.month}월</td>
         <td style="text-align:right">${Utils.formatNum(s.base_salary)}원</td>
         <td style="text-align:right">${Utils.formatNum(s.bonus)}원</td>
         <td style="text-align:right;color:#dc3545">-${Utils.formatNum(s.deduction)}원</td>
         <td style="text-align:right;font-weight:600">${Utils.formatNum(s.net_pay)}원</td>
         <td>${s.note || '-'}</td>
-        ${isAdmin ? `<td>
+        ${canEdit ? `<td>
           <button class="btn btn-secondary btn-sm" onclick="Salary.showForm(${s.id})">수정</button>
           <button class="btn btn-danger btn-sm" onclick="Salary.delete(${s.id})">삭제</button>
         </td>` : ''}
@@ -126,13 +128,13 @@ const Salary = {
 
     if (tfoot) {
       tfoot.innerHTML = `<tr style="background:#f0fdf4;font-weight:700">
-        ${isAdmin ? '<td colspan="2">합계</td>' : ''}
+        ${canViewAll ? '<td colspan="2">합계</td>' : ''}
         <td colspan="2"></td>
         <td style="text-align:right">${Utils.formatNum(totals.base)}원</td>
         <td style="text-align:right">${Utils.formatNum(totals.bonus)}원</td>
         <td style="text-align:right;color:#dc3545">-${Utils.formatNum(totals.deduction)}원</td>
         <td style="text-align:right">${Utils.formatNum(totals.net)}원</td>
-        <td colspan="${isAdmin?2:1}"></td>
+        <td colspan="${canEdit?2:1}"></td>
       </tr>`;
     }
   },
