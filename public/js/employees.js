@@ -38,7 +38,7 @@ const Employees = {
 
   async render() {
     const content = document.getElementById('content');
-    const isAdmin = ['admin','superadmin'].includes(App.user.role);
+    const isAdmin = App.user.role === 'superadmin';
     try {
       this.data = await API.get('/api/employees');
       const roleLabel = { superadmin:'총괄관리자', admin:'관리자', employee:'직원' };
@@ -104,7 +104,7 @@ const Employees = {
   filter() {
     const status = document.getElementById('emp-status-filter')?.value || '';
     const search = document.getElementById('emp-search')?.value?.toLowerCase() || '';
-    const isAdmin = ['admin','superadmin'].includes(App.user.role);
+    const isAdmin = App.user.role === 'superadmin';
     const roleLabel = { superadmin:'총괄관리자', admin:'관리자', employee:'직원' };
     let rows = this.data.filter(e =>
       (!status || e.status === status) &&
@@ -204,7 +204,7 @@ const Employees = {
 
   showForm(id) {
     const emp = id ? this.data.find(e => e.id === id) : null;
-    const isAdmin = ['admin','superadmin'].includes(App.user.role);
+    const isAdmin = App.user.role === 'superadmin';
     Utils.modal(
       emp ? '직원 정보 수정' : '직원 등록',
       `<div class="form-grid">

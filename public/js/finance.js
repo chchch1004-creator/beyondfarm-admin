@@ -2,7 +2,7 @@ const Finance = {
   data: [],
   async render() {
     const content = document.getElementById('content');
-    const isAdmin = ['admin','superadmin'].includes(App.user.role);
+    const isAdmin = App.user.role === 'superadmin';
     const now = new Date();
     try {
       this.data = await API.get(`/api/finance?year=${now.getFullYear()}`);
@@ -71,7 +71,7 @@ const Finance = {
   renderTable() {
     const tbody = document.getElementById('fin-tbody');
     if (!tbody) return;
-    const isAdmin = ['admin','superadmin'].includes(App.user.role);
+    const isAdmin = App.user.role === 'superadmin';
     if (this.data.length === 0) {
       tbody.innerHTML = `<tr><td colspan="8"><div class="empty-state">내역이 없습니다</div></td></tr>`;
       return;

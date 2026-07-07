@@ -87,7 +87,7 @@ const ShareholderTimesheet = {
 
   async render() {
     if (!['admin','superadmin'].includes(App.user.role)) {
-      document.getElementById('content').innerHTML = '<div class="empty-state"><div class="icon">🔒</div>관리자만 접근 가능합니다</div>';
+      document.getElementById('content').innerHTML = '<div class="empty-state"><div class="icon">🔒</div>접근 권한이 없습니다</div>';
       return;
     }
     document.getElementById('content').innerHTML = '<div class="empty-state"><div class="icon">⏳</div>로딩 중...</div>';
@@ -202,7 +202,7 @@ const ShareholderTimesheet = {
       <div style="margin-bottom:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         <div class="tabs" style="margin:0;flex-wrap:wrap">${tabs.join('')}</div>
         <div style="margin-left:auto;display:flex;gap:6px">
-          <button class="btn btn-primary btn-sm" onclick="ShareholderTimesheet.autoFill()">📅 자동 입력</button>
+          ${App.user.role === 'superadmin' ? '<button class="btn btn-primary btn-sm" onclick="ShareholderTimesheet.autoFill()">📅 자동 입력</button>' : ''}
           <button class="btn btn-secondary btn-sm" onclick="ShareholderTimesheet.downloadExcel()">📥 엑셀</button>
         </div>
       </div>
@@ -300,10 +300,11 @@ const ShareholderTimesheet = {
           const style = isOn
             ? `background:${bgOn};color:${color};border:1.5px solid ${color}`
             : `background:#f1f3f5;color:#adb5bd;border:1.5px solid #dee2e6`;
+          const clickable = App.user.role === 'superadmin';
           return `<span class="sh-name-badge ${isOn ? 'on' : 'off'}"
             id="badge-${emp.id}-${d}"
-            style="${style};font-size:12px;padding:3px 6px;text-align:center"
-            onclick="ShareholderTimesheet.toggle(${emp.id},${d},this)"
+            style="${style};font-size:12px;padding:3px 6px;text-align:center${clickable ? ';cursor:pointer' : ''}"
+            ${clickable ? `onclick="ShareholderTimesheet.toggle(${emp.id},${d},this)"` : ''}
           >${this.nick(emp.name)}</span>`;
         }).join('');
 
@@ -455,10 +456,11 @@ const ShareholderTimesheet = {
           const style = isOn
             ? `background:${color}22;color:${color};border:1.5px solid ${color}`
             : `background:#f1f3f5;color:#adb5bd;border:1.5px solid #dee2e6`;
+          const clickableExtra = App.user.role === 'superadmin';
           return `<span class="sh-name-badge ${isOn ? 'on' : 'off'}"
             id="extra-badge-${emp.id}-${d}"
-            style="${style}"
-            onclick="ShareholderTimesheet.toggleExtra(${emp.id},${d},this)"
+            style="${style}${clickableExtra ? ';cursor:pointer' : ''}"
+            ${clickableExtra ? `onclick="ShareholderTimesheet.toggleExtra(${emp.id},${d},this)"` : ''}
           >${this.nick(emp.name)}</span>`;
         }).join('');
 

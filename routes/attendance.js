@@ -16,7 +16,7 @@ function kstTime() {
 router.get('/', requireLogin, async (req, res) => {
   try {
     const { year, month, user_id } = req.query;
-    const isAdmin = ['admin','superadmin'].includes(req.session.user.role);
+    const isAdmin = req.session.user.role === 'superadmin';
     let query = `SELECT a.*, u.name FROM attendance a JOIN users u ON a.user_id = u.id WHERE 1=1`;
     const params = [];
     if (!isAdmin) { query += ' AND a.user_id = ?'; params.push(req.session.user.id); }
@@ -82,7 +82,7 @@ router.post('/check-out', requireLogin, async (req, res) => {
 });
 
 router.post('/', requireLogin, async (req, res) => {
-  if (!['admin','superadmin'].includes(req.session.user.role)) return res.status(403).json({ error: '권한 없음' });
+  if (req.session.user.role !== 'superadmin') return res.status(403).json({ error: '총괄관리자 권한 필요' });
   try {
     const { user_id, date, check_in, check_out, type, note } = req.body;
     await db.prepare('INSERT INTO attendance (user_id, date, check_in, check_out, type, note) VALUES (?, ?, ?, ?, ?, ?)').run(user_id, date, check_in, check_out, type||'normal', note);
@@ -91,7 +91,7 @@ router.post('/', requireLogin, async (req, res) => {
 });
 
 router.put('/:id', requireLogin, async (req, res) => {
-  if (!['admin','superadmin'].includes(req.session.user.role)) return res.status(403).json({ error: '권한 없음' });
+  if (req.session.user.role !== 'superadmin') return res.status(403).json({ error: '총괄관리자 권한 필요' });
   try {
     const { check_in, check_out, type, note } = req.body;
     await db.prepare('UPDATE attendance SET check_in=?, check_out=?, type=?, note=? WHERE id=?').run(check_in, check_out, type, note, req.params.id);
@@ -100,7 +100,7 @@ router.put('/:id', requireLogin, async (req, res) => {
 });
 
 router.delete('/:id', requireLogin, async (req, res) => {
-  if (!['admin','superadmin'].includes(req.session.user.role)) return res.status(403).json({ error: '권한 없음' });
+  if (req.session.user.role !== 'superadmin') return res.status(403).json({ error: '총괄관리자 권한 필요' });
   try { await db.prepare('DELETE FROM attendance WHERE id = ?').run(req.params.id); res.json({ ok: true }); }
   catch (e) { res.status(500).json({ error: e.message }); }
 });

@@ -6,7 +6,7 @@ const Attendance = {
   async render() {
     const content = document.getElementById('content');
     const role = App.user.role;
-    const isAdmin = ['admin','superadmin'].includes(role);
+    const isAdmin = role === 'superadmin';
     const isSuperAdmin = role === 'superadmin';
     const now = new Date();
 

@@ -5,7 +5,7 @@ const Salary = {
 
   async render() {
     const content = document.getElementById('content');
-    const isAdmin = ['admin','superadmin'].includes(App.user.role);
+    const isAdmin = App.user.role === 'superadmin';
     const now = new Date();
     try {
       if (isAdmin) {
@@ -92,7 +92,7 @@ const Salary = {
     const tbody = document.getElementById('sal-tbody');
     const tfoot = document.getElementById('sal-tfoot');
     if (!tbody) return;
-    const isAdmin = ['admin','superadmin'].includes(App.user.role);
+    const isAdmin = App.user.role === 'superadmin';
 
     if (this.data.length === 0) {
       tbody.innerHTML = `<tr><td colspan="10"><div class="empty-state">급여 내역이 없습니다</div></td></tr>`;

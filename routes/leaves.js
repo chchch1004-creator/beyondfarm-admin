@@ -13,7 +13,7 @@ function requireLogin(req, res, next) {
 router.get('/', requireLogin, async (req, res) => {
   try {
     const { year, user_id } = req.query;
-    const isAdmin = ['admin','superadmin'].includes(req.session.user.role);
+    const isAdmin = req.session.user.role === 'superadmin';
     let query = `SELECT l.*, u.name as user_name, a.name as approver_name FROM leaves l JOIN users u ON l.user_id = u.id LEFT JOIN users a ON l.approved_by = a.id WHERE 1=1`;
     const params = [];
     if (!isAdmin) { query += ' AND l.user_id = ?'; params.push(req.session.user.id); }
@@ -27,7 +27,7 @@ router.get('/', requireLogin, async (req, res) => {
 router.get('/summary', requireLogin, async (req, res) => {
   try {
     const year = req.query.year || new Date().getFullYear();
-    const isAdmin = ['admin','superadmin'].includes(req.session.user.role);
+    const isAdmin = req.session.user.role === 'superadmin';
     let query = `SELECT u.id, u.name, u.department, COALESCE(SUM(CASE WHEN l.status='approved' THEN l.days ELSE 0 END), 0) as used_days FROM users u LEFT JOIN leaves l ON u.id = l.user_id AND strftime('%Y', l.start_date) = ? WHERE u.status = 'active'`;
     const params = [String(year)];
     if (!isAdmin) { query += ' AND u.id = ?'; params.push(req.session.user.id); }
@@ -46,7 +46,7 @@ router.post('/', requireLogin, async (req, res) => {
 });
 
 router.put('/:id/status', requireLogin, async (req, res) => {
-  if (!['admin','superadmin'].includes(req.session.user.role)) return res.status(403).json({ error: '권한 없음' });
+  if (req.session.user.role !== 'superadmin') return res.status(403).json({ error: '총괄관리자 권한 필요' });
   try {
     await db.prepare(`UPDATE leaves SET status=?, approved_by=?, approved_at=datetime('now') WHERE id=?`)
       .run(req.body.status, req.session.user.id, req.params.id);
@@ -71,7 +71,7 @@ router.delete('/:id', requireLogin, async (req, res) => {
   try {
     const leave = await db.prepare('SELECT * FROM leaves WHERE id = ?').get(req.params.id);
     if (!leave) return res.status(404).json({ error: '없음' });
-    const isAdmin = ['admin','superadmin'].includes(req.session.user.role);
+    const isAdmin = req.session.user.role === 'superadmin';
     if (!isAdmin && leave.user_id !== req.session.user.id) return res.status(403).json({ error: '권한 없음' });
     if (leave.status !== 'pending' && !isAdmin) return res.status(400).json({ error: '이미 처리된 신청은 취소할 수 없습니다.' });
     await db.prepare('DELETE FROM leaves WHERE id = ?').run(req.params.id);

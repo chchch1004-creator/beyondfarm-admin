@@ -5,7 +5,7 @@ const router = express.Router();
 
 function requireAdmin(req, res, next) {
   if (!req.session.user) return res.status(401).json({ error: '로그인 필요' });
-  if (!['admin','superadmin'].includes(req.session.user.role)) return res.status(403).json({ error: '관리자 권한 필요' });
+  if (req.session.user.role !== 'superadmin') return res.status(403).json({ error: '총괄관리자 권한 필요' });
   next();
 }
 

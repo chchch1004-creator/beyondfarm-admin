@@ -105,26 +105,31 @@ const App = {
     const mpt = document.getElementById('mobile-page-title');
     if (mpt) mpt.textContent = titles[page] || page;
 
-    // 관리자 전용 메뉴 표시 제어
-    const isAdmin = ['admin', 'superadmin'].includes(App.user.role);
+    // 권한 수준 설정
     const isSuperAdmin = App.user.role === 'superadmin';
+    const isAdminOrSuper = ['admin', 'superadmin'].includes(App.user.role);
 
-    // 관리자 전용 메뉴 (휴가관리, 수입/지출, 재고현황, 설정)
+    // 총괄관리자 전용 메뉴 (휴가관리, 수입/지출, 재고현황, 설정)
     document.querySelectorAll('.admin-only').forEach(el => {
-      el.style.display = isAdmin ? '' : 'none';
+      el.style.display = isSuperAdmin ? '' : 'none';
     });
     ['nav-settings', 'nav-admin-section'].forEach(id => {
       const el = document.getElementById(id);
-      if (el) el.style.display = isAdmin ? '' : 'none';
+      if (el) el.style.display = isSuperAdmin ? '' : 'none';
     });
     const tsEl = document.getElementById('nav-timesheet');
     if (tsEl) tsEl.style.display = isSuperAdmin ? '' : 'none';
+    // 주주근무표: 관리자도 열람 가능
     const shEl = document.getElementById('nav-sh-timesheet');
-    if (shEl) shEl.style.display = isAdmin ? '' : 'none';
+    if (shEl) shEl.style.display = isAdminOrSuper ? '' : 'none';
 
-    const adminOnly = ['leaves', 'finance', 'inventory', 'settings', 'shareholder_timesheet'];
-    if (adminOnly.includes(page) && !['admin','superadmin'].includes(App.user.role)) {
-      document.getElementById('content').innerHTML = '<div class="empty-state"><div class="icon">🔒</div>관리자만 접근 가능합니다</div>';
+    const superAdminOnly = ['leaves', 'finance', 'inventory', 'settings'];
+    if (superAdminOnly.includes(page) && !isSuperAdmin) {
+      document.getElementById('content').innerHTML = '<div class="empty-state"><div class="icon">🔒</div>총괄관리자만 접근 가능합니다</div>';
+      return;
+    }
+    if (page === 'shareholder_timesheet' && !isAdminOrSuper) {
+      document.getElementById('content').innerHTML = '<div class="empty-state"><div class="icon">🔒</div>관리자 이상만 접근 가능합니다</div>';
       return;
     }
     const pages = { dashboard: Dashboard, employees: Employees, attendance: Attendance, leaves: Leaves, salary: Salary, finance: Finance, inventory: Inventory, settings: Settings, mypage: MyPage, timesheet: Timesheet, shareholder_timesheet: ShareholderTimesheet };
