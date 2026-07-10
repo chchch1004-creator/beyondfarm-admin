@@ -41,7 +41,7 @@ const Employees = {
     const isAdmin = App.user.role === 'superadmin';
     try {
       this.data = await API.get('/api/employees');
-      const roleLabel = { superadmin:'총괄관리자', admin:'관리자', employee:'직원' };
+      const roleLabel = { superadmin:'총괄관리자', admin:'관리자', employee:'직원', '주말':'주말직원' };
 
       content.innerHTML = `
         <div class="card" style="padding:0;overflow:hidden">
@@ -221,6 +221,7 @@ const Employees = {
         <div class="form-group"><label>권한</label>
           <select id="f-role">
             <option value="employee" ${emp?.role==='employee'?'selected':''}>직원</option>
+            <option value="주말" ${emp?.role==='주말'?'selected':''}>주말직원</option>
             <option value="admin" ${emp?.role==='admin'?'selected':''}>관리자</option>
             ${App.user.role === 'superadmin' ? `<option value="superadmin" ${emp?.role==='superadmin'?'selected':''}>총괄관리자</option>` : ''}
           </select>

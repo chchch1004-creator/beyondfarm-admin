@@ -38,7 +38,7 @@ const App = {
     document.getElementById('login-page').style.display = 'none';
     document.getElementById('app').style.display = 'flex';
     document.getElementById('sidebar-name').textContent = App.user.name;
-    const roleLabel = { superadmin: '총괄관리자', admin: '관리자', employee: '직원' };
+    const roleLabel = { superadmin: '총괄관리자', admin: '관리자', employee: '직원', '주말': '주말직원' };
     document.getElementById('sidebar-role').textContent = roleLabel[App.user.role] || '직원';
     App.goto('dashboard');
   },
@@ -106,8 +106,10 @@ const App = {
     if (mpt) mpt.textContent = titles[page] || page;
 
     // 권한 수준 설정
-    const isSuperAdmin = App.user.role === 'superadmin';
-    const isAdminOrSuper = ['admin', 'superadmin'].includes(App.user.role);
+    const role = App.user.role;
+    const isSuperAdmin = role === 'superadmin';
+    const isAdminOrSuper = ['admin', 'superadmin'].includes(role);
+    const isWeekend = role === '주말';
 
     // 총괄관리자 전용 메뉴 (휴가관리, 수입/지출, 재고현황, 설정)
     document.querySelectorAll('.admin-only').forEach(el => {
@@ -123,9 +125,22 @@ const App = {
     const shEl = document.getElementById('nav-sh-timesheet');
     if (shEl) shEl.style.display = isSuperAdmin ? '' : 'none';
 
-    // 급여관리: 관리자도 열람 가능 (nav는 admin-only 클래스 없으므로 별도 처리)
-    const salEl = document.getElementById('nav-salary') || document.querySelector('[data-page="salary"]');
-    if (salEl) salEl.style.display = isAdminOrSuper ? '' : 'none';
+    // 급여관리: 관리자/총괄만 열람 (주말직원 제외)
+    const salEl = document.querySelector('[data-page="salary"]');
+    if (salEl) salEl.style.display = (isAdminOrSuper && !isWeekend) ? '' : 'none';
+
+    // 직원관리: 일반직원도 볼 수 있으나 주말직원은 제외
+    const empEl = document.querySelector('[data-page="employees"]');
+    if (empEl) empEl.style.display = isWeekend ? 'none' : '';
+
+    // 주말직원 전용: 출퇴근+마이페이지만 허용
+    if (isWeekend) {
+      const weekendOnly = ['dashboard', 'attendance', 'mypage'];
+      if (!weekendOnly.includes(page)) {
+        document.getElementById('content').innerHTML = '<div class="empty-state"><div class="icon">🔒</div>접근 권한이 없습니다</div>';
+        return;
+      }
+    }
 
     const superAdminOnly = ['leaves', 'finance', 'inventory', 'settings', 'shareholder_timesheet'];
     if (superAdminOnly.includes(page) && !isSuperAdmin) {
