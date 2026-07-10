@@ -40,7 +40,7 @@ const App = {
     document.getElementById('sidebar-name').textContent = App.user.name;
     const roleLabel = { superadmin: '총괄관리자', admin: '관리자', employee: '직원', '주말': '주말직원' };
     document.getElementById('sidebar-role').textContent = roleLabel[App.user.role] || '직원';
-    App.goto('dashboard');
+    App.goto(App.user.role === '주말' ? 'attendance' : 'dashboard');
   },
 
   async login() {
@@ -133,9 +133,13 @@ const App = {
     const empEl = document.querySelector('[data-page="employees"]');
     if (empEl) empEl.style.display = isWeekend ? 'none' : '';
 
+    // 대시보드: 주말직원은 숨김
+    const dashEl = document.querySelector('[data-page="dashboard"]');
+    if (dashEl) dashEl.style.display = isWeekend ? 'none' : '';
+
     // 주말직원 전용: 출퇴근+마이페이지만 허용
     if (isWeekend) {
-      const weekendOnly = ['dashboard', 'attendance', 'mypage'];
+      const weekendOnly = ['attendance', 'mypage'];
       if (!weekendOnly.includes(page)) {
         document.getElementById('content').innerHTML = '<div class="empty-state"><div class="icon">🔒</div>접근 권한이 없습니다</div>';
         return;
