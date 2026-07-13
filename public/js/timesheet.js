@@ -127,7 +127,6 @@ const Timesheet = {
       const dailyCells = Array.from({length: days}, (_, i) => {
         const d = i + 1;
         const dow = getDow(d);
-        const wkColor = dow === 0 ? 'color:#ff4444' : dow === 6 ? 'color:#4488ff' : '';
         if (shDaysSet) {
           const inMain = shDaysSet.has(d);
           const inExtra = shExtraDaysSet.has(d);
@@ -139,13 +138,13 @@ const Timesheet = {
             const color = fixedAmt > 0 && workAmt === 0 ? '#c17f00' : '#2d6a4f';
             return `<td style="text-align:center;font-weight:700;color:${color};background:${bg}">${total}</td>`;
           }
-          return `<td style="text-align:center;${wkColor}"></td>`;
+          return `<td style="text-align:center"></td>`;
         }
         const dayData = emp.daily[d];
         const h = dayData?.hours;
         const isManual = dayData?.is_manual;
-        const manualColor = isManual ? 'color:#dc3545;font-weight:600' : wkColor;
-        return `<td id="h-${emp.id}-${d}" style="text-align:center;cursor:pointer;${h ? manualColor : wkColor}"
+        const manualColor = isManual ? 'color:#dc3545;font-weight:600' : '';
+        return `<td id="h-${emp.id}-${d}" style="text-align:center;cursor:pointer;${h ? manualColor : ''}"
           onclick="Timesheet.startEdit(this,${emp.id},${d})">${h || ''}</td>`;
       }).join('');
 
@@ -300,9 +299,9 @@ const Timesheet = {
     const isManual = dayData?.is_manual;
     const getDow = (d) => new Date(this.currentYear, this.currentMonth - 1, d).getDay();
     const dow = getDow(day);
-    const wkColor = dow === 0 ? '#ff4444' : dow === 6 ? '#4488ff' : '';
     cell.innerHTML = h || '';
-    cell.style.color = h ? (isManual ? '#dc3545' : wkColor) : wkColor;
+    cell.style.color = h && isManual ? '#dc3545' : '';
+    cell.style.fontWeight = isManual ? '600' : '';
     cell.style.fontWeight = isManual ? '600' : '';
   },
 
