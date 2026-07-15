@@ -103,19 +103,19 @@ const Sales = {
     const totalAvg = totalWd > 0 ? Math.round(totalSum / totalWd) : 0;
 
     document.getElementById('sales-tab-content').innerHTML = `
-      <p style="font-size:12px;color:#6c757d;margin-bottom:12px">※ 근무일수: 다루기어려운날·창업다리 = 0.5로 입력 | 합산매출 = 배달의민족 + 기타매출 + 기타입금 | 일평균매출 = 합산 ÷ 근무일수</p>
+      <p style="font-size:12px;color:#6c757d;margin-bottom:12px">※ 휴일수: 다루기어려운날·창업다리 = 0.5로 입력 | 합산매출 = 네이버매출 + 현장매출 + 기타입금 | 일평균매출 = 합산 ÷ 휴일수</p>
       <div class="table-wrap">
         <table id="sales-revenue-table">
           <thead>
             <tr style="background:#f8f9fa">
               <th style="text-align:center">월</th>
-              <th>근무일수</th>
-              <th>배달의민족</th>
-              <th>기타매출</th>
-              <th>기타입금</th>
-              <th style="text-align:right">합산매출</th>
-              <th style="text-align:right">일평균매출</th>
-              <th>메모</th>
+              <th style="text-align:center">휴일수</th>
+              <th style="text-align:center">네이버매출</th>
+              <th style="text-align:center">현장매출</th>
+              <th style="text-align:center">기타입금</th>
+              <th style="text-align:center">합산매출</th>
+              <th style="text-align:center">일평균매출</th>
+              <th style="text-align:center">메모</th>
             </tr>
           </thead>
           <tbody>${bodyRows}</tbody>
