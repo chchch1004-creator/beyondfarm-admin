@@ -57,6 +57,19 @@ const Sales = {
     return (n * 100).toFixed(1) + '%';
   },
 
+  // 콤마 포맷 표시용
+  fmtInput(n) { return n ? Number(n).toLocaleString('ko-KR') : ''; },
+  // 콤마 제거 후 숫자 파싱
+  parseInput(s) { return parseFloat(String(s).replace(/,/g, '')) || 0; },
+
+  // 숫자 입력 포커스 시 콤마 제거, blur 시 콤마 추가
+  onFocusNum(el) { el.value = el.value.replace(/,/g, ''); },
+  onBlurNum(el, month) {
+    const raw = parseFloat(el.value.replace(/,/g, '')) || 0;
+    el.value = raw ? raw.toLocaleString('ko-KR') : '';
+    Sales.saveRevenue(month);
+  },
+
   async renderRevenue() {
     const rows = await API.get(`/api/sales/revenue?year=${this.activeYear}`);
     const map = {};
@@ -77,13 +90,13 @@ const Sales = {
       totalWd += wd; totalBaemin += baemin; totalOther += other; totalIncome += income; totalSum += sum;
       return `<tr>
         <td style="text-align:center;font-weight:600">${m}월</td>
-        <td><input type="number" step="0.5" class="sales-input" style="width:70px" value="${wd || ''}" onblur="Sales.saveRevenue(${m})" data-field="working_days" data-month="${m}"></td>
-        <td><input type="number" class="sales-input" value="${baemin || ''}" onblur="Sales.saveRevenue(${m})" data-field="baemin" data-month="${m}"></td>
-        <td><input type="number" class="sales-input" value="${other || ''}" onblur="Sales.saveRevenue(${m})" data-field="other_sales" data-month="${m}"></td>
-        <td><input type="number" class="sales-input" value="${income || ''}" onblur="Sales.saveRevenue(${m})" data-field="other_income" data-month="${m}"></td>
+        <td><input type="text" inputmode="decimal" class="sales-input" style="width:70px;text-align:center" value="${wd || ''}" onfocus="Sales.onFocusNum(this)" onblur="Sales.saveRevenue(${m})" data-field="working_days" data-month="${m}"></td>
+        <td><input type="text" inputmode="numeric" class="sales-input" value="${this.fmtInput(baemin)}" onfocus="Sales.onFocusNum(this)" onblur="Sales.onBlurNum(this,${m})" data-field="baemin" data-month="${m}"></td>
+        <td><input type="text" inputmode="numeric" class="sales-input" value="${this.fmtInput(other)}" onfocus="Sales.onFocusNum(this)" onblur="Sales.onBlurNum(this,${m})" data-field="other_sales" data-month="${m}"></td>
+        <td><input type="text" inputmode="numeric" class="sales-input" value="${this.fmtInput(income)}" onfocus="Sales.onFocusNum(this)" onblur="Sales.onBlurNum(this,${m})" data-field="other_income" data-month="${m}"></td>
         <td style="text-align:right;font-weight:600;color:${sum>0?'#1b4332':'#aaa'}">${sum > 0 ? this.fmt(sum) : '-'}</td>
         <td style="text-align:right;color:#495057">${avg > 0 ? this.fmt(avg) : '-'}</td>
-        <td><input class="sales-input" style="font-size:12px;color:#6c757d" value="${r.note || ''}" placeholder="메모" onblur="Sales.saveRevenue(${m})" data-field="note" data-month="${m}"></td>
+        <td><input type="text" class="sales-input" style="font-size:12px;color:#6c757d;text-align:left" value="${r.note || ''}" placeholder="메모" onblur="Sales.saveRevenue(${m})" data-field="note" data-month="${m}"></td>
       </tr>`;
     }).join('');
 
@@ -134,7 +147,7 @@ const Sales = {
     const body = { year: this.activeYear, month };
     inputs.forEach(inp => {
       const field = inp.dataset.field;
-      body[field] = field === 'note' ? inp.value : (parseFloat(inp.value) || 0);
+      body[field] = field === 'note' ? inp.value : (parseFloat(String(inp.value).replace(/,/g, '')) || 0);
     });
     try {
       await API.post('/api/sales/revenue', body);
@@ -145,7 +158,7 @@ const Sales = {
   updateRevenueTotals() {
     let totalWd = 0, totalBaemin = 0, totalOther = 0, totalIncome = 0, totalSum = 0;
     for (let m = 1; m <= 12; m++) {
-      const get = (field) => parseFloat(document.querySelector(`.sales-input[data-month="${m}"][data-field="${field}"]`)?.value) || 0;
+      const get = (field) => parseFloat(String(document.querySelector(`.sales-input[data-month="${m}"][data-field="${field}"]`)?.value || '').replace(/,/g, '')) || 0;
       const wd = get('working_days'), baemin = get('baemin'), other = get('other_sales'), income = get('other_income');
       const sum = baemin + other + income;
       const avg = wd > 0 ? Math.round(sum / wd) : 0;
