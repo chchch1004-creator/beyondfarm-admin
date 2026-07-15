@@ -70,10 +70,41 @@ const Sales = {
     Sales.saveRevenue(month);
   },
 
-  async renderRevenue() {
-    const rows = await API.get(`/api/sales/revenue?year=${this.activeYear}`);
+  buildMap(rows) {
     const map = {};
     rows.forEach(r => { map[r.month] = r; });
+    return map;
+  },
+
+  sumRow(map, m) {
+    const r = map[m] || {};
+    const wd = r.working_days || 0;
+    const baemin = r.baemin || 0;
+    const other = r.other_sales || 0;
+    const income = r.other_income || 0;
+    const sum = baemin + other + income;
+    const avg = wd > 0 ? sum / wd : 0;
+    return { wd, baemin, other, income, sum, avg };
+  },
+
+  fmtRatio(cur, prev) {
+    if (!prev || !cur) return '<span style="color:#aaa">-</span>';
+    const r = cur / prev;
+    const pct = (r * 100).toFixed(1) + '%';
+    const color = r >= 1 ? '#1b4332' : '#dc3545';
+    return `<span style="color:${color};font-weight:600">${pct}</span>`;
+  },
+
+  async renderRevenue() {
+    const year = this.activeYear;
+    const [rows, rowsPrev, rowsPrev2] = await Promise.all([
+      API.get(`/api/sales/revenue?year=${year}`),
+      API.get(`/api/sales/revenue?year=${year - 1}`),
+      API.get(`/api/sales/revenue?year=${year - 2}`),
+    ]);
+    const map = this.buildMap(rows);
+    const mapP = this.buildMap(rowsPrev);
+    const mapP2 = this.buildMap(rowsPrev2);
 
     const months = Array.from({ length: 12 }, (_, i) => i + 1);
 
@@ -102,8 +133,97 @@ const Sales = {
 
     const totalAvg = totalWd > 0 ? Math.round(totalSum / totalWd) : 0;
 
+    // 전년도 합계
+    let pWd=0, pBaemin=0, pOther=0, pIncome=0, pSum=0;
+    let p2Wd=0, p2Baemin=0, p2Other=0, p2Income=0, p2Sum=0;
+    months.forEach(m => {
+      const p = this.sumRow(mapP, m); pWd+=p.wd; pBaemin+=p.baemin; pOther+=p.other; pIncome+=p.income; pSum+=p.sum;
+      const p2 = this.sumRow(mapP2, m); p2Wd+=p2.wd; p2Baemin+=p2.baemin; p2Other+=p2.other; p2Income+=p2.income; p2Sum+=p2.sum;
+    });
+    const pAvg = pWd > 0 ? pSum / pWd : 0;
+    const p2Avg = p2Wd > 0 ? p2Sum / p2Wd : 0;
+
+    // 월별 비율 행 생성
+    const ratioRow = (label, bgColor, prevMap) => {
+      const cells = months.map(m => {
+        const cur = this.sumRow(map, m);
+        const prev = this.sumRow(prevMap, m);
+        return `<td style="text-align:center;font-size:12px;background:${bgColor}">${this.fmtRatio(cur.sum, prev.sum)}</td>`;
+      }).join('');
+      const curTotAvg = totalWd > 0 ? totalSum / totalWd : 0;
+      const prevTotAvg = (prevMap === mapP ? pWd : p2Wd) > 0 ? (prevMap === mapP ? pSum : p2Sum) / (prevMap === mapP ? pWd : p2Wd) : 0;
+      const prevTotSum = prevMap === mapP ? pSum : p2Sum;
+      return `<tr style="background:${bgColor}">
+        <td colspan="2" style="text-align:center;font-size:12px;font-weight:700;color:#495057">${label}</td>
+        ${cells}
+        <td style="text-align:center;font-size:12px;font-weight:700">${this.fmtRatio(totalSum, prevTotSum)}</td>
+      </tr>`;
+    };
+
+    // 항목별 비율 테이블
+    const makeDetailRatio = (label, bgColor, prevMap, field) => {
+      const cells = months.map(m => {
+        const r = map[m] || {}; const p = prevMap[m] || {};
+        const cur = field === 'sum' ? ((r.baemin||0)+(r.other_sales||0)+(r.other_income||0))
+                  : field === 'avg' ? (r.working_days > 0 ? ((r.baemin||0)+(r.other_sales||0)+(r.other_income||0))/r.working_days : 0)
+                  : (r[field] || 0);
+        const prev = field === 'sum' ? ((p.baemin||0)+(p.other_sales||0)+(p.other_income||0))
+                   : field === 'avg' ? (p.working_days > 0 ? ((p.baemin||0)+(p.other_sales||0)+(p.other_income||0))/p.working_days : 0)
+                   : (p[field] || 0);
+        return `<td style="text-align:center;font-size:11px;background:${bgColor}">${this.fmtRatio(cur, prev)}</td>`;
+      }).join('');
+      const prevKey = prevMap === mapP ? 'P' : 'P2';
+      const [curTot, prevTot] = field === 'sum' ? [totalSum, prevKey==='P'?pSum:p2Sum]
+        : field === 'avg' ? [totalWd>0?totalSum/totalWd:0, prevKey==='P'?(pWd>0?pSum/pWd:0):(p2Wd>0?p2Sum/p2Wd:0)]
+        : field === 'working_days' ? [totalWd, prevKey==='P'?pWd:p2Wd]
+        : field === 'baemin' ? [totalBaemin, prevKey==='P'?pBaemin:p2Baemin]
+        : [totalOther, prevKey==='P'?pOther:p2Other];
+      return `<tr style="background:${bgColor}">
+        <td style="text-align:right;font-size:11px;color:#6c757d;padding-right:8px">${label}</td>
+        ${cells}
+        <td style="text-align:center;font-size:11px;font-weight:700">${this.fmtRatio(curTot, prevTot)}</td>
+      </tr>`;
+    };
+
+    const hasPrev = pSum > 0;
+    const hasPrev2 = p2Sum > 0;
+
+    const comparisonSection = (hasPrev || hasPrev2) ? `
+      <div style="margin-top:24px">
+        <h4 style="font-size:14px;font-weight:700;margin-bottom:12px;color:#1b4332">📊 전년도 대비 비율</h4>
+        <div class="table-wrap">
+          <table style="font-size:12px">
+            <thead>
+              <tr style="background:#1b4332;color:#fff;text-align:center">
+                <th style="min-width:100px">구분</th>
+                ${months.map(m=>`<th>${m}월</th>`).join('')}
+                <th>연간</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${hasPrev ? `
+              <tr><td colspan="${months.length+2}" style="background:#e8f5e9;font-size:11px;font-weight:700;padding:6px 8px;color:#1b4332">▶ ${year-1}년 대비 ${year}년</td></tr>
+              ${makeDetailRatio('합산매출', '#f9fbe7', mapP, 'sum')}
+              ${makeDetailRatio('네이버매출', '#f9fbe7', mapP, 'baemin')}
+              ${makeDetailRatio('현장매출', '#f9fbe7', mapP, 'other_sales')}
+              ${makeDetailRatio('휴일수', '#f9fbe7', mapP, 'working_days')}
+              ${makeDetailRatio('휴일평균매출', '#f9fbe7', mapP, 'avg')}
+              ` : ''}
+              ${hasPrev2 ? `
+              <tr><td colspan="${months.length+2}" style="background:#e3f2fd;font-size:11px;font-weight:700;padding:6px 8px;color:#1565c0">▶ ${year-2}년 대비 ${year}년</td></tr>
+              ${makeDetailRatio('합산매출', '#e8f4fd', mapP2, 'sum')}
+              ${makeDetailRatio('네이버매출', '#e8f4fd', mapP2, 'baemin')}
+              ${makeDetailRatio('현장매출', '#e8f4fd', mapP2, 'other_sales')}
+              ${makeDetailRatio('휴일수', '#e8f4fd', mapP2, 'working_days')}
+              ${makeDetailRatio('휴일평균매출', '#e8f4fd', mapP2, 'avg')}
+              ` : ''}
+            </tbody>
+          </table>
+        </div>
+      </div>` : '';
+
     document.getElementById('sales-tab-content').innerHTML = `
-      <p style="font-size:12px;color:#6c757d;margin-bottom:12px">※ 휴일수: 다루기어려운날·창업다리 = 0.5로 입력 | 합산매출 = 네이버매출 + 현장매출 + 기타입금 | 일평균매출 = 합산 ÷ 휴일수</p>
+      <p style="font-size:12px;color:#6c757d;margin-bottom:12px">※ 휴일수: 다루기어려운날·창업다리 = 0.5로 입력 | 합산매출 = 네이버매출 + 현장매출 + 기타입금 | 휴일평균매출 = 합산 ÷ 휴일수</p>
       <div class="table-wrap">
         <table id="sales-revenue-table">
           <thead>
@@ -114,7 +234,7 @@ const Sales = {
               <th style="text-align:center">현장매출</th>
               <th style="text-align:center">기타입금</th>
               <th style="text-align:center">합산매출</th>
-              <th style="text-align:center">일평균매출</th>
+              <th style="text-align:center">휴일평균매출</th>
               <th style="text-align:center">메모</th>
             </tr>
           </thead>
@@ -122,7 +242,7 @@ const Sales = {
           <tfoot>
             <tr style="background:#f0fdf4;font-weight:700">
               <td style="text-align:center">합계</td>
-              <td>${totalWd}</td>
+              <td style="text-align:center">${totalWd}</td>
               <td style="text-align:right">${this.fmt(totalBaemin)}</td>
               <td style="text-align:right">${this.fmt(totalOther)}</td>
               <td style="text-align:right">${this.fmt(totalIncome)}</td>
@@ -133,6 +253,7 @@ const Sales = {
           </tfoot>
         </table>
       </div>
+      ${comparisonSection}
       <style>
         .sales-input { border:1px solid transparent;border-radius:4px;padding:4px 6px;font-size:13px;width:100%;box-sizing:border-box;background:transparent;text-align:right }
         .sales-input:focus { border-color:#1b4332;outline:none;background:#fff }
