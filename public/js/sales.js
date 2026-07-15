@@ -1,6 +1,8 @@
 const Sales = {
   activeYear: new Date().getFullYear(),
   activeTab: 'revenue',
+  compareYear1: new Date().getFullYear() - 1,
+  compareYear2: new Date().getFullYear() - 2,
   revenueData: {},
   ytsData: {},
 
@@ -97,17 +99,12 @@ const Sales = {
 
   async renderRevenue() {
     const year = this.activeYear;
-    const [rows, rowsPrev, rowsPrev2] = await Promise.all([
-      API.get(`/api/sales/revenue?year=${year}`),
-      API.get(`/api/sales/revenue?year=${year - 1}`),
-      API.get(`/api/sales/revenue?year=${year - 2}`),
-    ]);
+    const rows = await API.get(`/api/sales/revenue?year=${year}`);
     const map = this.buildMap(rows);
-    const mapP = this.buildMap(rowsPrev);
-    const mapP2 = this.buildMap(rowsPrev2);
+    this._currentMap = map;
+    this._currentYear = year;
 
     const months = Array.from({ length: 12 }, (_, i) => i + 1);
-
     let totalWd = 0, totalBaemin = 0, totalOther = 0, totalIncome = 0, totalSum = 0;
 
     const bodyRows = months.map(m => {
@@ -131,96 +128,12 @@ const Sales = {
       </tr>`;
     }).join('');
 
+    this._currentTotals = { totalWd, totalBaemin, totalOther, totalIncome, totalSum };
     const totalAvg = totalWd > 0 ? Math.round(totalSum / totalWd) : 0;
 
-    // 전년도 합계
-    let pWd=0, pBaemin=0, pOther=0, pIncome=0, pSum=0;
-    let p2Wd=0, p2Baemin=0, p2Other=0, p2Income=0, p2Sum=0;
-    months.forEach(m => {
-      const p = this.sumRow(mapP, m); pWd+=p.wd; pBaemin+=p.baemin; pOther+=p.other; pIncome+=p.income; pSum+=p.sum;
-      const p2 = this.sumRow(mapP2, m); p2Wd+=p2.wd; p2Baemin+=p2.baemin; p2Other+=p2.other; p2Income+=p2.income; p2Sum+=p2.sum;
-    });
-    const pAvg = pWd > 0 ? pSum / pWd : 0;
-    const p2Avg = p2Wd > 0 ? p2Sum / p2Wd : 0;
-
-    // 월별 비율 행 생성
-    const ratioRow = (label, bgColor, prevMap) => {
-      const cells = months.map(m => {
-        const cur = this.sumRow(map, m);
-        const prev = this.sumRow(prevMap, m);
-        return `<td style="text-align:center;font-size:12px;background:${bgColor}">${this.fmtRatio(cur.sum, prev.sum)}</td>`;
-      }).join('');
-      const curTotAvg = totalWd > 0 ? totalSum / totalWd : 0;
-      const prevTotAvg = (prevMap === mapP ? pWd : p2Wd) > 0 ? (prevMap === mapP ? pSum : p2Sum) / (prevMap === mapP ? pWd : p2Wd) : 0;
-      const prevTotSum = prevMap === mapP ? pSum : p2Sum;
-      return `<tr style="background:${bgColor}">
-        <td colspan="2" style="text-align:center;font-size:12px;font-weight:700;color:#495057">${label}</td>
-        ${cells}
-        <td style="text-align:center;font-size:12px;font-weight:700">${this.fmtRatio(totalSum, prevTotSum)}</td>
-      </tr>`;
-    };
-
-    // 항목별 비율 테이블
-    const makeDetailRatio = (label, bgColor, prevMap, field) => {
-      const cells = months.map(m => {
-        const r = map[m] || {}; const p = prevMap[m] || {};
-        const cur = field === 'sum' ? ((r.baemin||0)+(r.other_sales||0)+(r.other_income||0))
-                  : field === 'avg' ? (r.working_days > 0 ? ((r.baemin||0)+(r.other_sales||0)+(r.other_income||0))/r.working_days : 0)
-                  : (r[field] || 0);
-        const prev = field === 'sum' ? ((p.baemin||0)+(p.other_sales||0)+(p.other_income||0))
-                   : field === 'avg' ? (p.working_days > 0 ? ((p.baemin||0)+(p.other_sales||0)+(p.other_income||0))/p.working_days : 0)
-                   : (p[field] || 0);
-        return `<td style="text-align:center;font-size:11px;background:${bgColor}">${this.fmtRatio(cur, prev)}</td>`;
-      }).join('');
-      const prevKey = prevMap === mapP ? 'P' : 'P2';
-      const [curTot, prevTot] = field === 'sum' ? [totalSum, prevKey==='P'?pSum:p2Sum]
-        : field === 'avg' ? [totalWd>0?totalSum/totalWd:0, prevKey==='P'?(pWd>0?pSum/pWd:0):(p2Wd>0?p2Sum/p2Wd:0)]
-        : field === 'working_days' ? [totalWd, prevKey==='P'?pWd:p2Wd]
-        : field === 'baemin' ? [totalBaemin, prevKey==='P'?pBaemin:p2Baemin]
-        : [totalOther, prevKey==='P'?pOther:p2Other];
-      return `<tr style="background:${bgColor}">
-        <td style="text-align:right;font-size:11px;color:#6c757d;padding-right:8px">${label}</td>
-        ${cells}
-        <td style="text-align:center;font-size:11px;font-weight:700">${this.fmtRatio(curTot, prevTot)}</td>
-      </tr>`;
-    };
-
-    const hasPrev = pSum > 0;
-    const hasPrev2 = p2Sum > 0;
-
-    const comparisonSection = (hasPrev || hasPrev2) ? `
-      <div style="margin-top:24px">
-        <h4 style="font-size:14px;font-weight:700;margin-bottom:12px;color:#1b4332">📊 전년도 대비 비율</h4>
-        <div class="table-wrap">
-          <table style="font-size:12px">
-            <thead>
-              <tr style="background:#1b4332;color:#fff;text-align:center">
-                <th style="min-width:100px">구분</th>
-                ${months.map(m=>`<th>${m}월</th>`).join('')}
-                <th>연간</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${hasPrev ? `
-              <tr><td colspan="${months.length+2}" style="background:#e8f5e9;font-size:11px;font-weight:700;padding:6px 8px;color:#1b4332">▶ ${year-1}년 대비 ${year}년</td></tr>
-              ${makeDetailRatio('합산매출', '#f9fbe7', mapP, 'sum')}
-              ${makeDetailRatio('네이버매출', '#f9fbe7', mapP, 'baemin')}
-              ${makeDetailRatio('현장매출', '#f9fbe7', mapP, 'other_sales')}
-              ${makeDetailRatio('휴일수', '#f9fbe7', mapP, 'working_days')}
-              ${makeDetailRatio('휴일평균매출', '#f9fbe7', mapP, 'avg')}
-              ` : ''}
-              ${hasPrev2 ? `
-              <tr><td colspan="${months.length+2}" style="background:#e3f2fd;font-size:11px;font-weight:700;padding:6px 8px;color:#1565c0">▶ ${year-2}년 대비 ${year}년</td></tr>
-              ${makeDetailRatio('합산매출', '#e8f4fd', mapP2, 'sum')}
-              ${makeDetailRatio('네이버매출', '#e8f4fd', mapP2, 'baemin')}
-              ${makeDetailRatio('현장매출', '#e8f4fd', mapP2, 'other_sales')}
-              ${makeDetailRatio('휴일수', '#e8f4fd', mapP2, 'working_days')}
-              ${makeDetailRatio('휴일평균매출', '#e8f4fd', mapP2, 'avg')}
-              ` : ''}
-            </tbody>
-          </table>
-        </div>
-      </div>` : '';
+    const allYears = this.years().filter(y => y !== year);
+    const yearOpts = (selected) => allYears.map(y =>
+      `<option value="${y}" ${y === selected ? 'selected' : ''}>${y}년</option>`).join('');
 
     document.getElementById('sales-tab-content').innerHTML = `
       <p style="font-size:12px;color:#6c757d;margin-bottom:12px">※ 휴일수: 다루기어려운날·창업다리 = 0.5로 입력 | 합산매출 = 네이버매출 + 현장매출 + 기타입금 | 휴일평균매출 = 합산 ÷ 휴일수</p>
@@ -253,7 +166,25 @@ const Sales = {
           </tfoot>
         </table>
       </div>
-      ${comparisonSection}
+
+      <div style="margin-top:28px">
+        <div style="display:flex;align-items:center;gap:16px;margin-bottom:12px;flex-wrap:wrap">
+          <h4 style="font-size:14px;font-weight:700;color:#1b4332;margin:0">📊 연도 대비 비율</h4>
+          <div style="display:flex;align-items:center;gap:8px;font-size:13px">
+            <label>비교 1</label>
+            <select id="cmp-year1" onchange="Sales.onChangeCmpYear()" style="padding:4px 8px;border:1px solid #dee2e6;border-radius:6px;font-size:13px">
+              ${yearOpts(this.compareYear1)}
+            </select>
+            <label>비교 2</label>
+            <select id="cmp-year2" onchange="Sales.onChangeCmpYear()" style="padding:4px 8px;border:1px solid #dee2e6;border-radius:6px;font-size:13px">
+              <option value="">없음</option>
+              ${yearOpts(this.compareYear2)}
+            </select>
+          </div>
+        </div>
+        <div id="comparison-table"></div>
+      </div>
+
       <style>
         .sales-input { border:1px solid transparent;border-radius:4px;padding:4px 6px;font-size:13px;width:100%;box-sizing:border-box;background:transparent;text-align:right }
         .sales-input:focus { border-color:#1b4332;outline:none;background:#fff }
@@ -261,6 +192,91 @@ const Sales = {
         .sales-input[data-field="working_days"] { text-align:center }
         #sales-revenue-table td { padding:6px 8px }
       </style>`;
+
+    await this.reloadComparison();
+  },
+
+  async onChangeCmpYear() {
+    this.compareYear1 = parseInt(document.getElementById('cmp-year1')?.value) || this.compareYear1;
+    const v2 = document.getElementById('cmp-year2')?.value;
+    this.compareYear2 = v2 ? parseInt(v2) : null;
+    await this.reloadComparison();
+  },
+
+  async reloadComparison() {
+    const el = document.getElementById('comparison-table');
+    if (!el) return;
+    const map = this._currentMap;
+    const year = this._currentYear;
+    const { totalWd, totalBaemin, totalOther, totalIncome, totalSum } = this._currentTotals;
+    const months = Array.from({ length: 12 }, (_, i) => i + 1);
+
+    const cy1 = this.compareYear1;
+    const cy2 = this.compareYear2;
+
+    const fetches = [API.get(`/api/sales/revenue?year=${cy1}`)];
+    if (cy2) fetches.push(API.get(`/api/sales/revenue?year=${cy2}`));
+    const results = await Promise.all(fetches);
+    const mapC1 = this.buildMap(results[0]);
+    const mapC2 = cy2 ? this.buildMap(results[1]) : null;
+
+    const totals = (m) => {
+      let wd=0,b=0,o=0,i=0,s=0;
+      months.forEach(mo => {
+        const r = m[mo]||{};
+        wd+=(r.working_days||0); b+=(r.baemin||0); o+=(r.other_sales||0); i+=(r.other_income||0);
+        s+=(r.baemin||0)+(r.other_sales||0)+(r.other_income||0);
+      });
+      return {wd,b,o,i,s,avg:wd>0?s/wd:0};
+    };
+
+    const t1 = totals(mapC1);
+    const t2 = cy2 ? totals(mapC2) : null;
+
+    const makeBlock = (cmpMap, cmpYear, cmpTot, bg, headerBg, headerColor) => {
+      const makeRow = (label, getCur, getCmp) => {
+        const cells = months.map(m => {
+          const cur = getCur(map[m]||{});
+          const cmp = getCmp(cmpMap[m]||{});
+          return `<td style="text-align:center;font-size:11px;background:${bg}">${this.fmtRatio(cur, cmp)}</td>`;
+        }).join('');
+        const [curTot, cmpTotVal] = getCur === ((r)=>((r.baemin||0)+(r.other_sales||0)+(r.other_income||0)))
+          ? [totalSum, cmpTot.s]
+          : getCur === ((r)=>(r.working_days||0)) ? [totalWd, cmpTot.wd]
+          : getCur === ((r)=>(r.baemin||0)) ? [totalBaemin, cmpTot.b]
+          : getCur === ((r)=>(r.other_sales||0)) ? [totalOther, cmpTot.o]
+          : [totalWd>0?totalSum/totalWd:0, cmpTot.avg];
+        return `<tr style="background:${bg}">
+          <td style="font-size:11px;color:#6c757d;text-align:right;padding-right:8px">${label}</td>
+          ${cells}
+          <td style="text-align:center;font-size:11px;font-weight:700">${this.fmtRatio(curTot, cmpTotVal)}</td>
+        </tr>`;
+      };
+      return `
+        <tr><td colspan="${months.length+2}" style="background:${headerBg};font-size:12px;font-weight:700;padding:6px 10px;color:${headerColor}">▶ ${cmpYear}년 대비 ${year}년</td></tr>
+        ${makeRow('합산매출', r=>(r.baemin||0)+(r.other_sales||0)+(r.other_income||0), r=>(r.baemin||0)+(r.other_sales||0)+(r.other_income||0))}
+        ${makeRow('네이버매출', r=>(r.baemin||0), r=>(r.baemin||0))}
+        ${makeRow('현장매출', r=>(r.other_sales||0), r=>(r.other_sales||0))}
+        ${makeRow('휴일수', r=>(r.working_days||0), r=>(r.working_days||0))}
+        ${makeRow('휴일평균매출', r=>r.working_days>0?((r.baemin||0)+(r.other_sales||0)+(r.other_income||0))/r.working_days:0, r=>r.working_days>0?((r.baemin||0)+(r.other_sales||0)+(r.other_income||0))/r.working_days:0)}`;
+    };
+
+    el.innerHTML = `
+      <div class="table-wrap">
+        <table style="font-size:12px">
+          <thead>
+            <tr style="background:#1b4332;color:#fff;text-align:center">
+              <th style="min-width:100px">구분</th>
+              ${months.map(m=>`<th>${m}월</th>`).join('')}
+              <th>연간</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${makeBlock(mapC1, cy1, t1, '#f9fbe7', '#e8f5e9', '#1b4332')}
+            ${cy2 ? makeBlock(mapC2, cy2, t2, '#e8f4fd', '#e3f2fd', '#1565c0') : ''}
+          </tbody>
+        </table>
+      </div>`;
   },
 
   async saveRevenue(month) {
