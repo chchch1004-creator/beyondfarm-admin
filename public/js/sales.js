@@ -168,6 +168,13 @@ const Sales = {
       </div>
 
       <div style="margin-top:28px">
+        <h4 style="font-size:14px;font-weight:700;color:#1b4332;margin-bottom:12px">📈 월별 매출 그래프</h4>
+        <div style="position:relative;height:300px;background:#fff;border:1px solid #dee2e6;border-radius:8px;padding:16px">
+          <canvas id="sales-chart"></canvas>
+        </div>
+      </div>
+
+      <div style="margin-top:28px">
         <div style="display:flex;align-items:center;gap:16px;margin-bottom:12px;flex-wrap:wrap">
           <h4 style="font-size:14px;font-weight:700;color:#1b4332;margin:0">📊 연도 대비 비율</h4>
           <div style="display:flex;align-items:center;gap:8px;font-size:13px">
@@ -194,6 +201,46 @@ const Sales = {
       </style>`;
 
     await this.reloadComparison();
+    this.renderChart();
+  },
+
+  renderChart() {
+    const canvas = document.getElementById('sales-chart');
+    if (!canvas || typeof Chart === 'undefined') return;
+    if (this._chart) { this._chart.destroy(); this._chart = null; }
+    const map = this._currentMap;
+    const months = Array.from({ length: 12 }, (_, i) => i + 1);
+    const datasets = [
+      { label: '네이버매출', data: months.map(m => map[m]?.baemin||0), backgroundColor: 'rgba(27,67,50,0.8)', stack: 'cur' },
+      { label: '현장매출',   data: months.map(m => map[m]?.other_sales||0), backgroundColor: 'rgba(82,183,136,0.8)', stack: 'cur' },
+      { label: '기타입금',   data: months.map(m => map[m]?.other_income||0), backgroundColor: 'rgba(180,220,180,0.8)', stack: 'cur' },
+    ];
+    const lineColors = ['#e65100', '#1565c0'];
+    [this._cmpMap1, this._cmpMap2].forEach((cmpMap, idx) => {
+      if (!cmpMap) return;
+      const cmpYear = idx === 0 ? this.compareYear1 : this.compareYear2;
+      datasets.push({
+        label: `${cmpYear}년 매출액`, type: 'line',
+        data: months.map(m => (cmpMap[m]?.baemin||0)+(cmpMap[m]?.other_sales||0)+(cmpMap[m]?.other_income||0)),
+        borderColor: lineColors[idx], backgroundColor: 'transparent',
+        borderWidth: 2, pointRadius: 4, tension: 0.3, stack: undefined,
+      });
+    });
+    this._chart = new Chart(canvas, {
+      type: 'bar',
+      data: { labels: months.map(m => `${m}월`), datasets },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'top', labels: { font: { size: 12 } } },
+          tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${Number(ctx.raw).toLocaleString('ko-KR')}원` } }
+        },
+        scales: {
+          x: { grid: { display: false } },
+          y: { ticks: { callback: v => v >= 1e8 ? (v/1e8).toFixed(0)+'억' : v >= 1e4 ? (v/1e4).toFixed(0)+'만' : v } }
+        }
+      }
+    });
   },
 
   async onChangeCmpYear() {
@@ -201,6 +248,7 @@ const Sales = {
     const v2 = document.getElementById('cmp-year2')?.value;
     this.compareYear2 = v2 ? parseInt(v2) : null;
     await this.reloadComparison();
+    this.renderChart();
   },
 
   async reloadComparison() {
@@ -219,6 +267,8 @@ const Sales = {
     const results = await Promise.all(fetches);
     const mapC1 = this.buildMap(results[0]);
     const mapC2 = cy2 ? this.buildMap(results[1]) : null;
+    this._cmpMap1 = mapC1;
+    this._cmpMap2 = mapC2;
 
     const totals = (m) => {
       let wd=0,b=0,o=0,i=0,s=0;
@@ -254,7 +304,7 @@ const Sales = {
       };
       return `
         <tr><td colspan="${months.length+2}" style="background:${headerBg};font-size:12px;font-weight:700;padding:6px 10px;color:${headerColor}">▶ ${cmpYear}년 대비 ${year}년</td></tr>
-        ${makeRow('합산매출', r=>(r.baemin||0)+(r.other_sales||0)+(r.other_income||0), r=>(r.baemin||0)+(r.other_sales||0)+(r.other_income||0))}
+        ${makeRow('매출액', r=>(r.baemin||0)+(r.other_sales||0)+(r.other_income||0), r=>(r.baemin||0)+(r.other_sales||0)+(r.other_income||0))}
         ${makeRow('네이버매출', r=>(r.baemin||0), r=>(r.baemin||0))}
         ${makeRow('현장매출', r=>(r.other_sales||0), r=>(r.other_sales||0))}
         ${makeRow('휴일수', r=>(r.working_days||0), r=>(r.working_days||0))}
