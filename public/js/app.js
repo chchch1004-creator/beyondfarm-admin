@@ -99,7 +99,8 @@ const App = {
       settings: '시스템 설정',
       mypage: '마이페이지',
       timesheet: '근무표',
-      shareholder_timesheet: '주주근무표'
+      shareholder_timesheet: '주주근무표',
+      sales: '매출'
     };
     document.getElementById('page-title').textContent = titles[page] || page;
     const mpt = document.getElementById('mobile-page-title');
@@ -124,6 +125,9 @@ const App = {
     // 주주근무표: 총괄관리자 전용
     const shEl = document.getElementById('nav-sh-timesheet');
     if (shEl) shEl.style.display = isSuperAdmin ? '' : 'none';
+    // 매출: 총괄관리자 전용
+    const salesEl = document.getElementById('nav-sales');
+    if (salesEl) salesEl.style.display = isSuperAdmin ? '' : 'none';
 
     // 급여관리: 관리자/총괄만 열람 (주말직원 제외)
     const salEl = document.querySelector('[data-page="salary"]');
@@ -146,7 +150,7 @@ const App = {
       }
     }
 
-    const superAdminOnly = ['leaves', 'finance', 'inventory', 'settings', 'shareholder_timesheet'];
+    const superAdminOnly = ['leaves', 'finance', 'inventory', 'settings', 'shareholder_timesheet', 'sales'];
     if (superAdminOnly.includes(page) && !isSuperAdmin) {
       document.getElementById('content').innerHTML = '<div class="empty-state"><div class="icon">🔒</div>총괄관리자만 접근 가능합니다</div>';
       return;
@@ -155,7 +159,7 @@ const App = {
       document.getElementById('content').innerHTML = '<div class="empty-state"><div class="icon">🔒</div>접근 권한이 없습니다</div>';
       return;
     }
-    const pages = { dashboard: Dashboard, employees: Employees, attendance: Attendance, leaves: Leaves, salary: Salary, finance: Finance, inventory: Inventory, settings: Settings, mypage: MyPage, timesheet: Timesheet, shareholder_timesheet: ShareholderTimesheet };
+    const pages = { dashboard: Dashboard, employees: Employees, attendance: Attendance, leaves: Leaves, salary: Salary, finance: Finance, inventory: Inventory, settings: Settings, mypage: MyPage, timesheet: Timesheet, shareholder_timesheet: ShareholderTimesheet, sales: Sales };
     pages[page]?.render();
     App.closeSidebar(); // 모바일에서 메뉴 선택 후 사이드바 닫기
   }

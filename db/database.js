@@ -204,6 +204,32 @@ async function init() {
     user_id INTEGER,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   )`);
+  tables.push(`CREATE TABLE IF NOT EXISTS sales_revenue (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    year INTEGER NOT NULL,
+    month INTEGER NOT NULL,
+    working_days REAL DEFAULT 0,
+    baemin INTEGER DEFAULT 0,
+    other_sales INTEGER DEFAULT 0,
+    other_income INTEGER DEFAULT 0,
+    note TEXT,
+    UNIQUE(year, month)
+  )`);
+  tables.push(`CREATE TABLE IF NOT EXISTS sales_yts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    year INTEGER NOT NULL,
+    month INTEGER NOT NULL,
+    baemin_input INTEGER DEFAULT 0,
+    other_input INTEGER DEFAULT 0,
+    external_input INTEGER DEFAULT 0,
+    baemin_request INTEGER DEFAULT 0,
+    other_request INTEGER DEFAULT 0,
+    external_request INTEGER DEFAULT 0,
+    baemin_next INTEGER DEFAULT 0,
+    other_next INTEGER DEFAULT 0,
+    external_next INTEGER DEFAULT 0,
+    UNIQUE(year, month)
+  )`);
 
   for (const sql of tables) {
     await client.execute({ sql, args: [] });
