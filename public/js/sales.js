@@ -9,7 +9,7 @@ const Sales = {
   years() {
     const cur = new Date().getFullYear();
     const result = [];
-    for (let y = 2023; y <= cur + 1; y++) result.push(y);
+    for (let y = 2022; y <= cur + 1; y++) result.push(y);
     return result;
   },
 
@@ -26,7 +26,7 @@ const Sales = {
           </div>
           <div style="display:flex;gap:0;border-bottom:2px solid #dee2e6;margin:0 -20px;padding:0 20px">
             <button onclick="Sales.switchTab('revenue')" style="padding:10px 20px;border:none;background:none;cursor:pointer;font-size:14px;font-weight:${this.activeTab==='revenue'?'700':'400'};border-bottom:${this.activeTab==='revenue'?'2px solid #1b4332':'2px solid transparent'};color:${this.activeTab==='revenue'?'#1b4332':'#6c757d'};margin-bottom:-2px">매출현황</button>
-            <button onclick="Sales.switchTab('yts')" style="padding:10px 20px;border:none;background:none;cursor:pointer;font-size:14px;font-weight:${this.activeTab==='yts'?'700':'400'};border-bottom:${this.activeTab==='yts'?'2px solid #1b4332':'2px solid transparent'};color:${this.activeTab==='yts'?'#1b4332':'#6c757d'};margin-bottom:-2px">연말정산</button>
+            <button onclick="Sales.switchTab('yts')" style="padding:10px 20px;border:none;background:none;cursor:pointer;font-size:14px;font-weight:${this.activeTab==='yts'?'700':'400'};border-bottom:${this.activeTab==='yts'?'2px solid #1b4332':'2px solid transparent'};color:${this.activeTab==='yts'?'#1b4332':'#6c757d'};margin-bottom:-2px">유입</button>
           </div>
         </div>
         <div id="sales-tab-content" style="padding:20px"></div>
@@ -457,12 +457,12 @@ const Sales = {
               <th colspan="4" style="background:#1e4d8c;font-size:11px">요청/일로<br>(다음/요청)</th>
             </tr>
             <tr style="background:#f8f9fa;text-align:center;font-size:12px">
-              <th>배민</th><th>기타</th><th>외부</th><th>합계</th>
-              <th>배민</th><th>기타</th><th>외부</th><th>합계</th>
-              <th>배민</th><th>기타</th><th>외부</th><th>합계</th>
-              <th>배민</th><th>기타</th><th>외부</th><th>합계</th>
-              <th>배민</th><th>기타</th><th>외부</th><th>합계</th>
-              <th>배민</th><th>기타</th><th>외부</th><th>합계</th>
+              <th>네이버</th><th>기타</th><th>외부</th><th>합계</th>
+              <th>네이버</th><th>기타</th><th>외부</th><th>합계</th>
+              <th>네이버</th><th>기타</th><th>외부</th><th>합계</th>
+              <th>네이버</th><th>기타</th><th>외부</th><th>합계</th>
+              <th>네이버</th><th>기타</th><th>외부</th><th>합계</th>
+              <th>네이버</th><th>기타</th><th>외부</th><th>합계</th>
             </tr>
           </thead>
           <tbody>${bodyRows}</tbody>
