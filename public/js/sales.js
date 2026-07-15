@@ -1,8 +1,8 @@
 const Sales = {
   activeYear: new Date().getFullYear(),
   activeTab: 'revenue',
-  compareYear1: new Date().getFullYear() - 1,
-  compareYear2: new Date().getFullYear() - 2,
+  compareYear1: null,
+  compareYear2: null,
   revenueData: {},
   ytsData: {},
 
@@ -168,7 +168,27 @@ const Sales = {
       </div>
 
       <div style="margin-top:28px">
-        <h4 style="font-size:14px;font-weight:700;color:#1b4332;margin-bottom:12px">📈 월별 매출 그래프</h4>
+        <div style="display:flex;align-items:center;gap:16px;margin-bottom:10px;flex-wrap:wrap">
+          <h4 style="font-size:14px;font-weight:700;color:#1b4332;margin:0">📈 월별 매출 그래프</h4>
+          <div style="display:flex;align-items:center;gap:10px;font-size:13px;flex-wrap:wrap">
+            <div style="display:flex;align-items:center;gap:6px">
+              <span style="display:inline-block;width:28px;height:3px;background:#e65100;border-radius:2px"></span>
+              <label style="color:#555">비교선 1</label>
+              <select id="chart-year1" onchange="Sales.onChangeChartYear()" style="padding:4px 8px;border:1px solid #dee2e6;border-radius:6px;font-size:13px">
+                <option value="">없음</option>
+                ${yearOpts(this.compareYear1)}
+              </select>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px">
+              <span style="display:inline-block;width:28px;height:3px;background:#1565c0;border-radius:2px"></span>
+              <label style="color:#555">비교선 2</label>
+              <select id="chart-year2" onchange="Sales.onChangeChartYear()" style="padding:4px 8px;border:1px solid #dee2e6;border-radius:6px;font-size:13px">
+                <option value="">없음</option>
+                ${yearOpts(this.compareYear2)}
+              </select>
+            </div>
+          </div>
+        </div>
         <div style="position:relative;height:300px;background:#fff;border:1px solid #dee2e6;border-radius:8px;padding:16px">
           <canvas id="sales-chart"></canvas>
         </div>
@@ -180,6 +200,7 @@ const Sales = {
           <div style="display:flex;align-items:center;gap:8px;font-size:13px">
             <label>비교 1</label>
             <select id="cmp-year1" onchange="Sales.onChangeCmpYear()" style="padding:4px 8px;border:1px solid #dee2e6;border-radius:6px;font-size:13px">
+              <option value="">없음</option>
               ${yearOpts(this.compareYear1)}
             </select>
             <label>비교 2</label>
@@ -200,7 +221,24 @@ const Sales = {
         #sales-revenue-table td { padding:6px 8px }
       </style>`;
 
+    this._chartLine1 = null;
+    this._chartLine2 = null;
     await this.reloadComparison();
+    this.renderChart();
+  },
+
+  async onChangeChartYear() {
+    const v1 = document.getElementById('chart-year1')?.value;
+    const v2 = document.getElementById('chart-year2')?.value;
+    const cy1 = v1 ? parseInt(v1) : null;
+    const cy2 = v2 ? parseInt(v2) : null;
+    // 필요한 맵 로드
+    const fetches = [];
+    if (cy1) fetches.push(API.get(`/api/sales/revenue?year=${cy1}`).then(r => ({ year: cy1, map: this.buildMap(r) })));
+    if (cy2) fetches.push(API.get(`/api/sales/revenue?year=${cy2}`).then(r => ({ year: cy2, map: this.buildMap(r) })));
+    const results = await Promise.all(fetches);
+    this._chartLine1 = cy1 ? { year: cy1, map: results.find(r => r.year === cy1)?.map || {} } : null;
+    this._chartLine2 = cy2 ? { year: cy2, map: results.find(r => r.year === cy2)?.map || {} } : null;
     this.renderChart();
   },
 
@@ -216,12 +254,11 @@ const Sales = {
       { label: '기타입금',   data: months.map(m => map[m]?.other_income||0), backgroundColor: 'rgba(180,220,180,0.8)', stack: 'cur' },
     ];
     const lineColors = ['#e65100', '#1565c0'];
-    [this._cmpMap1, this._cmpMap2].forEach((cmpMap, idx) => {
-      if (!cmpMap) return;
-      const cmpYear = idx === 0 ? this.compareYear1 : this.compareYear2;
+    [this._chartLine1, this._chartLine2].forEach((line, idx) => {
+      if (!line) return;
       datasets.push({
-        label: `${cmpYear}년 매출액`, type: 'line',
-        data: months.map(m => (cmpMap[m]?.baemin||0)+(cmpMap[m]?.other_sales||0)+(cmpMap[m]?.other_income||0)),
+        label: `${line.year}년 매출액`, type: 'line',
+        data: months.map(m => (line.map[m]?.baemin||0)+(line.map[m]?.other_sales||0)+(line.map[m]?.other_income||0)),
         borderColor: lineColors[idx], backgroundColor: 'transparent',
         borderWidth: 2, pointRadius: 4, tension: 0.3, stack: undefined,
       });
@@ -244,11 +281,11 @@ const Sales = {
   },
 
   async onChangeCmpYear() {
-    this.compareYear1 = parseInt(document.getElementById('cmp-year1')?.value) || this.compareYear1;
+    const v1 = document.getElementById('cmp-year1')?.value;
     const v2 = document.getElementById('cmp-year2')?.value;
+    this.compareYear1 = v1 ? parseInt(v1) : null;
     this.compareYear2 = v2 ? parseInt(v2) : null;
     await this.reloadComparison();
-    this.renderChart();
   },
 
   async reloadComparison() {
