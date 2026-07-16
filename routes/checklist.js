@@ -21,21 +21,24 @@ function parseNaverExcel(buffer) {
     const r = rows[i];
     for (let j = 0; j < r.length; j++) {
       const v = String(r[j] || '').trim();
-      if (v.includes('예약번호') || v.includes('주문번호')) { colOrderNo = j; headerRow = i; }
-      if (v === '상태' || v === '예약상태') colStatus = j;
-      if (v.includes('예약자') && v.includes('명')) colName = j;
-      if (v.includes('상품명') || v.includes('예약상품')) colProduct = j;
-      if (v.includes('방문일') || v.includes('예약일')) colDateTime = j;
-      if (v.includes('옵션') || v.includes('추가상품')) colOption = j;
+      if (v.includes('예약번호') || v.includes('주문번호')) { if (colOrderNo < 0) { colOrderNo = j; headerRow = i; } }
+      if (v === '상태' || v === '예약상태') { if (colStatus < 0) colStatus = j; }
+      if ((v.includes('예약자') && v.includes('명')) || v === '예약자명') colName = j;
+      if (v.includes('상품명') || v.includes('예약상품') || v === '상품구분' || v === '상품') { if (colProduct < 0) colProduct = j; }
+      if (v.includes('방문일') || v.includes('예약일') || v.includes('이용일시') || v.includes('방문일시')) colDateTime = j;
+      if (v.includes('옵션') || v.includes('추가상품') || v.includes('가격분류')) { if (colOption < 0) colOption = j; }
     }
     if (headerRow >= 0 && colStatus >= 0) break;
   }
 
-  // 헤더를 못 찾으면 Python이 사용했던 고정 인덱스로 fallback
-  if (headerRow < 0) {
-    colOrderNo = 3; colStatus = 5; colName = 7; colProduct = 15; colDateTime = 13; colOption = 17;
-    headerRow = 2;
-  }
+  // 헤더를 못 찾으면 네이버 예약 내보내기 기본 인덱스로 fallback
+  if (headerRow < 0) headerRow = 2;
+  if (colOrderNo < 0) colOrderNo = 0;
+  if (colStatus < 0) colStatus = 5;
+  if (colName < 0) colName = 7;
+  if (colDateTime < 0) colDateTime = 12;
+  if (colProduct < 0) colProduct = 13;
+  if (colOption < 0) colOption = 14;
 
   const VALID_STATUS = ['확정', '이용완료', '예약완료', '사용완료', '방문완료'];
   // 데이터 행: 헤더 다음 행부터, 유효한 상태만
