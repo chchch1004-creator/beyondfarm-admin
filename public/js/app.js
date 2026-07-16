@@ -49,7 +49,7 @@ const App = {
     document.getElementById('sidebar-name').textContent = App.user.name;
     const roleLabel = { superadmin: '총괄관리자', user: '사용자' };
     document.getElementById('sidebar-role').textContent = roleLabel[App.user.role] || '사용자';
-    const allPages = ['dashboard','employees','attendance','leaves','salary','finance','inventory','timesheet','shareholder_timesheet','sales','inflow'];
+    const allPages = ['dashboard','employees','attendance','leaves','salary','finance','inventory','timesheet','shareholder_timesheet','sales','inflow','checklist'];
     const firstPage = App.user.role === 'superadmin' ? 'dashboard' : (allPages.find(p => App.canView(p)) || 'mypage');
     App.goto(firstPage);
   },
@@ -112,7 +112,8 @@ const App = {
       timesheet: '근무표',
       shareholder_timesheet: '주주근무표',
       sales: '매출현황',
-      inflow: '유입량'
+      inflow: '유입량',
+      checklist: '인원체크리스트'
     };
     document.getElementById('page-title').textContent = titles[page] || page;
     const mpt = document.getElementById('mobile-page-title');
@@ -121,7 +122,7 @@ const App = {
     const isSuperAdmin = App.user.role === 'superadmin';
 
     // 메뉴 표시/숨김: 권한 기반
-    const navPages = ['dashboard','employees','attendance','leaves','salary','finance','inventory','timesheet','shareholder_timesheet','sales','inflow'];
+    const navPages = ['dashboard','employees','attendance','leaves','salary','finance','inventory','timesheet','shareholder_timesheet','sales','inflow','checklist'];
     navPages.forEach(p => {
       const el = document.querySelector(`#sidebar [data-page="${p}"]`);
       if (el) el.style.display = App.canView(p) ? '' : 'none';
@@ -156,7 +157,7 @@ const App = {
       return;
     }
 
-    const pages = { dashboard: Dashboard, employees: Employees, attendance: Attendance, leaves: Leaves, salary: Salary, finance: Finance, inventory: Inventory, settings: Settings, mypage: MyPage, timesheet: Timesheet, shareholder_timesheet: ShareholderTimesheet, sales: Sales, inflow: Inflow };
+    const pages = { dashboard: Dashboard, employees: Employees, attendance: Attendance, leaves: Leaves, salary: Salary, finance: Finance, inventory: Inventory, settings: Settings, mypage: MyPage, timesheet: Timesheet, shareholder_timesheet: ShareholderTimesheet, sales: Sales, inflow: Inflow, checklist: Checklist };
     pages[page]?.render();
     App.closeSidebar();
   }

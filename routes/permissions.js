@@ -14,6 +14,7 @@ const PAGES = [
   { key: 'shareholder_timesheet', label: '주주근무표' },
   { key: 'sales',                 label: '매출현황' },
   { key: 'inflow',                label: '유입량' },
+  { key: 'checklist',            label: '인원체크리스트' },
 ];
 
 function requireSuperAdmin(req, res, next) {

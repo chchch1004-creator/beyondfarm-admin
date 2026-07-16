@@ -239,6 +239,15 @@ async function init() {
     PRIMARY KEY(user_id, page)
   )`);
 
+  tables.push(`CREATE TABLE IF NOT EXISTS checklist_data (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    date TEXT NOT NULL,
+    timeslot TEXT NOT NULL,
+    data TEXT NOT NULL,
+    updated_at TEXT DEFAULT (datetime('now')),
+    UNIQUE(date, timeslot)
+  )`);
+
   for (const sql of tables) {
     await client.execute({ sql, args: [] });
   }
