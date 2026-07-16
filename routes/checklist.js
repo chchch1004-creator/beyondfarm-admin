@@ -134,13 +134,15 @@ function getProductType(raw) {
   return '?';
 }
 
+function getGroupCount(raw) {
+  const m = raw.match(/단체\s*(\d+)/);
+  return m ? parseInt(m[1]) : 0;
+}
+
 function getReserved(o) {
   const t = getProductType(o.product_raw);
   if (t === 'T') return o.ticket;
-  if (t === 'G') {
-    const m = o.product_raw.match(/단체(\d+)/);
-    return m ? parseInt(m[1]) : 0;
-  }
+  if (t === 'G') return getGroupCount(o.product_raw) + o.extra;
   const base = t === 'L' ? 7 : t === 'M' ? 4 : 2;
   return base + o.extra;
 }
@@ -190,17 +192,25 @@ function assignTents(allOrders) {
 
   const result = {};
 
+  // 배정 우선순위: 2타임 이상 예약자 우선, 동점이면 인원수
+  const sortPriority = (a, b) => {
+    const aTT = (nameToSlots[a.name]?.length || 1) > 1 ? 1 : 0;
+    const bTT = (nameToSlots[b.name]?.length || 1) > 1 ? 1 : 0;
+    if (bTT !== aTT) return bTT - aTT;
+    return getReserved(b) - getReserved(a);
+  };
+
   for (const ts of ['11', '15', '19']) {
     const orders = byTs[ts];
-    const Llist = orders.filter(o => getProductType(o.product_raw) === 'L').sort((a,b) => getReserved(b) - getReserved(a));
-    const MSlist = orders.filter(o => ['M','S'].includes(getProductType(o.product_raw))).sort((a,b) => getReserved(b) - getReserved(a));
+    const Llist = orders.filter(o => getProductType(o.product_raw) === 'L').sort(sortPriority);
+    const MSlist = orders.filter(o => ['M','S'].includes(getProductType(o.product_raw))).sort(sortPriority);
     const Tlist = orders.filter(o => getProductType(o.product_raw) === 'T');
     const Glist = orders.filter(o => getProductType(o.product_raw) === 'G');
 
     const overflow = Math.max(0, MSlist.length - 12);
     const msToL = MSlist.slice(0, overflow);
     const msToM = MSlist.slice(overflow);
-    const allL = [...Llist, ...msToL].sort((a,b) => getReserved(b) - getReserved(a));
+    const allL = [...Llist, ...msToL].sort(sortPriority);
 
     // Assign M slots (0–11) with same-tent priority
     const mSlots = {};
@@ -251,11 +261,12 @@ function assignTents(allOrders) {
     const freeL2 = Array.from({length: 13}, (_, i) => i).filter(i => !lSlots[i]);
     let freeIdx = 0;
     for (const o of Glist) {
-      const m = o.product_raw.match(/단체(\d+)/);
-      const slots = m ? Math.ceil(parseInt(m[1]) / 10) : 1;
+      const cnt = getGroupCount(o.product_raw);
+      const slots = cnt ? Math.ceil(cnt / 10) : 1;
+      const prodLabel = cnt ? `단체${cnt}` : '단체';
       for (let j = 0; j < slots && freeIdx < freeL2.length; j++, freeIdx++) {
         const li = freeL2[freeIdx];
-        tent8[li] = makeRow(TENT8_LABELS[li], j === 0 ? o : { ...o, name: '' });
+        tent8[li] = makeRow(TENT8_LABELS[li], j === 0 ? o : { ...o, name: '' }, prodLabel);
       }
     }
 
@@ -350,6 +361,15 @@ router.put('/:date/:timeslot', requireAuth, async (req, res) => {
       INSERT INTO checklist_data (date, timeslot, data, updated_at) VALUES (?,?,?,datetime('now'))
       ON CONFLICT(date, timeslot) DO UPDATE SET data=excluded.data, updated_at=datetime('now')
     `).run(req.params.date, req.params.timeslot, json);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// DELETE /api/checklist/:date (날짜 전체 삭제)
+router.delete('/:date', requireAuth, async (req, res) => {
+  try {
+    if (!await canEdit(req)) return res.status(403).json({ error: '수정 권한이 없습니다' });
+    await getDb().prepare('DELETE FROM checklist_data WHERE date=?').run(req.params.date);
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });

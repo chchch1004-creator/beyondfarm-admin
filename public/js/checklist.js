@@ -198,6 +198,11 @@ const Checklist = (() => {
                      color:#15803d;font-size:13px;font-weight:600;cursor:pointer">
               📥 네이버 예약 가져오기
             </button>
+            <button onclick="Checklist.deleteDate()"
+              style="padding:6px 14px;border:1px solid #dc2626;border-radius:6px;background:#fef2f2;
+                     color:#dc2626;font-size:13px;font-weight:600;cursor:pointer;margin-left:6px">
+              🗑 날짜 삭제
+            </button>
           </div>` : ''}
         </div>
       </div>
@@ -636,11 +641,6 @@ const Checklist = (() => {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || '업로드 실패');
-      // 디버그 정보 팝업
-      if (json._debug) {
-        const d = json._debug;
-        alert(`업로드 완료 (디버그)\n날짜: ${json.date}\n확정행수: ${d.confirmedCount}\n타임슬롯별: 11시=${d.orderCounts?.['11']}, 15시=${d.orderCounts?.['15']}, 19시=${d.orderCounts?.['19']}\n컬럼인덱스: name=${d.colName} product=${d.colProduct} dt=${d.colDateTime} opt=${d.colOption}\n\n헤더행:\n${d.headerSample}\n\n첫데이터행:\n${d.firstDataRow}`);
-      }
       state.date = json.date;
       state.tab = 'slot';
       state.timeslot = '11';
@@ -652,9 +652,19 @@ const Checklist = (() => {
     }
   }
 
+  async function deleteDate() {
+    if (!confirm(`${state.date} 날짜의 체크리스트를 모두 삭제하시겠습니까?`)) return;
+    try {
+      const res = await fetch(`/api/checklist/${state.date}`, { method: 'DELETE', credentials: 'include' });
+      if (!res.ok) throw new Error((await res.json()).error);
+      Object.keys(state.slots).forEach(k => delete state.slots[k]);
+      renderUI();
+    } catch (e) { alert('삭제 실패: ' + e.message); }
+  }
+
   return {
     render, switchSlot, switchTab, changeDate, moveDate,
-    addExtraRow, removeExtraRow, onRowInput, uploadExcel,
+    addExtraRow, removeExtraRow, onRowInput, uploadExcel, deleteDate,
     onDragStart, onDragOver, onDragEnter, onDragLeave, onDrop, onDragEnd,
   };
 })();
