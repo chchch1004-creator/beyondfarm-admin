@@ -437,15 +437,16 @@ const Sales = {
     };
 
     // colgroup for fixed column widths
-    const CW = 52; // input cell width
+    const CW = 76; // input cell width (충분히 넓게)
+    const RW = 62; // 비율 셀 너비
     const colgroup = `<colgroup>
       <col style="width:44px">
-      <col style="width:${CW}px"><col style="width:${CW}px"><col style="width:${CW}px"><col style="width:64px">
-      <col style="width:${CW}px"><col style="width:${CW}px"><col style="width:${CW}px"><col style="width:64px">
-      <col style="width:52px"><col style="width:52px"><col style="width:52px"><col style="width:52px">
-      <col style="width:${CW}px"><col style="width:${CW}px"><col style="width:${CW}px"><col style="width:64px">
-      <col style="width:52px"><col style="width:52px"><col style="width:52px"><col style="width:52px">
-      <col style="width:52px"><col style="width:52px"><col style="width:52px"><col style="width:52px">
+      <col style="width:${CW}px"><col style="width:${CW}px"><col style="width:${CW}px"><col style="width:${CW}px">
+      <col style="width:${CW}px"><col style="width:${CW}px"><col style="width:${CW}px"><col style="width:${CW}px">
+      <col style="width:${RW}px"><col style="width:${RW}px"><col style="width:${RW}px"><col style="width:${RW}px">
+      <col style="width:${CW}px"><col style="width:${CW}px"><col style="width:${CW}px"><col style="width:${CW}px">
+      <col style="width:${RW}px"><col style="width:${RW}px"><col style="width:${RW}px"><col style="width:${RW}px">
+      <col style="width:${RW}px"><col style="width:${RW}px"><col style="width:${RW}px"><col style="width:${RW}px">
     </colgroup>`;
 
     const bodyRows = months.map(m => {
@@ -486,7 +487,7 @@ const Sales = {
     return `
       <div style="font-size:12px;font-weight:700;color:#fff;background:#1b4332;padding:6px 12px;border-radius:6px 6px 0 0">${yearLabel}</div>
       <div style="overflow-x:auto;margin-bottom:24px">
-        <table class="sales-yts-table" style="border-collapse:collapse;table-layout:fixed;width:1360px">
+        <table class="sales-yts-table" style="border-collapse:collapse;table-layout:fixed;width:1760px">
           ${colgroup}
           <thead>
             <tr style="text-align:center">
@@ -619,9 +620,9 @@ const Sales = {
           ${yearOpts}
         </select>
       </div>
+      ${chartHTML}
       ${this.ytsTableHTML(map, true, `${year}년`, globalAvg)}
       ${cmpMap ? this.ytsTableHTML(cmpMap, false, `${this.ytsCompareYear}년`, globalAvg) : ''}
-      ${chartHTML}
       <style>
         .yts-input { border:1px solid transparent;border-radius:4px;padding:3px 4px;font-size:12px;width:100%;box-sizing:border-box;background:transparent;text-align:right }
         .yts-input:focus { border-color:#1b4332;outline:none;background:#fff }
