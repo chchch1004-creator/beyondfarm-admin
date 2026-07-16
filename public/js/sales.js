@@ -423,18 +423,18 @@ const Sales = {
       const bn = r.baemin_next || 0, on_ = r.other_next || 0, en = r.external_next || 0;
       const ti = bi + oi + ei, tr_ = br + or_ + er, tn = bn + on_ + en;
 
-      const inp = (field, val, w) => `<input type="number" class="yts-input" style="width:${w||60}px" value="${val || ''}" onblur="Sales.saveYts(${m})" data-field="${field}" data-month="${m}">`;
+      const inp = (field, val, w) => `<input type="text" inputmode="numeric" class="yts-input" style="width:${w||60}px" value="${val > 0 ? val.toLocaleString('ko-KR') : ''}" onfocus="Sales.onFocusYts(this)" onblur="Sales.onBlurYts(this,${m})" data-field="${field}" data-month="${m}">`;
 
       return `<tr>
         <td style="text-align:center;font-weight:600">${m}월</td>
         <td>${inp('baemin_input', bi)}</td><td>${inp('other_input', oi)}</td><td>${inp('external_input', ei)}</td>
-        <td style="text-align:right;font-weight:600;background:#f8f9fa">${ti > 0 ? ti.toLocaleString() : '-'}</td>
+        <td style="text-align:right;font-weight:600;background:#f8f9fa">${ti > 0 ? ti.toLocaleString('ko-KR') : '-'}</td>
         <td>${inp('baemin_request', br)}</td><td>${inp('other_request', or_)}</td><td>${inp('external_request', er)}</td>
-        <td style="text-align:right;font-weight:600;background:#f8f9fa">${tr_ > 0 ? tr_.toLocaleString() : '-'}</td>
+        <td style="text-align:right;font-weight:600;background:#f8f9fa">${tr_ > 0 ? tr_.toLocaleString('ko-KR') : '-'}</td>
         <td style="text-align:right;color:#666;background:#f0fdf4">${rat(br,bi)}</td><td style="text-align:right;color:#666;background:#f0fdf4">${rat(or_,oi)}</td><td style="text-align:right;color:#666;background:#f0fdf4">${rat(er,ei)}</td>
         <td style="text-align:right;font-weight:600;background:#f0fdf4">${rat(tr_,ti)}</td>
         <td>${inp('baemin_next', bn)}</td><td>${inp('other_next', on_)}</td><td>${inp('external_next', en)}</td>
-        <td style="text-align:right;font-weight:600;background:#f8f9fa">${tn > 0 ? tn.toLocaleString() : '-'}</td>
+        <td style="text-align:right;font-weight:600;background:#f8f9fa">${tn > 0 ? tn.toLocaleString('ko-KR') : '-'}</td>
         <td style="text-align:right;color:#666;background:#fff3cd">${rat(bn,bi)}</td><td style="text-align:right;color:#666;background:#fff3cd">${rat(on_,oi)}</td><td style="text-align:right;color:#666;background:#fff3cd">${rat(en,ei)}</td>
         <td style="text-align:right;font-weight:600;background:#fff3cd">${rat(tn,ti)}</td>
         <td style="text-align:right;color:#666;background:#e8f4fd">${rat(bn,br)}</td><td style="text-align:right;color:#666;background:#e8f4fd">${rat(on_,or_)}</td><td style="text-align:right;color:#666;background:#e8f4fd">${rat(en,er)}</td>
@@ -443,18 +443,18 @@ const Sales = {
     }).join('');
 
     document.getElementById('sales-tab-content').innerHTML = `
-      <p style="font-size:12px;color:#6c757d;margin-bottom:12px">※ 외부 = 네이버 외 | 기타 = 아름다운 서비스, 인스타그램 | 일로율 = 요청/입력 | 일로+다음율 = 다음/입력 | 요청/일로 = 다음/요청</p>
+      <p style="font-size:12px;color:#6c757d;margin-bottom:12px">※ 외부 = 네이버 외 | 기타 = 아름다운 서비스, 인스타그램 | 신청률 = 신청수/유입량 | 완료율 = 완료수/유입량 | 완료/신청 = 완료수/신청수</p>
       <div class="table-wrap" style="overflow-x:auto">
         <table id="sales-yts-table" style="min-width:1200px">
           <thead>
             <tr style="background:#1b4332;color:#fff;text-align:center">
               <th rowspan="2" style="min-width:40px">월</th>
-              <th colspan="4" style="background:#2d6a4f">배달이 입력</th>
-              <th colspan="4" style="background:#1e4d8c">요청액</th>
-              <th colspan="4" style="background:#2d6a4f;font-size:11px">일로율<br>(요청/입력)</th>
-              <th colspan="4" style="background:#7b5e00">일로+다음</th>
-              <th colspan="4" style="background:#7b5e00;font-size:11px">일로+다음율<br>(다음/입력)</th>
-              <th colspan="4" style="background:#1e4d8c;font-size:11px">요청/일로<br>(다음/요청)</th>
+              <th colspan="4" style="background:#2d6a4f">유입량</th>
+              <th colspan="4" style="background:#1e4d8c">신청수</th>
+              <th colspan="4" style="background:#2d6a4f;font-size:11px">신청률<br>(신청수/유입량)</th>
+              <th colspan="4" style="background:#7b5e00">완료수</th>
+              <th colspan="4" style="background:#7b5e00;font-size:11px">완료율<br>(완료수/유입량)</th>
+              <th colspan="4" style="background:#1e4d8c;font-size:11px">완료/신청<br>(완료수/신청수)</th>
             </tr>
             <tr style="background:#f8f9fa;text-align:center;font-size:12px">
               <th>네이버</th><th>기타</th><th>외부</th><th>합계</th>
@@ -475,10 +475,17 @@ const Sales = {
       </style>`;
   },
 
+  onFocusYts(el) { el.value = el.value.replace(/,/g, ''); },
+  onBlurYts(el, month) {
+    const raw = parseInt(el.value.replace(/,/g, '')) || 0;
+    el.value = raw ? raw.toLocaleString('ko-KR') : '';
+    Sales.saveYts(month);
+  },
+
   async saveYts(month) {
     const inputs = document.querySelectorAll(`.yts-input[data-month="${month}"]`);
     const body = { year: this.activeYear, month };
-    inputs.forEach(inp => { body[inp.dataset.field] = parseInt(inp.value) || 0; });
+    inputs.forEach(inp => { body[inp.dataset.field] = parseInt(String(inp.value).replace(/,/g, '')) || 0; });
     try {
       await API.post('/api/sales/yts', body);
       this.updateYtsTotals(month);
@@ -486,7 +493,7 @@ const Sales = {
   },
 
   updateYtsTotals(month) {
-    const get = (field) => parseInt(document.querySelector(`.yts-input[data-month="${month}"][data-field="${field}"]`)?.value) || 0;
+    const get = (field) => parseInt(String(document.querySelector(`.yts-input[data-month="${month}"][data-field="${field}"]`)?.value || '').replace(/,/g, '')) || 0;
     const bi = get('baemin_input'), oi = get('other_input'), ei = get('external_input');
     const br = get('baemin_request'), or_ = get('other_request'), er = get('external_request');
     const bn = get('baemin_next'), on_ = get('other_next'), en = get('external_next');
@@ -496,10 +503,10 @@ const Sales = {
     const tr = document.querySelector(`.yts-input[data-month="${month}"]`)?.closest('tr');
     if (!tr) return;
     const tds = tr.querySelectorAll('td');
-    tds[4].textContent = ti > 0 ? ti.toLocaleString() : '-';
-    tds[8].textContent = tr_ > 0 ? tr_.toLocaleString() : '-';
+    tds[4].textContent = ti > 0 ? ti.toLocaleString('ko-KR') : '-';
+    tds[8].textContent = tr_ > 0 ? tr_.toLocaleString('ko-KR') : '-';
     tds[9].textContent = rat(br, bi); tds[10].textContent = rat(or_, oi); tds[11].textContent = rat(er, ei); tds[12].textContent = rat(tr_, ti);
-    tds[16].textContent = tn > 0 ? tn.toLocaleString() : '-';
+    tds[16].textContent = tn > 0 ? tn.toLocaleString('ko-KR') : '-';
     tds[17].textContent = rat(bn, bi); tds[18].textContent = rat(on_, oi); tds[19].textContent = rat(en, ei); tds[20].textContent = rat(tn, ti);
     tds[21].textContent = rat(bn, br); tds[22].textContent = rat(on_, or_); tds[23].textContent = rat(en, er); tds[24].textContent = rat(tn, tr_);
   }
