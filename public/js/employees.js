@@ -41,7 +41,7 @@ const Employees = {
     const isAdmin = App.user.role === 'superadmin';
     try {
       this.data = await API.get('/api/employees');
-      const roleLabel = { superadmin:'총괄관리자', admin:'관리자', employee:'직원', '주말':'주말직원' };
+      const roleLabel = { superadmin:'총괄관리자', user:'사용자' };
 
       content.innerHTML = `
         <div class="card" style="padding:0;overflow:hidden">
@@ -105,7 +105,7 @@ const Employees = {
     const status = document.getElementById('emp-status-filter')?.value || '';
     const search = document.getElementById('emp-search')?.value?.toLowerCase() || '';
     const isAdmin = App.user.role === 'superadmin';
-    const roleLabel = { superadmin:'총괄관리자', admin:'관리자', employee:'직원' };
+    const roleLabel = { superadmin:'총괄관리자', user:'사용자' };
     let rows = this.data.filter(e =>
       (!status || e.status === status) &&
       (!search || e.name.toLowerCase().includes(search))
@@ -163,10 +163,11 @@ const Employees = {
         ${(() => { const d = this.calcDday(e.hire_date,'hire'); return `<td style="padding:8px 10px;font-size:12px;${d.style||'color:#1971c2'}">${d.text}</td>`; })()}
         <td style="padding:8px 10px;font-size:12px">${e.birth_date || '-'}</td>
         ${(() => { const d = this.calcDday(e.birth_date,'birth'); return `<td style="padding:8px 10px;font-size:12px;${d.style||'color:#198754'}">${d.text}</td>`; })()}
-        ${isAdmin ? `<td style="padding:8px 10px"><span class="badge ${e.role==='superadmin'?'badge-danger':e.role==='admin'?'badge-info':'badge-secondary'}">${roleLabel[e.role]||e.role}</span></td>` : ''}
+        ${isAdmin ? `<td style="padding:8px 10px"><span class="badge ${e.role==='superadmin'?'badge-danger':'badge-secondary'}">${roleLabel[e.role]||'사용자'}</span></td>` : ''}
         ${isAdmin ? `<td style="padding:8px 10px;text-align:right;font-size:12px">${e.hourly_rate ? Utils.formatNum(e.hourly_rate)+'원' : '-'}</td>` : ''}
-        ${isAdmin ? `<td style="padding:8px 10px">
+        ${isAdmin ? `<td style="padding:8px 10px;white-space:nowrap">
           <button class="btn btn-secondary btn-sm" onclick="Employees.showForm(${e.id})">수정</button>
+          <button class="btn btn-sm" style="background:#6f42c1;color:#fff" onclick="Employees.showPermissions(${e.id},'${e.name}')">권한</button>
           ${e.status === 'active'
             ? `<button class="btn btn-danger btn-sm" onclick="Employees.retire(${e.id},'${e.name}')">퇴직</button>`
             : `<button class="btn btn-success btn-sm" onclick="Employees.restore(${e.id},'${e.name}')">복구</button>`}
@@ -218,12 +219,10 @@ const Employees = {
         <div class="form-group"><label>입사일</label><input type="date" id="f-hire" value="${emp?.hire_date || ''}"></div>
         <div class="form-group"><label>생일</label><input type="date" id="f-birth" value="${emp?.birth_date || ''}"></div>
         ${isAdmin ? `
-        <div class="form-group"><label>권한</label>
+        <div class="form-group"><label>역할</label>
           <select id="f-role">
-            <option value="employee" ${emp?.role==='employee'?'selected':''}>직원</option>
-            <option value="주말" ${emp?.role==='주말'?'selected':''}>주말직원</option>
-            <option value="admin" ${emp?.role==='admin'?'selected':''}>관리자</option>
-            ${App.user.role === 'superadmin' ? `<option value="superadmin" ${emp?.role==='superadmin'?'selected':''}>총괄관리자</option>` : ''}
+            <option value="user" ${(emp?.role!=='superadmin')?'selected':''}>사용자</option>
+            <option value="superadmin" ${emp?.role==='superadmin'?'selected':''}>총괄관리자</option>
           </select>
         </div>
         <div class="form-group"><label>시급 (원)</label><input type="number" id="f-hourly" placeholder="예: 10030" value="${emp?.hourly_rate || ''}"></div>
@@ -258,6 +257,92 @@ const Employees = {
         } catch (e) { Utils.showToast(e.message, 'error'); }
       }
     );
+  },
+
+  async showPermissions(id, name) {
+    const PAGES = [
+      { key:'dashboard',             label:'대시보드' },
+      { key:'employees',             label:'직원 관리' },
+      { key:'attendance',            label:'출퇴근 관리' },
+      { key:'leaves',                label:'휴가 관리' },
+      { key:'salary',                label:'급여 관리' },
+      { key:'finance',               label:'수입/지출' },
+      { key:'inventory',             label:'재고 현황' },
+      { key:'timesheet',             label:'근무표' },
+      { key:'shareholder_timesheet', label:'주주근무표' },
+      { key:'sales',                 label:'매출현황' },
+      { key:'inflow',                label:'유입량' },
+    ];
+    let data;
+    try { data = await API.get(`/api/permissions/${id}`); }
+    catch (e) { Utils.showToast(e.message, 'error'); return; }
+
+    const isSA = data.role === 'superadmin';
+    const perms = data.permissions || {};
+
+    const rows = PAGES.map(pg => {
+      const v = !!perms[pg.key]?.view;
+      const e = !!perms[pg.key]?.edit;
+      return `<tr style="border-bottom:1px solid #f0f0f0">
+        <td style="padding:8px 10px;font-size:13px">${pg.label}</td>
+        <td style="text-align:center">
+          <input type="checkbox" class="perm-view" data-page="${pg.key}" ${v?'checked':''} onchange="Employees._syncEdit(this)">
+        </td>
+        <td style="text-align:center">
+          <input type="checkbox" class="perm-edit" data-page="${pg.key}" ${e?'checked':''} ${!v?'disabled':''}>
+        </td>
+      </tr>`;
+    }).join('');
+
+    Utils.modal(
+      `🔑 ${name} 권한 설정`,
+      `<div style="margin-bottom:14px;padding:10px 14px;background:#fff3cd;border-radius:8px;display:flex;align-items:center;gap:10px">
+        <label style="font-weight:600;font-size:13px">총괄관리자 권한</label>
+        <input type="checkbox" id="perm-sa" ${isSA?'checked':''} style="width:16px;height:16px" onchange="Employees._toggleSA(this)">
+        <span style="font-size:12px;color:#856404">체크 시 모든 권한 자동 부여</span>
+      </div>
+      <div id="perm-table-wrap" style="${isSA?'opacity:0.4;pointer-events:none':''}">
+        <table style="width:100%;border-collapse:collapse">
+          <thead>
+            <tr style="background:#f8f9fa;font-size:12px;color:#6c757d">
+              <th style="padding:8px 10px;text-align:left">메뉴</th>
+              <th style="padding:8px 10px;text-align:center;width:70px">보기</th>
+              <th style="padding:8px 10px;text-align:center;width:70px">수정</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`,
+      async () => {
+        const sa = document.getElementById('perm-sa')?.checked;
+        const role = sa ? 'superadmin' : 'user';
+        const permissions = {};
+        PAGES.forEach(pg => {
+          const v = document.querySelector(`.perm-view[data-page="${pg.key}"]`)?.checked;
+          const e = document.querySelector(`.perm-edit[data-page="${pg.key}"]`)?.checked;
+          permissions[pg.key] = { view: !!v, edit: !!e };
+        });
+        try {
+          await API.put(`/api/permissions/${id}`, { role, permissions });
+          Utils.showToast('권한이 저장되었습니다.');
+          Utils.closeModal(); Employees.render();
+        } catch (e) { Utils.showToast(e.message, 'error'); }
+      },
+      '저장'
+    );
+  },
+
+  _syncEdit(viewCb) {
+    const page = viewCb.dataset.page;
+    const editCb = document.querySelector(`.perm-edit[data-page="${page}"]`);
+    if (!editCb) return;
+    if (!viewCb.checked) { editCb.checked = false; editCb.disabled = true; }
+    else { editCb.disabled = false; }
+  },
+
+  _toggleSA(cb) {
+    const wrap = document.getElementById('perm-table-wrap');
+    if (wrap) { wrap.style.opacity = cb.checked ? '0.4' : ''; wrap.style.pointerEvents = cb.checked ? 'none' : ''; }
   },
 
   async retire(id, name) {

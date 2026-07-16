@@ -4,6 +4,14 @@ const { getDb } = require('../db/database');
 const db = { prepare: (...a) => getDb().prepare(...a) };
 const router = express.Router();
 
+async function loadPermissions(userId, role) {
+  if (role === 'superadmin') return null;
+  const rows = await db.prepare('SELECT page, can_view, can_edit FROM user_permissions WHERE user_id = ?').all(userId);
+  const perms = {};
+  rows.forEach(r => { perms[r.page] = { view: !!r.can_view, edit: !!r.can_edit }; });
+  return perms;
+}
+
 router.post('/login', async (req, res) => {
   try {
     const { username, password, autoLogin } = req.body;
@@ -13,7 +21,8 @@ router.post('/login', async (req, res) => {
     }
     if (autoLogin) req.session.cookie.maxAge = 30 * 24 * 60 * 60 * 1000;
     req.session.user = { id: user.id, username: user.username, name: user.name, role: user.role };
-    res.json({ user: req.session.user });
+    const permissions = await loadPermissions(user.id, user.role);
+    res.json({ user: { ...req.session.user, permissions } });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -22,9 +31,12 @@ router.post('/logout', (req, res) => {
   res.json({ ok: true });
 });
 
-router.get('/me', (req, res) => {
+router.get('/me', async (req, res) => {
   if (!req.session.user) return res.status(401).json({ error: '로그인 필요' });
-  res.json({ user: req.session.user });
+  try {
+    const permissions = await loadPermissions(req.session.user.id, req.session.user.role);
+    res.json({ user: { ...req.session.user, permissions } });
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 router.get('/profile', async (req, res) => {

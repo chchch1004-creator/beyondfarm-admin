@@ -34,13 +34,24 @@ const App = {
     document.getElementById('login-password').addEventListener('keydown', e => e.key === 'Enter' && App.login());
   },
 
+  canView(page) {
+    if (App.user.role === 'superadmin') return true;
+    return !!(App.user.permissions?.[page]?.view);
+  },
+  canEdit(page) {
+    if (App.user.role === 'superadmin') return true;
+    return !!(App.user.permissions?.[page]?.edit);
+  },
+
   showApp() {
     document.getElementById('login-page').style.display = 'none';
     document.getElementById('app').style.display = 'flex';
     document.getElementById('sidebar-name').textContent = App.user.name;
-    const roleLabel = { superadmin: '총괄관리자', admin: '관리자', employee: '직원', '주말': '주말직원' };
-    document.getElementById('sidebar-role').textContent = roleLabel[App.user.role] || '직원';
-    App.goto(App.user.role === '주말' ? 'attendance' : 'dashboard');
+    const roleLabel = { superadmin: '총괄관리자', user: '사용자' };
+    document.getElementById('sidebar-role').textContent = roleLabel[App.user.role] || '사용자';
+    const allPages = ['dashboard','employees','attendance','leaves','salary','finance','inventory','timesheet','shareholder_timesheet','sales','inflow'];
+    const firstPage = App.user.role === 'superadmin' ? 'dashboard' : (allPages.find(p => App.canView(p)) || 'mypage');
+    App.goto(firstPage);
   },
 
   async login() {
@@ -107,64 +118,47 @@ const App = {
     const mpt = document.getElementById('mobile-page-title');
     if (mpt) mpt.textContent = titles[page] || page;
 
-    // 권한 수준 설정
-    const role = App.user.role;
-    const isSuperAdmin = role === 'superadmin';
-    const isAdminOrSuper = ['admin', 'superadmin'].includes(role);
-    const isWeekend = role === '주말';
+    const isSuperAdmin = App.user.role === 'superadmin';
 
-    // 총괄관리자 전용 메뉴 (휴가관리, 수입/지출, 재고현황, 설정)
-    document.querySelectorAll('.admin-only').forEach(el => {
-      el.style.display = isSuperAdmin ? '' : 'none';
+    // 메뉴 표시/숨김: 권한 기반
+    const navPages = ['dashboard','employees','attendance','leaves','salary','finance','inventory','timesheet','shareholder_timesheet','sales','inflow'];
+    navPages.forEach(p => {
+      const el = document.querySelector(`#sidebar [data-page="${p}"]`);
+      if (el) el.style.display = App.canView(p) ? '' : 'none';
     });
-    ['nav-settings', 'nav-admin-section'].forEach(id => {
+
+    // 설정·관리자 섹션: 총괄만
+    ['nav-settings','nav-admin-section'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.style.display = isSuperAdmin ? '' : 'none';
     });
-    const tsEl = document.getElementById('nav-timesheet');
-    if (tsEl) tsEl.style.display = isSuperAdmin ? '' : 'none';
-    // 주주근무표: 총괄관리자 전용
-    const shEl = document.getElementById('nav-sh-timesheet');
-    if (shEl) shEl.style.display = isSuperAdmin ? '' : 'none';
-    // 매출현황·유입량: 총괄관리자 전용
-    const salesEl = document.getElementById('nav-sales');
-    if (salesEl) salesEl.style.display = isSuperAdmin ? '' : 'none';
-    const inflowEl = document.getElementById('nav-inflow');
-    if (inflowEl) inflowEl.style.display = isSuperAdmin ? '' : 'none';
 
-    // 급여관리: 관리자/총괄만 열람 (주말직원 제외)
-    const salEl = document.querySelector('[data-page="salary"]');
-    if (salEl) salEl.style.display = (isAdminOrSuper && !isWeekend) ? '' : 'none';
+    // nav section labels 표시 제어
+    const sectionMap = {
+      '인사관리': ['employees','attendance','leaves','salary'],
+      '재무관리': ['finance'],
+      '재고관리': ['inventory'],
+    };
+    document.querySelectorAll('#sidebar .nav-section').forEach(sec => {
+      const pages = sectionMap[sec.textContent?.trim()];
+      if (pages) sec.style.display = (isSuperAdmin || pages.some(p => App.canView(p))) ? '' : 'none';
+    });
 
-    // 직원관리: 일반직원도 볼 수 있으나 주말직원은 제외
-    const empEl = document.querySelector('[data-page="employees"]');
-    if (empEl) empEl.style.display = isWeekend ? 'none' : '';
-
-    // 대시보드: 주말직원은 숨김
-    const dashEl = document.querySelector('[data-page="dashboard"]');
-    if (dashEl) dashEl.style.display = isWeekend ? 'none' : '';
-
-    // 주말직원 전용: 출퇴근+마이페이지만 허용
-    if (isWeekend) {
-      const weekendOnly = ['attendance', 'mypage'];
-      if (!weekendOnly.includes(page)) {
+    // 접근 제어: mypage·settings는 항상 허용
+    if (page !== 'mypage' && page !== 'settings') {
+      if (!App.canView(page)) {
         document.getElementById('content').innerHTML = '<div class="empty-state"><div class="icon">🔒</div>접근 권한이 없습니다</div>';
         return;
       }
     }
-
-    const superAdminOnly = ['leaves', 'finance', 'inventory', 'settings', 'shareholder_timesheet', 'sales', 'inflow'];
-    if (superAdminOnly.includes(page) && !isSuperAdmin) {
+    if (page === 'settings' && !isSuperAdmin) {
       document.getElementById('content').innerHTML = '<div class="empty-state"><div class="icon">🔒</div>총괄관리자만 접근 가능합니다</div>';
       return;
     }
-    if (page === 'salary' && !isAdminOrSuper) {
-      document.getElementById('content').innerHTML = '<div class="empty-state"><div class="icon">🔒</div>접근 권한이 없습니다</div>';
-      return;
-    }
+
     const pages = { dashboard: Dashboard, employees: Employees, attendance: Attendance, leaves: Leaves, salary: Salary, finance: Finance, inventory: Inventory, settings: Settings, mypage: MyPage, timesheet: Timesheet, shareholder_timesheet: ShareholderTimesheet, sales: Sales, inflow: Inflow };
     pages[page]?.render();
-    App.closeSidebar(); // 모바일에서 메뉴 선택 후 사이드바 닫기
+    App.closeSidebar();
   }
 };
 

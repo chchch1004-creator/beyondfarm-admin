@@ -231,6 +231,14 @@ async function init() {
     UNIQUE(year, month)
   )`);
 
+  tables.push(`CREATE TABLE IF NOT EXISTS user_permissions (
+    user_id INTEGER NOT NULL,
+    page TEXT NOT NULL,
+    can_view INTEGER DEFAULT 0,
+    can_edit INTEGER DEFAULT 0,
+    PRIMARY KEY(user_id, page)
+  )`);
+
   for (const sql of tables) {
     await client.execute({ sql, args: [] });
   }
@@ -253,9 +261,35 @@ async function init() {
     const hash = bcrypt.hashSync('admin1234', 10);
     await client.execute({
       sql: 'INSERT INTO users (username, password, name, role, department, position) VALUES (?, ?, ?, ?, ?, ?)',
-      args: ['admin', hash, '관리자', 'admin', '경영', '대표']
+      args: ['admin', hash, '관리자', 'superadmin', '경영', '대표']
     });
     console.log('관리자 계정 생성: admin / admin1234');
+  }
+
+  // 권한 마이그레이션: 구 role(admin/employee/주말) → user + user_permissions
+  const DEFAULT_PERMS = {
+    admin: {
+      dashboard: {view:1,edit:1}, employees: {view:1,edit:1},
+      attendance: {view:1,edit:1}, salary: {view:1,edit:1},
+    },
+    employee: {
+      dashboard: {view:1,edit:0}, employees: {view:1,edit:0},
+      attendance: {view:1,edit:1}, salary: {view:1,edit:0},
+    },
+    '주말': {
+      attendance: {view:1,edit:1},
+    },
+  };
+  const oldRoleUsers = await client.execute({ sql: "SELECT id, role FROM users WHERE role IN ('admin','employee','주말')", args: [] });
+  for (const u of oldRoleUsers.rows) {
+    const perms = DEFAULT_PERMS[u.role] || {};
+    for (const [page, perm] of Object.entries(perms)) {
+      await client.execute({
+        sql: 'INSERT OR IGNORE INTO user_permissions (user_id,page,can_view,can_edit) VALUES (?,?,?,?)',
+        args: [u.id, page, perm.view, perm.edit]
+      });
+    }
+    await client.execute({ sql: "UPDATE users SET role='user' WHERE id=?", args: [u.id] });
   }
 
   // 유입 데이터 초기 시드 (이미 있으면 skip)

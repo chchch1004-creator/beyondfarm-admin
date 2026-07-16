@@ -28,6 +28,7 @@ app.use('/api/timesheet', require('./routes/timesheet'));
 app.use('/api/gcal', require('./routes/gcal'));
 app.use('/api/sh-timesheet', require('./routes/sh_timesheet'));
 app.use('/api/sales', require('./routes/sales'));
+app.use('/api/permissions', require('./routes/permissions'));
 
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
