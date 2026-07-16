@@ -5,19 +5,19 @@ const Checklist = (() => {
   const TENT8_NOS = ['A','B','C','D','E','F','G','H','J','K','L','P','S'];
 
   const COLS = [
-    { key: 'tent_no',    label: '번호',      w: 46 },
-    { key: 'product',    label: '예약상품',   w: 68 },
+    { key: 'tent_no',    label: '번호',      w: 32 },
+    { key: 'product',    label: '예약상품',   w: 50 },
     { key: 'visit_count',label: '방문횟수',   w: 60 },
     { key: 'name',       label: '예약자성함', w: 88 },
-    { key: 'reserved',   label: '예약인원',   w: 58 },
+    { key: 'reserved',   label: '예약인원',   w: 50 },
     { key: 'actual',     label: '입장시인원', w: 58 },
     { key: 'two_time',   label: '2타임여부',  w: 66 },
-    { key: 'play',       label: '플레이',     w: 50 },
-    { key: 'child_pool', label: '아이풀장',   w: 58 },
-    { key: 'adult_pool', label: '성인풀장',   w: 58 },
-    { key: 'bulmung',    label: '불멍세트',   w: 58 },
-    { key: 'adult_only', label: '성인만',     w: 50 },
-    { key: 'memo',       label: '비고',       w: 110 },
+    { key: 'play',       label: '플레이',     w: 38 },
+    { key: 'child_pool', label: '아이풀장',   w: 50 },
+    { key: 'adult_pool', label: '성인풀장',   w: 50 },
+    { key: 'bulmung',    label: '불멍세트',   w: 50 },
+    { key: 'adult_only', label: '성인만',     w: 38 },
+    { key: 'memo',       label: '비고',       w: 196 },
   ];
 
   let state = {
@@ -235,14 +235,22 @@ const Checklist = (() => {
       </div>`;
   }
 
+  function twoTimeBg(val) {
+    if (!val) return '';
+    return /19/.test(String(val)) ? '#bbf7d0' : '#fce7f3';
+  }
+
   function trHtml(row, idx, section, E, withDel) {
     const bg = idx % 2 === 0 ? '#fff' : '#f8fafc';
     return `<tr style="background:${bg}">
       ${COLS.map((c, ci) => {
         const val = row[c.key] ?? '';
-        if (ci === 0) return `<td style="text-align:center;padding:4px 3px;border-bottom:1px solid #e5e7eb;font-weight:600;color:#374151">${val}</td>`;
-        if (!E)       return `<td style="text-align:center;padding:4px 3px;border-bottom:1px solid #e5e7eb">${val}</td>`;
-        return `<td style="padding:2px 2px;border-bottom:1px solid #e5e7eb">
+        const isTwoTime = c.key === 'two_time';
+        const tdBg = isTwoTime ? twoTimeBg(val) : '';
+        const tdStyle = `text-align:center;padding:4px 3px;border-bottom:1px solid #e5e7eb;${tdBg?'background:'+tdBg+';':''}`;
+        if (ci === 0) return `<td style="${tdStyle}font-weight:600;color:#374151">${val}</td>`;
+        if (!E)       return `<td style="${tdStyle}">${val}</td>`;
+        return `<td id="td-${section}-${idx}-${c.key}" style="padding:2px 2px;border-bottom:1px solid #e5e7eb;${tdBg?'background:'+tdBg+';':''}">
           <input type="text" value="${String(val).replace(/"/g,'&quot;')}"
             data-section="${section}" data-idx="${idx}" data-field="${c.key}"
             oninput="Checklist.onRowInput(this)"
@@ -360,6 +368,11 @@ const Checklist = (() => {
     }
     if (d[section]?.[idx] !== undefined) {
       d[section][idx][field] = el.value;
+      // 2타임여부 셀 배경 즉시 반영
+      if (field === 'two_time') {
+        const td = document.getElementById(`td-${el.dataset.section}-${el.dataset.idx}-two_time`);
+        if (td) td.style.background = twoTimeBg(el.value);
+      }
       recalcSummary(d);
       pushSummaryToDOM(d.summary);
       silentSave();
