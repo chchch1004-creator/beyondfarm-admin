@@ -60,10 +60,10 @@ const Checklist = (() => {
       play    += num(r.play);
       child   += num(r.child_pool);
       adult   += num(r.adult_pool);
-      const p = (r.product||'').trim();
+      const p = (r.product||'').trim().toLowerCase();
       if (p === 's') cntS++;
       else if (p === 'm') cntM++;
-      else if (p === 'L') cntL++;
+      else if (p === 'l') cntL++;
       else if (p === '단체20' || p === '단체 20') cnt20++;
       else if (p === '단체30' || p === '단체 30') cnt30++;
     });
@@ -195,8 +195,8 @@ const Checklist = (() => {
           ${sumItem('아이풀장','child_pool')}
           ${sumItem('성인풀장','adult_pool')}
           ${sumItem('풀장합계','total_pool')}
-          ${sumItem('M텐트 s','tent2')}
-          ${sumItem('M텐트 m','tent4')}
+          ${sumItem('S텐트','tent2')}
+          ${sumItem('M텐트','tent4')}
           ${sumItem('L텐트','tent8')}
           ${sumItem('단체20','group20')}
           ${sumItem('단체30','group30')}
