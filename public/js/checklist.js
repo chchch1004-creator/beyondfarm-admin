@@ -445,19 +445,21 @@ const Checklist = (() => {
 
     const d = getCurrentData();
 
+    // tent_no는 위치에 고정 — 나머지 필드만 교환
+    function swapData(a, b) {
+      const keys = Object.keys(a).filter(k => k !== 'tent_no');
+      keys.forEach(k => { const t = a[k]; a[k] = b[k]; b[k] = t; });
+    }
+
     if (section === 'mtent') {
       const resolve = i => i < 6 ? [d.tent4, i] : [d.tent2, i - 6];
       const [sa, si] = resolve(srcIdx);
       const [da, di] = resolve(idx);
-      const tmp = sa[si];
-      sa[si] = da[di];
-      da[di] = tmp;
+      swapData(sa[si], da[di]);
     } else {
       const arr = d[section];
       if (!arr) return;
-      const tmp = arr[srcIdx];
-      arr[srcIdx] = arr[idx];
-      arr[idx] = tmp;
+      swapData(arr[srcIdx], arr[idx]);
     }
 
     recalcSummary(d, state.timeslot);
