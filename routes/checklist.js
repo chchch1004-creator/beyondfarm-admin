@@ -25,7 +25,7 @@ function parseNaverExcel(buffer) {
       if (v.includes('예약번호') || v.includes('주문번호')) { if (colOrderNo < 0) { colOrderNo = j; headerRow = i; } }
       if (v === '상태' || v === '예약상태') { if (colStatus < 0) colStatus = j; }
       if ((v.includes('예약자') && v.includes('명')) || v === '예약자명') colName = j;
-      if (v === '상품구분' || v === '예약상품명' || v.includes('상품구분') || v.includes('예약상품명')) { if (colProduct < 0) colProduct = j; }
+      // 상품구분 열 감지 비활성화 → 항상 fallback(col 13) 사용
       if (v.includes('방문일') || v.includes('예약일') || v.includes('이용일시') || v.includes('방문일시')) colDateTime = j;
       if (v.includes('옵션') || v.includes('추가상품') || v.includes('가격분류')) { if (colOption < 0) colOption = j; }
     }
@@ -112,16 +112,15 @@ function parseNaverExcel(buffer) {
   }
 
   const firstDtRaw = dataRows[0]?.[colDateTime] ?? '없음';
-  // 4~8행의 colStatus 셀값을 샘플로 수집
-  const headerSample = rows[headerRow] ? `HDR:[${rows[headerRow].slice(0,20).map(v=>String(v).substring(0,8)).join('|')}]` : '';
-  const sampleRows = headerSample + ' ' + rows.slice(headerRow+1, headerRow+3).map(r => `[${r.slice(0,20).map(v=>String(v).substring(0,10)).join('|')}]`).join(' ');
+  const headerSample = rows[headerRow] ? rows[headerRow].map((v,i)=>`${i}:${String(v).substring(0,6)}`).join(' | ') : '';
+  const firstDataRow = dataRows[0] ? dataRows[0].map((v,i)=>`${i}:${String(v).substring(0,10)}`).join(' | ') : '';
   return {
     date, orders: Object.values(orders),
     _debug: {
       headerRow, colStatus, colOrderNo, colName, colProduct, colDateTime, colOption,
       confirmedCount: dataRows.length,
       firstDateCell: String(firstDtRaw),
-      sampleRows,
+      headerSample, firstDataRow,
     },
   };
 }
