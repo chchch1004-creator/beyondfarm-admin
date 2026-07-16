@@ -107,12 +107,15 @@ function parseNaverExcel(buffer) {
   }
 
   const firstDtRaw = dataRows[0]?.[colDateTime] ?? '없음';
+  // 4~8행의 colStatus 셀값을 샘플로 수집
+  const sampleRows = rows.slice(3, 8).map(r => `[${r.slice(0,8).map(v=>String(v).substring(0,10)).join('|')}]`).join(' ');
   return {
     date, orders: Object.values(orders),
     _debug: {
       headerRow, colStatus, colOrderNo, colName, colProduct, colDateTime, colOption,
       confirmedCount: dataRows.length,
       firstDateCell: String(firstDtRaw),
+      sampleRows,
     },
   };
 }
@@ -266,7 +269,10 @@ router.post('/upload-excel', requireAuth, upload.single('file'), async (req, res
 
     const parsed = parseNaverExcel(req.file.buffer);
     const { date, orders } = parsed;
-    if (!date) return res.status(400).json({ error: `날짜 인식 실패. 확정행수:${parsed._debug.confirmedCount}, 날짜셀:"${parsed._debug.dateCell}", Raw:"${parsed._debug.dateCellRaw}"` });
+    if (!date) {
+      const d = parsed._debug;
+      return res.status(400).json({ error: `날짜 인식 실패. 확정:${d.confirmedCount}, headerRow:${d.headerRow}, statusCol:${d.colStatus}, 날짜셀:"${d.firstDateCell}", 샘플:"${d.sampleRows}"` });
+    }
 
     const slotData = assignTents(orders);
 
