@@ -6,18 +6,18 @@ const Checklist = (() => {
 
   const COLS = [
     { key: 'tent_no',    label: '번호',      w: 32 },
-    { key: 'product',    label: '예약상품',   w: 50 },
-    { key: 'visit_count',label: '방문횟수',   w: 60 },
-    { key: 'name',       label: '예약자성함', w: 88 },
-    { key: 'reserved',   label: '예약인원',   w: 50 },
-    { key: 'actual',     label: '입장시인원', w: 58 },
-    { key: 'two_time',   label: '2타임여부',  w: 66 },
-    { key: 'play',       label: '플레이',     w: 38 },
-    { key: 'child_pool', label: '아이풀장',   w: 50 },
-    { key: 'adult_pool', label: '성인풀장',   w: 50 },
-    { key: 'bulmung',    label: '불멍세트',   w: 50 },
-    { key: 'adult_only', label: '성인만',     w: 38 },
-    { key: 'memo',       label: '비고',       w: 196 },
+    { key: 'product',    label: '예약상품',   w: 44 },
+    { key: 'visit_count',label: '방문횟수',   w: 52 },
+    { key: 'name',       label: '예약자성함', w: 80 },
+    { key: 'reserved',   label: '예약인원',   w: 44 },
+    { key: 'actual',     label: '입장시인원', w: 52 },
+    { key: 'two_time',   label: '2타임여부',  w: 58 },
+    { key: 'play',       label: '플레이',     w: 34 },
+    { key: 'child_pool', label: '아이풀장',   w: 44 },
+    { key: 'adult_pool', label: '성인풀장',   w: 44 },
+    { key: 'bulmung',    label: '불멍세트',   w: 44 },
+    { key: 'adult_only', label: '성인만',     w: 34 },
+    { key: 'memo',       label: '비고',       w: 264 },
   ];
 
   let state = {
