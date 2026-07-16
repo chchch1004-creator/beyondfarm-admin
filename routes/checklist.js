@@ -37,9 +37,10 @@ function parseNaverExcel(buffer) {
     headerRow = 2;
   }
 
-  // 데이터 행: 헤더 다음 행부터, "확정" 상태만
+  const VALID_STATUS = ['확정', '이용완료', '예약완료', '사용완료', '방문완료'];
+  // 데이터 행: 헤더 다음 행부터, 유효한 상태만
   const dataRows = rows.slice(headerRow + 1).filter(r =>
-    String(r[colStatus] || '').trim() === '확정'
+    VALID_STATUS.includes(String(r[colStatus] || '').trim())
   );
 
   // 타임슬롯 파싱
@@ -108,7 +109,8 @@ function parseNaverExcel(buffer) {
 
   const firstDtRaw = dataRows[0]?.[colDateTime] ?? '없음';
   // 4~8행의 colStatus 셀값을 샘플로 수집
-  const sampleRows = rows.slice(3, 8).map(r => `[${r.slice(0,8).map(v=>String(v).substring(0,10)).join('|')}]`).join(' ');
+  const headerSample = rows[headerRow] ? `HDR:[${rows[headerRow].slice(0,20).map(v=>String(v).substring(0,8)).join('|')}]` : '';
+  const sampleRows = headerSample + ' ' + rows.slice(headerRow+1, headerRow+3).map(r => `[${r.slice(0,20).map(v=>String(v).substring(0,10)).join('|')}]`).join(' ');
   return {
     date, orders: Object.values(orders),
     _debug: {
