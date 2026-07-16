@@ -21,6 +21,9 @@ const Checklist = (() => {
     { key: 'memo',         label: '비고',       w: 290 },
   ];
 
+  // 티켓(extra) 테이블: 삭제버튼 28px 만큼 memo를 줄여서 전체 폭을 M텐트/L텐트와 맞춤
+  const DEL_COL_W = 28;
+
   let state = {
     date: '',
     tab: 'slot',
@@ -31,6 +34,7 @@ const Checklist = (() => {
   };
 
   let _saveTimer = null;
+  let _dragState = null;
 
   function emptyTimeslot() {
     return {
@@ -58,7 +62,6 @@ const Checklist = (() => {
     let bulmung=0, play=0, child=0, adult=0, cntS=0, cntM=0, cntL=0, cnt20=0, cnt30=0;
     const extraHourNos = [];
     const extendNos = [];
-    // 연장텐트: 11시→two_time에 '15' 포함, 15시→'19' 포함
     const extendTarget = timeslot === '11' ? '15' : timeslot === '15' ? '19' : null;
 
     allRows.forEach(r => {
@@ -77,17 +80,17 @@ const Checklist = (() => {
         extendNos.push(r.tent_no);
     });
     if (!d.summary) d.summary = {};
-    d.summary.bulmung_count = bulmung || '';
-    d.summary.play_count    = play || '';
-    d.summary.child_pool    = child || '';
-    d.summary.adult_pool    = adult || '';
-    d.summary.total_pool    = (child + adult) || '';
-    d.summary.tent2         = cntS || '';
-    d.summary.tent4         = cntM || '';
-    d.summary.tent8         = cntL || '';
-    d.summary.group20       = cnt20 || '';
-    d.summary.group30       = cnt30 || '';
-    d.summary.total         = (cntS + cntM + cntL + cnt20 + cnt30) || '';
+    d.summary.bulmung_count  = bulmung || '';
+    d.summary.play_count     = play || '';
+    d.summary.child_pool     = child || '';
+    d.summary.adult_pool     = adult || '';
+    d.summary.total_pool     = (child + adult) || '';
+    d.summary.tent2          = cntS || '';
+    d.summary.tent4          = cntM || '';
+    d.summary.tent8          = cntL || '';
+    d.summary.group20        = cnt20 || '';
+    d.summary.group30        = cnt30 || '';
+    d.summary.total          = (cntS + cntM + cntL + cnt20 + cnt30) || '';
     d.summary.extra_hour_nos = extraHourNos.join(' ') || '';
     d.summary.extend_nos     = extendNos.join(' ') || '';
   }
@@ -102,7 +105,7 @@ const Checklist = (() => {
   }
 
   // ── 무음 자동저장 ──
-  function scheduleSave() {
+  function silentSave() {
     clearTimeout(_saveTimer);
     _saveTimer = setTimeout(() => {
       const ts = state.timeslot;
@@ -187,8 +190,8 @@ const Checklist = (() => {
     recalcSummary(d, state.timeslot);
     const s = d.summary || {};
 
-    const sumItem = (label, key) =>
-      `<div style="display:flex;flex-direction:column;gap:3px;min-width:90px">
+    const sumItem = (label, key, minW=90) =>
+      `<div style="display:flex;flex-direction:column;gap:3px;min-width:${minW}px">
         <div style="font-size:11px;color:#555;font-weight:600;text-align:center">${label}</div>
         <div id="cl-sum-${key}" style="padding:5px 6px;background:#fff;border:1px solid #d1d5db;
           border-radius:4px;text-align:center;font-size:13px;font-weight:700;color:#1e40af">
@@ -199,20 +202,24 @@ const Checklist = (() => {
     const summaryHtml = `
       <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px 14px;margin-bottom:14px">
         <div style="font-weight:700;font-size:13px;color:#1e40af;margin-bottom:10px">📋 요약</div>
-        <div style="display:flex;flex-wrap:wrap;gap:8px">
-          ${sumItem('불멍갯수','bulmung_count')}
-          ${sumItem('플레이 인원수','play_count')}
-          ${sumItem('아이풀장','child_pool')}
-          ${sumItem('성인풀장','adult_pool')}
-          ${sumItem('풀장합계','total_pool')}
-          ${sumItem('S텐트','tent2')}
-          ${sumItem('M텐트','tent4')}
-          ${sumItem('L텐트','tent8')}
-          ${sumItem('단체20','group20')}
-          ${sumItem('단체30','group30')}
-          ${sumItem('합계','total')}
-          ${sumItem('1시간추가','extra_hour_nos')}
-          ${sumItem('연장텐트','extend_nos')}
+        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start">
+          <div style="display:flex;flex-wrap:wrap;gap:8px">
+            ${sumItem('불멍갯수','bulmung_count')}
+            ${sumItem('플레이 인원수','play_count')}
+            ${sumItem('아이풀장','child_pool')}
+            ${sumItem('성인풀장','adult_pool')}
+            ${sumItem('풀장합계','total_pool')}
+            ${sumItem('S텐트','tent2')}
+            ${sumItem('M텐트','tent4')}
+            ${sumItem('L텐트','tent8')}
+            ${sumItem('단체20','group20')}
+            ${sumItem('단체30','group30')}
+            ${sumItem('합계','total')}
+          </div>
+          <div style="margin-left:auto;display:flex;gap:8px">
+            ${sumItem('1시간추가','extra_hour_nos', 135)}
+            ${sumItem('연장텐트','extend_nos', 135)}
+          </div>
         </div>
       </div>`;
 
@@ -227,17 +234,26 @@ const Checklist = (() => {
     return `<colgroup>${COLS.map(c=>`<col style="width:${c.w}px;min-width:${c.w}px">`).join('')}</colgroup>`;
   }
 
+  // 티켓 테이블용 colgroup: memo를 DEL_COL_W만큼 줄여서 삭제버튼 컬럼 포함 시 전체 폭 동일
+  function colgroupExtra() {
+    return `<colgroup>${COLS.map(c => {
+      const w = c.key === 'memo' ? c.w - DEL_COL_W : c.w;
+      return `<col style="width:${w}px;min-width:${w}px">`;
+    }).join('')}<col style="width:${DEL_COL_W}px"></colgroup>`;
+  }
+
   function thead(withDel) {
     return `<thead><tr style="background:#1e40af;color:#fff">
       ${COLS.map(c=>`<th style="padding:7px 4px;text-align:center;white-space:nowrap;font-size:12px">${c.label}</th>`).join('')}
-      ${withDel ? '<th style="width:28px"></th>' : ''}
+      ${withDel ? `<th style="width:${DEL_COL_W}px"></th>` : ''}
     </tr></thead>`;
   }
 
   function sectionTable(title, rows, section, E) {
+    const dragHint = E ? '<span style="font-size:10px;color:#9ca3af;font-weight:400;margin-left:6px">행 드래그로 순서 변경</span>' : '';
     return `
       <div style="margin-bottom:18px">
-        <div style="font-weight:700;font-size:13px;color:#1e40af;padding:6px 0 5px">${title}</div>
+        <div style="font-weight:700;font-size:13px;color:#1e40af;padding:6px 0 5px">${title}${dragHint}</div>
         <div style="overflow-x:auto">
           <table style="border-collapse:collapse;table-layout:fixed;font-size:12px">
             ${colgroup()}${thead(false)}
@@ -261,13 +277,23 @@ const Checklist = (() => {
 
   function trHtml(row, idx, section, E, withDel) {
     const bg = idx % 2 === 0 ? '#fff' : '#f8fafc';
-    return `<tr style="background:${bg}">
+    const dragAttrs = E ? `draggable="true"
+      ondragstart="Checklist.onDragStart(event,'${section}',${idx})"
+      ondragover="Checklist.onDragOver(event)"
+      ondragenter="Checklist.onDragEnter(event,'${section}',${idx})"
+      ondragleave="Checklist.onDragLeave(event)"
+      ondrop="Checklist.onDrop(event,'${section}',${idx})"
+      ondragend="Checklist.onDragEnd(event)"` : '';
+    return `<tr style="background:${bg}" ${dragAttrs}>
       ${COLS.map((c, ci) => {
         const val = row[c.key] ?? '';
         const tdBg = cellBg(c.key, row);
         const baseStyle = `border-bottom:1px solid #e5e7eb;${tdBg?'background:'+tdBg+';':''}`;
-        if (ci === 0) return `<td style="text-align:center;padding:4px 3px;${baseStyle}font-weight:600;color:#374151">${val}</td>`;
-        if (!E)       return `<td style="text-align:center;padding:4px 3px;${baseStyle}">${val}</td>`;
+        if (ci === 0) {
+          const handle = E ? '<span style="color:#ccc;font-size:10px;margin-right:2px;vertical-align:middle">⠿</span>' : '';
+          return `<td style="text-align:center;padding:4px 3px;${baseStyle}font-weight:600;color:#374151;${E?'cursor:grab;user-select:none':''}">${handle}${val}</td>`;
+        }
+        if (!E) return `<td style="text-align:center;padding:4px 3px;${baseStyle}">${val}</td>`;
         return `<td id="td-${section}-${idx}-${c.key}" style="padding:2px 2px;${baseStyle}">
           <input type="text" value="${String(val).replace(/"/g,'&quot;')}"
             data-section="${section}" data-idx="${idx}" data-field="${c.key}"
@@ -284,16 +310,17 @@ const Checklist = (() => {
 
   function extraSection(rows, E) {
     if (!E && rows.length === 0) return '';
+    const dragHint = E ? '<span style="font-size:10px;color:#9ca3af;font-weight:400;margin-left:6px">행 드래그로 순서 변경</span>' : '';
     return `
       <div style="margin-bottom:18px">
         <div style="display:flex;align-items:center;gap:8px;padding:6px 0 5px">
-          <div style="font-weight:700;font-size:13px;color:#1e40af">티켓</div>
+          <div style="font-weight:700;font-size:13px;color:#1e40af">티켓${dragHint}</div>
           ${E ? `<button class="btn" onclick="Checklist.addExtraRow()" style="font-size:11px;padding:2px 10px">+ 행 추가</button>` : ''}
         </div>
         ${rows.length ? `
         <div style="overflow-x:auto">
           <table style="border-collapse:collapse;table-layout:fixed;font-size:12px">
-            <colgroup>${COLS.map(c=>`<col style="width:${c.w}px;min-width:${c.w}px">`).join('')}<col style="width:28px"></colgroup>
+            ${colgroupExtra()}
             ${thead(true)}
             <tbody>${rows.map((row,idx) => trHtml(row, idx, 'extra', E, true)).join('')}</tbody>
           </table>
@@ -314,7 +341,6 @@ const Checklist = (() => {
       });
     });
 
-    // 여러 타임슬롯에 등장하는 이름 집합
     const nameCount = {};
     Object.values(nameMap).forEach(slotObj => {
       TIMESLOTS.forEach(ts => {
@@ -385,6 +411,66 @@ const Checklist = (() => {
       + buildTable(TENT8_NOS, 'L텐트 (A~S)');
   }
 
+  /* ── 드래그앤드롭 행 순서 변경 ── */
+  function onDragStart(e, section, idx) {
+    _dragState = { section, idx };
+    e.dataTransfer.effectAllowed = 'move';
+    e.currentTarget.style.opacity = '0.4';
+  }
+
+  function onDragOver(e) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  }
+
+  function onDragEnter(e, section, idx) {
+    if (!_dragState || _dragState.section !== section || _dragState.idx === idx) return;
+    e.currentTarget.style.outline = '2px dashed #2563eb';
+    e.currentTarget.style.outlineOffset = '-2px';
+  }
+
+  function onDragLeave(e) {
+    e.currentTarget.style.outline = '';
+  }
+
+  function onDrop(e, section, idx) {
+    e.preventDefault();
+    e.currentTarget.style.outline = '';
+    if (!_dragState || _dragState.section !== section || _dragState.idx === idx) {
+      _dragState = null;
+      return;
+    }
+    const srcIdx = _dragState.idx;
+    _dragState = null;
+
+    const d = getCurrentData();
+
+    if (section === 'mtent') {
+      const resolve = i => i < 6 ? [d.tent4, i] : [d.tent2, i - 6];
+      const [sa, si] = resolve(srcIdx);
+      const [da, di] = resolve(idx);
+      const tmp = sa[si];
+      sa[si] = da[di];
+      da[di] = tmp;
+    } else {
+      const arr = d[section];
+      if (!arr) return;
+      const tmp = arr[srcIdx];
+      arr[srcIdx] = arr[idx];
+      arr[idx] = tmp;
+    }
+
+    recalcSummary(d, state.timeslot);
+    _refreshPanel();
+    silentSave();
+  }
+
+  function onDragEnd(e) {
+    e.currentTarget.style.opacity = '';
+    e.currentTarget.style.outline = '';
+    _dragState = null;
+  }
+
   /* ── 이벤트 핸들러 ── */
   function onRowInput(el) {
     let section = el.dataset.section;
@@ -398,7 +484,6 @@ const Checklist = (() => {
     if (d[section]?.[idx] !== undefined) {
       d[section][idx][field] = el.value;
       const sec0 = el.dataset.section, i0 = el.dataset.idx;
-      // 색상 즉시 반영
       if (field === 'two_time') {
         const td = document.getElementById(`td-${sec0}-${i0}-two_time`);
         if (td) td.style.background = twoTimeBg(el.value);
@@ -415,16 +500,6 @@ const Checklist = (() => {
       pushSummaryToDOM(d.summary);
       silentSave();
     }
-  }
-
-  function silentSave() {
-    clearTimeout(_saveTimer);
-    _saveTimer = setTimeout(() => {
-      const ts = state.timeslot;
-      API.put(`/api/checklist/${state.date}/${ts}`, state.data[ts] || emptyTimeslot())
-        .then(() => { if (!state.dates.includes(state.date)) state.dates.unshift(state.date); })
-        .catch(() => {});
-    }, 800);
   }
 
   function switchSlot(ts) {
@@ -485,5 +560,9 @@ const Checklist = (() => {
     silentSave();
   }
 
-  return { render, switchSlot, switchTab, changeDate, addExtraRow, removeExtraRow, onRowInput };
+  return {
+    render, switchSlot, switchTab, changeDate,
+    addExtraRow, removeExtraRow, onRowInput,
+    onDragStart, onDragOver, onDragEnter, onDragLeave, onDrop, onDragEnd,
+  };
 })();
