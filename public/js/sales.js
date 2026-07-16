@@ -437,10 +437,10 @@ const Sales = {
     };
 
     // colgroup for fixed column widths
-    const CW = 76; // input cell width (충분히 넓게)
-    const RW = 62; // 비율 셀 너비
+    const CW = 62; // input/합계 셀 너비
+    const RW = 48; // 비율 셀 너비
     const colgroup = `<colgroup>
-      <col style="width:44px">
+      <col style="width:40px">
       <col style="width:${CW}px"><col style="width:${CW}px"><col style="width:${CW}px"><col style="width:${CW}px">
       <col style="width:${CW}px"><col style="width:${CW}px"><col style="width:${CW}px"><col style="width:${CW}px">
       <col style="width:${RW}px"><col style="width:${RW}px"><col style="width:${RW}px"><col style="width:${RW}px">
@@ -481,13 +481,13 @@ const Sales = {
     }).join('');
 
     const th2s = (bg) => `<th style="background:${bg};color:#fff">네이버</th><th style="background:${bg};color:#fff">기타</th><th style="background:${bg};color:#fff">외부</th>`;
-    const sumTh = (bg) => `<th style="background:${bg};color:#fff;font-size:11px">합계<br><span style="font-weight:400;font-size:10px">(색상=전체평균비교)</span></th>`;
+    const sumTh = (bg) => `<th style="background:${bg};color:#fff">합계</th>`;
     const ratTh = (bg) => `<th style="background:${bg};color:#fff">네이버</th><th style="background:${bg};color:#fff">기타</th><th style="background:${bg};color:#fff">외부</th><th style="background:${bg};color:#fff">합계</th>`;
 
     return `
       <div style="font-size:12px;font-weight:700;color:#fff;background:#1b4332;padding:6px 12px;border-radius:6px 6px 0 0">${yearLabel}</div>
       <div style="overflow-x:auto;margin-bottom:24px">
-        <table class="sales-yts-table" style="border-collapse:collapse;table-layout:fixed;width:1760px">
+        <table class="sales-yts-table" style="border-collapse:collapse;table-layout:fixed;width:1580px">
           ${colgroup}
           <thead>
             <tr style="text-align:center">
