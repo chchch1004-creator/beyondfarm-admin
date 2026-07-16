@@ -20,34 +20,20 @@ const Sales = {
       <div class="card" style="padding:0">
         <div style="padding:20px 20px 0">
           <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:16px">
-            <strong style="font-size:16px">📈 매출 관리</strong>
+            <strong style="font-size:16px">📈 매출현황</strong>
             <div style="margin-left:auto;display:flex;gap:6px">
               ${this.years().map(y => `<button class="btn btn-sm ${y === this.activeYear ? 'btn-primary' : 'btn-secondary'}" onclick="Sales.switchYear(${y})">${y}년</button>`).join('')}
             </div>
           </div>
-          <div style="display:flex;gap:0;border-bottom:2px solid #dee2e6;margin:0 -20px;padding:0 20px">
-            <button onclick="Sales.switchTab('revenue')" style="padding:10px 20px;border:none;background:none;cursor:pointer;font-size:14px;font-weight:${this.activeTab==='revenue'?'700':'400'};border-bottom:${this.activeTab==='revenue'?'2px solid #1b4332':'2px solid transparent'};color:${this.activeTab==='revenue'?'#1b4332':'#6c757d'};margin-bottom:-2px">매출현황</button>
-            <button onclick="Sales.switchTab('yts')" style="padding:10px 20px;border:none;background:none;cursor:pointer;font-size:14px;font-weight:${this.activeTab==='yts'?'700':'400'};border-bottom:${this.activeTab==='yts'?'2px solid #1b4332':'2px solid transparent'};color:${this.activeTab==='yts'?'#1b4332':'#6c757d'};margin-bottom:-2px">유입</button>
-          </div>
         </div>
         <div id="sales-tab-content" style="padding:20px"></div>
       </div>`;
-    await this.loadAndRenderTab();
+    await this.renderRevenue();
   },
 
   async switchYear(y) {
     this.activeYear = y;
     await this.render();
-  },
-
-  async switchTab(tab) {
-    this.activeTab = tab;
-    await this.render();
-  },
-
-  async loadAndRenderTab() {
-    if (this.activeTab === 'revenue') await this.renderRevenue();
-    else await this.renderYts();
   },
 
   fmt(n) {
@@ -611,18 +597,30 @@ const Sales = {
         </div>
       </div>` : '';
 
-    document.getElementById('sales-tab-content').innerHTML = `
-      <p style="font-size:12px;color:#6c757d;margin-bottom:10px">※ 네이버 = 네이버 예약 | 기타 = 페이스북·인스타그램 등 | 외부 = 구글 등 | 합계 셀 색상: <span style="color:#dc3545;font-weight:600">빨강=전체평균↑</span> <span style="color:#1565c0;font-weight:600">파랑=전체평균↓</span></p>
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
-        <label style="font-size:13px;font-weight:600">비교 연도</label>
-        <select id="yts-cmp-year" onchange="Sales.onChangeYtsCmpYear()" style="padding:5px 10px;border:1px solid #dee2e6;border-radius:6px;font-size:13px">
-          <option value="">없음</option>
-          ${yearOpts}
-        </select>
+    document.getElementById('content').innerHTML = `
+      <div class="card" style="padding:0">
+        <div style="padding:20px 20px 12px">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px">
+            <strong style="font-size:16px">📥 유입량 관리</strong>
+            <div style="margin-left:auto;display:flex;gap:6px">
+              ${this.years().map(y => `<button class="btn btn-sm ${y === this.activeYear ? 'btn-primary' : 'btn-secondary'}" onclick="Sales.switchInflowYear(${y})">${y}년</button>`).join('')}
+            </div>
+          </div>
+          <p style="font-size:12px;color:#6c757d;margin:0">※ 네이버 = 네이버 예약 | 기타 = 페이스북·인스타그램 등 | 외부 = 구글 등 | 합계 셀 색상: <span style="color:#dc3545;font-weight:600">빨강=전체평균↑</span> <span style="color:#1565c0;font-weight:600">파랑=전체평균↓</span></p>
+        </div>
+        <div style="padding:0 20px 20px">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+            <label style="font-size:13px;font-weight:600">비교 연도</label>
+            <select id="yts-cmp-year" onchange="Sales.onChangeYtsCmpYear()" style="padding:5px 10px;border:1px solid #dee2e6;border-radius:6px;font-size:13px">
+              <option value="">없음</option>
+              ${yearOpts}
+            </select>
+          </div>
+          ${chartHTML}
+          ${this.ytsTableHTML(map, true, `${year}년`, globalAvg)}
+          ${cmpMap ? this.ytsTableHTML(cmpMap, false, `${this.ytsCompareYear}년`, globalAvg) : ''}
+        </div>
       </div>
-      ${chartHTML}
-      ${this.ytsTableHTML(map, true, `${year}년`, globalAvg)}
-      ${cmpMap ? this.ytsTableHTML(cmpMap, false, `${this.ytsCompareYear}년`, globalAvg) : ''}
       <style>
         .yts-input { border:1px solid transparent;border-radius:4px;padding:3px 4px;font-size:12px;width:100%;box-sizing:border-box;background:transparent;text-align:right }
         .yts-input:focus { border-color:#1b4332;outline:none;background:#fff }
@@ -631,6 +629,11 @@ const Sales = {
       </style>`;
 
     if (cmpMap) this.renderYtsCharts(map, cmpMap, year, this.ytsCompareYear);
+  },
+
+  async switchInflowYear(y) {
+    this.activeYear = y;
+    await this.renderYts();
   },
 
   async onChangeYtsCmpYear() {
@@ -675,4 +678,8 @@ const Sales = {
     tds[21].textContent = rat(bn, br); tds[22].textContent = rat(on_, or_); tds[23].textContent = rat(en, er); tds[24].textContent = rat(tn, tr_);
     // 비교 테이블은 읽기 전용이므로 업데이트 불필요
   }
+};
+
+const Inflow = {
+  render() { return Sales.renderYts(); }
 };
