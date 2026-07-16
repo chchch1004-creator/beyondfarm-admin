@@ -2,6 +2,7 @@ const Checklist = (() => {
   const TIMESLOTS = ['11', '15', '19'];
   const TENT4_NOS = ['0','1','2','3','4','5'];
   const TENT2_NOS = ['6','7','8','9','10','11'];
+  const TENT_M_NOS = ['0','1','2','3','4','5','6','7','8','9','10','11'];
   const TENT8_NOS = ['A','B','C','D','E','F','G','H','J','K','L','P','S','티켓'];
 
   // 컬럼 정의: key, 헤더, 너비(px)
@@ -113,7 +114,7 @@ const Checklist = (() => {
           <input type="date" id="cl-date" value="${state.date}"
             style="padding:5px 10px;border:1px solid #ddd;border-radius:6px;font-size:14px">
           <button class="btn" onclick="Checklist.changeDate()">조회</button>
-          ${E ? `<button class="btn btn-primary" onclick="Checklist.saveAll()">💾 전체 저장</button>` : ''}
+          ${E ? `<button class="btn btn-primary" onclick="Checklist.saveSlot()">💾 저장</button>` : ''}
           ${state.dates.length ? `<span style="color:#888;font-size:12px">저장 날짜: ${state.dates.slice(0,6).join(' · ')}${state.dates.length>6?' …':''}</span>` : ''}
         </div>
       </div>
@@ -185,10 +186,10 @@ const Checklist = (() => {
         </div>
       </div>`;
 
+    const mRows = [...(d.tent4||[]), ...(d.tent2||[])];
     return summaryHtml
-      + sectionTable('더 텐트 4', d.tent4||[], 'tent4', E)
-      + sectionTable('더 텐트 2', d.tent2||[], 'tent2', E)
-      + sectionTable('더 텐트 8', d.tent8||[], 'tent8', E)
+      + sectionTable('M텐트', mRows, null, E, d)
+      + sectionTable('L텐트', d.tent8||[], 'tent8', E, d)
       + extraSection(d.extra||[], E);
   }
 
@@ -202,7 +203,9 @@ const Checklist = (() => {
     </tr>`;
   }
 
-  function sectionTable(title, rows, section, E) {
+  function sectionTable(title, rows, section, E, d) {
+    // M텐트: section=null → use 'mtent' virtual section
+    const sec = section || 'mtent';
     return `
       <div style="margin-bottom:18px">
         <div style="font-weight:700;font-size:13px;color:#1e40af;padding:6px 0 5px">${title}</div>
@@ -211,7 +214,7 @@ const Checklist = (() => {
           ${colgroup()}
           <thead>${theadRow()}</thead>
           <tbody>
-            ${rows.map((row,idx) => trHtml(row, idx, section, E)).join('')}
+            ${rows.map((row,idx) => trHtml(row, idx, sec, E)).join('')}
           </tbody>
         </table>
         </div>
@@ -372,13 +375,17 @@ const Checklist = (() => {
 
   /* ──────────── 이벤트 핸들러 ──────────── */
   function onRowInput(el) {
-    const section = el.dataset.section;
-    const idx = parseInt(el.dataset.idx);
+    let section = el.dataset.section;
+    let idx = parseInt(el.dataset.idx);
     const field = el.dataset.field;
     const d = getCurrentData();
+    // M텐트: 0-5 → tent4, 6-11 → tent2
+    if (section === 'mtent') {
+      if (idx < 6) { section = 'tent4'; }
+      else { section = 'tent2'; idx = idx - 6; }
+    }
     if (d[section]?.[idx]) {
       d[section][idx][field] = el.value;
-      // 요약 자동 업데이트
       recalcSummary(d);
       updateSummaryDisplay(d.summary);
     }
@@ -443,19 +450,18 @@ const Checklist = (() => {
     renderUI();
   }
 
-  async function saveAll() {
-    const btn = document.querySelector('[onclick="Checklist.saveAll()"]');
+  async function saveSlot() {
+    const btn = document.querySelector('[onclick="Checklist.saveSlot()"]');
     if (btn) { btn.disabled = true; btn.textContent = '저장 중...'; }
     try {
-      await Promise.all(TIMESLOTS.map(ts =>
-        API.put(`/api/checklist/${state.date}/${ts}`, state.data[ts] || emptyTimeslot())
-      ));
+      const ts = state.timeslot;
+      await API.put(`/api/checklist/${state.date}/${ts}`, state.data[ts] || emptyTimeslot());
       if (!state.dates.includes(state.date)) state.dates.unshift(state.date);
-      alert('저장 완료!');
+      if (btn) btn.textContent = '✅ 저장됨';
+      setTimeout(() => { if (btn) { btn.disabled = false; btn.textContent = '💾 저장'; } }, 1500);
     } catch (e) {
       alert('저장 실패: ' + e.message);
-    } finally {
-      if (btn) { btn.disabled = false; btn.textContent = '💾 전체 저장'; }
+      if (btn) { btn.disabled = false; btn.textContent = '💾 저장'; }
     }
   }
 
@@ -472,5 +478,5 @@ const Checklist = (() => {
     _refreshPanel();
   }
 
-  return { render, switchSlot, switchTab, changeDate, saveAll, addExtraRow, removeExtraRow, onRowInput };
+  return { render, switchSlot, switchTab, changeDate, saveSlot, addExtraRow, removeExtraRow, onRowInput };
 })();
