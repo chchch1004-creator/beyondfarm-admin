@@ -81,7 +81,7 @@ function parseNaverExcel(buffer) {
     else if (opt.includes('티켓')) orders[ono].ticket++;
   });
 
-  return { date, orders: Object.values(orders) };
+  return { date, orders: Object.values(orders), _debug: { confirmedCount: confirmed.length, dateCell: String(confirmed[0]?.[13]??'없음'), dateCellRaw: String(confirmedRaw[0]?.[13]??'없음') } };
 }
 
 function getProductType(raw) {
@@ -231,8 +231,9 @@ router.post('/upload-excel', requireAuth, upload.single('file'), async (req, res
     if (!await canEdit(req)) return res.status(403).json({ error: '수정 권한이 없습니다' });
     if (!req.file) return res.status(400).json({ error: '파일이 없습니다' });
 
-    const { date, orders } = parseNaverExcel(req.file.buffer);
-    if (!date) return res.status(400).json({ error: `날짜 인식 실패. 확정행수:${confirmed.length}, 날짜셀값:"${String(confirmed[0]?.[13]??'없음')}", Raw:"${String(confirmedRaw[0]?.[13]??'없음')}"` });
+    const parsed = parseNaverExcel(req.file.buffer);
+    const { date, orders } = parsed;
+    if (!date) return res.status(400).json({ error: `날짜 인식 실패. 확정행수:${parsed._debug.confirmedCount}, 날짜셀:"${parsed._debug.dateCell}", Raw:"${parsed._debug.dateCellRaw}"` });
 
     const slotData = assignTents(orders);
 
