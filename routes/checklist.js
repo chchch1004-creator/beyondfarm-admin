@@ -282,6 +282,13 @@ router.post('/upload-excel', requireAuth, upload.single('file'), async (req, res
 
     const slotData = assignTents(orders);
 
+    // 디버그: 파싱 결과 로그
+    const d = parsed._debug;
+    console.log(`[Excel] date=${date}, confirmed=${d.confirmedCount}, orders=${orders.length}`);
+    console.log(`[Excel] firstDateCell="${d.firstDateCell}"`);
+    console.log(`[Excel] sampleRows=${d.sampleRows}`);
+    if (orders.length > 0) console.log(`[Excel] sample order:`, JSON.stringify(orders[0]));
+
     for (const ts of ['11', '15', '19']) {
       await getDb().prepare(`
         INSERT INTO checklist_data (date, timeslot, data, updated_at) VALUES (?,?,?,datetime('now'))
@@ -289,7 +296,10 @@ router.post('/upload-excel', requireAuth, upload.single('file'), async (req, res
       `).run(date, ts, JSON.stringify(slotData[ts]));
     }
 
-    res.json({ ok: true, date });
+    const orderCounts = { '11': 0, '15': 0, '19': 0 };
+    for (const o of orders) if (orderCounts[o.ts] !== undefined) orderCounts[o.ts]++;
+
+    res.json({ ok: true, date, _debug: { ...d, orderCounts, sampleOrder: orders[0] } });
   } catch (e) {
     console.error('Excel upload error:', e);
     res.status(500).json({ error: e.message });

@@ -636,6 +636,11 @@ const Checklist = (() => {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || '업로드 실패');
+      // 디버그 정보 팝업
+      if (json._debug) {
+        const d = json._debug;
+        alert(`업로드 완료 (디버그)\n날짜: ${json.date}\n확정행수: ${d.confirmedCount}\n타임슬롯별: 11시=${d.orderCounts?.['11']}, 15시=${d.orderCounts?.['15']}, 19시=${d.orderCounts?.['19']}\n날짜셀: "${d.firstDateCell}"\n첫주문: ${JSON.stringify(d.sampleOrder)}`);
+      }
       state.date = json.date;
       state.tab = 'slot';
       state.timeslot = '11';
