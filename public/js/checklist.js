@@ -6,19 +6,19 @@ const Checklist = (() => {
 
   const COLS = [
     { key: 'tent_no',      label: '번호',      w: 32 },
-    { key: 'product',      label: '예약상품',   w: 44 },
+    { key: 'product',      label: '예약상품',   w: 36 },
     { key: 'visit_count',  label: '방문횟수',   w: 38 },
-    { key: 'name',         label: '예약자성함', w: 40 },
+    { key: 'name',         label: '예약자성함', w: 52 },
     { key: 'reserved',     label: '예약인원',   w: 44 },
     { key: 'actual',       label: '입장시인원', w: 40 },
     { key: 'two_time',     label: '2타임여부',  w: 48 },
     { key: 'play',         label: '플레이',     w: 34 },
-    { key: 'child_pool',   label: '아이풀장',   w: 44 },
-    { key: 'adult_pool',   label: '성인풀장',   w: 44 },
-    { key: 'bulmung',      label: '불멍세트',   w: 44 },
+    { key: 'child_pool',   label: '아이풀장',   w: 38 },
+    { key: 'adult_pool',   label: '성인풀장',   w: 38 },
+    { key: 'bulmung',      label: '불멍세트',   w: 38 },
     { key: 'adult_only',   label: '성인만',     w: 34 },
-    { key: 'extra_hour',   label: '1시간추가',  w: 52 },
-    { key: 'memo',         label: '비고',       w: 270 },
+    { key: 'extra_hour',   label: '1시간추가',  w: 40 },
+    { key: 'memo',         label: '비고',       w: 290 },
   ];
 
   let state = {
@@ -52,12 +52,17 @@ const Checklist = (() => {
   }
 
   // ── 요약 자동계산 ──
-  function recalcSummary(d) {
+  function recalcSummary(d, timeslot) {
     const allRows = [...(d.tent4||[]), ...(d.tent2||[]), ...(d.tent8||[]), ...(d.extra||[])];
     const num = v => parseInt(v) || 0;
     let bulmung=0, play=0, child=0, adult=0, cntS=0, cntM=0, cntL=0, cnt20=0, cnt30=0;
+    const extraHourNos = [];
+    const extendNos = [];
+    // 연장텐트: 11시→two_time에 '15' 포함, 15시→'19' 포함
+    const extendTarget = timeslot === '11' ? '15' : timeslot === '15' ? '19' : null;
+
     allRows.forEach(r => {
-      bulmung += r.bulmung ? 1 : 0;  // 내용 있으면 1개
+      bulmung += r.bulmung ? 1 : 0;
       play    += num(r.play);
       child   += num(r.child_pool);
       adult   += num(r.adult_pool);
@@ -67,6 +72,9 @@ const Checklist = (() => {
       else if (p === 'l') cntL++;
       else if (p === '단체20' || p === '단체 20') cnt20++;
       else if (p === '단체30' || p === '단체 30') cnt30++;
+      if (r.extra_hour) extraHourNos.push(r.tent_no);
+      if (extendTarget && r.two_time && String(r.two_time).includes(extendTarget))
+        extendNos.push(r.tent_no);
     });
     if (!d.summary) d.summary = {};
     d.summary.bulmung_count = bulmung || '';
@@ -80,11 +88,14 @@ const Checklist = (() => {
     d.summary.group20       = cnt20 || '';
     d.summary.group30       = cnt30 || '';
     d.summary.total         = (cntS + cntM + cntL + cnt20 + cnt30) || '';
+    d.summary.extra_hour_nos = extraHourNos.join(' ') || '';
+    d.summary.extend_nos     = extendNos.join(' ') || '';
   }
 
   function pushSummaryToDOM(s) {
     ['bulmung_count','play_count','child_pool','adult_pool','total_pool',
-     'tent2','tent4','tent8','group20','group30','total'].forEach(k => {
+     'tent2','tent4','tent8','group20','group30','total',
+     'extra_hour_nos','extend_nos'].forEach(k => {
       const el = document.getElementById(`cl-sum-${k}`);
       if (el) el.textContent = s[k] || '-';
     });
@@ -118,11 +129,10 @@ const Checklist = (() => {
         const s = state.data[ts];
         s.tent4 = TENT4_NOS.map((no,i) => s.tent4?.[i] || emptyRow(no));
         s.tent2 = TENT2_NOS.map((no,i) => s.tent2?.[i] || emptyRow(no));
-        // 티켓 행 제거 후 TENT8_NOS에 맞춤
         const t8 = (s.tent8 || []).filter(r => r.tent_no !== '티켓');
         s.tent8 = TENT8_NOS.map((no,i) => t8[i] || emptyRow(no));
         if (!s.extra) s.extra = [];
-        recalcSummary(s);
+        recalcSummary(s, ts);
       } catch {
         state.data[ts] = emptyTimeslot();
       }
@@ -174,7 +184,7 @@ const Checklist = (() => {
 
   /* ── 타임슬롯 렌더링 ── */
   function renderSlot(d, E) {
-    recalcSummary(d);
+    recalcSummary(d, state.timeslot);
     const s = d.summary || {};
 
     const sumItem = (label, key) =>
@@ -201,6 +211,8 @@ const Checklist = (() => {
           ${sumItem('단체20','group20')}
           ${sumItem('단체30','group30')}
           ${sumItem('합계','total')}
+          ${sumItem('1시간추가','extra_hour_nos')}
+          ${sumItem('연장텐트','extend_nos')}
         </div>
       </div>`;
 
@@ -399,7 +411,7 @@ const Checklist = (() => {
         const td = document.getElementById(`td-${sec0}-${i0}-extra_hour`);
         if (td) td.style.background = el.value ? '#fca5a5' : '';
       }
-      recalcSummary(d);
+      recalcSummary(d, state.timeslot);
       pushSummaryToDOM(d.summary);
       silentSave();
     }
@@ -468,7 +480,7 @@ const Checklist = (() => {
   function removeExtraRow(idx) {
     const d = getCurrentData();
     if (d.extra) d.extra.splice(idx, 1);
-    recalcSummary(d);
+    recalcSummary(d, state.timeslot);
     _refreshPanel();
     silentSave();
   }
