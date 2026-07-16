@@ -79,7 +79,7 @@ function parseNaverExcel(buffer) {
     else if (ol.includes('플레이')) orders[ono].play++;
     else if (ol.includes('인원 추가')) orders[ono].extra++;
     else if (opt.includes('티켓')) orders[ono].ticket++;
-  }
+  });
 
   return { date, orders: Object.values(orders) };
 }
