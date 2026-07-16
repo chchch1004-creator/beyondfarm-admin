@@ -56,7 +56,7 @@ const Checklist = (() => {
     const num = v => parseInt(v) || 0;
     let bulmung=0, play=0, child=0, adult=0, cntS=0, cntM=0, cntL=0, cnt20=0, cnt30=0;
     allRows.forEach(r => {
-      bulmung += num(r.bulmung);
+      bulmung += r.bulmung ? 1 : 0;  // 내용 있으면 1개
       play    += num(r.play);
       child   += num(r.child_pool);
       adult   += num(r.adult_pool);
@@ -134,9 +134,8 @@ const Checklist = (() => {
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
           <label style="font-weight:600">날짜</label>
           <input type="date" id="cl-date" value="${state.date}"
+            onchange="Checklist.changeDate()"
             style="padding:5px 10px;border:1px solid #ddd;border-radius:6px;font-size:14px">
-          <button class="btn" onclick="Checklist.changeDate()">조회</button>
-          ${state.dates.length ? `<span style="color:#aaa;font-size:12px">${state.dates.slice(0,5).join(' · ')}${state.dates.length>5?' …':''}</span>` : ''}
         </div>
       </div>
 
@@ -296,10 +295,21 @@ const Checklist = (() => {
       });
     });
 
+    // 여러 타임슬롯에 등장하는 이름 집합
+    const nameCount = {};
+    Object.values(nameMap).forEach(slotObj => {
+      TIMESLOTS.forEach(ts => {
+        const n = slotObj[ts];
+        if (n) nameCount[n] = (nameCount[n] || 0) + 1;
+      });
+    });
+    const multiNames = new Set(Object.keys(nameCount).filter(n => nameCount[n] > 1));
+
     function cell(key, ts) {
       const name = nameMap[key]?.[ts] || '';
       const twoTime = nameMap[key]?.['_two_'+ts] || '';
-      const bg = name ? '#dbeafe' : '#f9fafb';
+      const isMulti = name && multiNames.has(name);
+      const bg = isMulti ? '#fce7f3' : (name ? '#dbeafe' : '#f9fafb');
       const badge = twoTime ? `<span style="font-size:9px;background:#fbbf24;color:#78350f;border-radius:3px;padding:1px 3px;margin-left:3px">${twoTime}</span>` : '';
       return `<td style="padding:5px 8px;text-align:center;border:1px solid #e5e7eb;background:${bg};font-size:12px;white-space:nowrap">${name}${badge}</td>`;
     }
