@@ -413,14 +413,13 @@ async function init() {
   }
 
   // 7월 17일 인원체크리스트 초기 데이터 시드
-  // tent4[0]이 이유나가 아니거나 bulmung이 잘못돼 있으면 재시드
-  const existingCL17row = await client.execute({ sql: "SELECT data FROM checklist_data WHERE date='2026-07-17' AND timeslot='11'", args: [] });
-  if (existingCL17row.rows[0]) {
+  // 15시 tent4[2]가 박현민이 아니면 (동명이인 같은자리 미반영) 재시드
+  const existingCL17_15 = await client.execute({ sql: "SELECT data FROM checklist_data WHERE date='2026-07-17' AND timeslot='15'", args: [] });
+  if (existingCL17_15.rows[0]) {
     try {
-      const d = JSON.parse(existingCL17row.rows[0].data);
-      const t4 = d.tent4?.[0];
-      // tent4[0]이 이유나가 아니거나, 불멍이 잘못 되어있거나, tent8[0]이 이선규가 아니면 재시드
-      if ((t4 && t4.bulmung === 'o') || d.tent8?.[0]?.name !== '이선규' || t4?.name !== '이유나') {
+      const d15 = JSON.parse(existingCL17_15.rows[0].data);
+      // 박현민은 11시 2번 → 15시도 2번이어야 함. 다르면 재시드
+      if (d15.tent4?.[2]?.name !== '박현민') {
         await client.execute({ sql: "DELETE FROM checklist_data WHERE date='2026-07-17'", args: [] });
       }
     } catch { await client.execute({ sql: "DELETE FROM checklist_data WHERE date='2026-07-17'", args: [] }); }
