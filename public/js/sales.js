@@ -3,6 +3,7 @@ const Sales = {
   activeTab: 'revenue',
   compareYear1: null,
   compareYear2: null,
+  ytsCompareYear: null,
   revenueData: {},
   ytsData: {},
 
@@ -408,12 +409,14 @@ const Sales = {
     }
   },
 
-  async renderYts() {
-    const rows = await API.get(`/api/sales/yts?year=${this.activeYear}`);
+  buildYtsMap(rows) {
     const map = {};
     rows.forEach(r => { map[r.month] = r; });
-    const months = Array.from({ length: 12 }, (_, i) => i + 1);
+    return map;
+  },
 
+  ytsTableHTML(map, editable, yearLabel) {
+    const months = Array.from({ length: 12 }, (_, i) => i + 1);
     const rat = (a, b) => b > 0 ? (a / b * 100).toFixed(1) + '%' : '-';
 
     const bodyRows = months.map(m => {
@@ -423,56 +426,95 @@ const Sales = {
       const bn = r.baemin_next || 0, on_ = r.other_next || 0, en = r.external_next || 0;
       const ti = bi + oi + ei, tr_ = br + or_ + er, tn = bn + on_ + en;
 
-      const inp = (field, val, w) => `<input type="text" inputmode="numeric" class="yts-input" style="width:${w||60}px" value="${val > 0 ? val.toLocaleString('ko-KR') : ''}" onfocus="Sales.onFocusYts(this)" onblur="Sales.onBlurYts(this,${m})" data-field="${field}" data-month="${m}">`;
+      const cell = (field, val) => editable
+        ? `<input type="text" inputmode="numeric" class="yts-input" value="${val > 0 ? val.toLocaleString('ko-KR') : ''}" onfocus="Sales.onFocusYts(this)" onblur="Sales.onBlurYts(this,${m})" data-field="${field}" data-month="${m}">`
+        : `<span style="display:block;text-align:right;font-size:12px;color:#495057">${val > 0 ? val.toLocaleString('ko-KR') : '-'}</span>`;
 
       return `<tr>
-        <td style="text-align:center;font-weight:600">${m}월</td>
-        <td>${inp('baemin_input', bi)}</td><td>${inp('other_input', oi)}</td><td>${inp('external_input', ei)}</td>
-        <td style="text-align:right;font-weight:600;background:#f8f9fa">${ti > 0 ? ti.toLocaleString('ko-KR') : '-'}</td>
-        <td>${inp('baemin_request', br)}</td><td>${inp('other_request', or_)}</td><td>${inp('external_request', er)}</td>
-        <td style="text-align:right;font-weight:600;background:#f8f9fa">${tr_ > 0 ? tr_.toLocaleString('ko-KR') : '-'}</td>
-        <td style="text-align:right;color:#666;background:#f0fdf4">${rat(br,bi)}</td><td style="text-align:right;color:#666;background:#f0fdf4">${rat(or_,oi)}</td><td style="text-align:right;color:#666;background:#f0fdf4">${rat(er,ei)}</td>
+        <td style="text-align:center;font-weight:600;white-space:nowrap">${m}월</td>
+        <td>${cell('baemin_input',bi)}</td><td>${cell('other_input',oi)}</td><td>${cell('external_input',ei)}</td>
+        <td style="text-align:right;font-weight:600;background:#f0f0f0">${ti>0?ti.toLocaleString('ko-KR'):'-'}</td>
+        <td>${cell('baemin_request',br)}</td><td>${cell('other_request',or_)}</td><td>${cell('external_request',er)}</td>
+        <td style="text-align:right;font-weight:600;background:#f0f0f0">${tr_>0?tr_.toLocaleString('ko-KR'):'-'}</td>
+        <td style="text-align:right;color:#555;background:#f0fdf4">${rat(br,bi)}</td><td style="text-align:right;color:#555;background:#f0fdf4">${rat(or_,oi)}</td><td style="text-align:right;color:#555;background:#f0fdf4">${rat(er,ei)}</td>
         <td style="text-align:right;font-weight:600;background:#f0fdf4">${rat(tr_,ti)}</td>
-        <td>${inp('baemin_next', bn)}</td><td>${inp('other_next', on_)}</td><td>${inp('external_next', en)}</td>
-        <td style="text-align:right;font-weight:600;background:#f8f9fa">${tn > 0 ? tn.toLocaleString('ko-KR') : '-'}</td>
-        <td style="text-align:right;color:#666;background:#fff3cd">${rat(bn,bi)}</td><td style="text-align:right;color:#666;background:#fff3cd">${rat(on_,oi)}</td><td style="text-align:right;color:#666;background:#fff3cd">${rat(en,ei)}</td>
+        <td>${cell('baemin_next',bn)}</td><td>${cell('other_next',on_)}</td><td>${cell('external_next',en)}</td>
+        <td style="text-align:right;font-weight:600;background:#f0f0f0">${tn>0?tn.toLocaleString('ko-KR'):'-'}</td>
+        <td style="text-align:right;color:#555;background:#fff3cd">${rat(bn,bi)}</td><td style="text-align:right;color:#555;background:#fff3cd">${rat(on_,oi)}</td><td style="text-align:right;color:#555;background:#fff3cd">${rat(en,ei)}</td>
         <td style="text-align:right;font-weight:600;background:#fff3cd">${rat(tn,ti)}</td>
-        <td style="text-align:right;color:#666;background:#e8f4fd">${rat(bn,br)}</td><td style="text-align:right;color:#666;background:#e8f4fd">${rat(on_,or_)}</td><td style="text-align:right;color:#666;background:#e8f4fd">${rat(en,er)}</td>
+        <td style="text-align:right;color:#555;background:#e8f4fd">${rat(bn,br)}</td><td style="text-align:right;color:#555;background:#e8f4fd">${rat(on_,or_)}</td><td style="text-align:right;color:#555;background:#e8f4fd">${rat(en,er)}</td>
         <td style="text-align:right;font-weight:600;background:#e8f4fd">${rat(tn,tr_)}</td>
       </tr>`;
     }).join('');
 
-    document.getElementById('sales-tab-content').innerHTML = `
-      <p style="font-size:12px;color:#6c757d;margin-bottom:12px">※ 외부 = 네이버 외 | 기타 = 아름다운 서비스, 인스타그램 | 신청률 = 신청수/유입량 | 완료율 = 완료수/유입량 | 완료/신청 = 완료수/신청수</p>
-      <div class="table-wrap" style="overflow-x:auto">
-        <table id="sales-yts-table" style="min-width:1200px">
+    const hdr = (txt, bg) => `style="background:${bg};color:#fff;text-align:center"`;
+    return `
+      <div style="font-size:12px;font-weight:700;color:#fff;background:#1b4332;padding:6px 12px;border-radius:6px 6px 0 0;margin-bottom:0">${yearLabel}</div>
+      <div style="overflow-x:auto;margin-bottom:20px">
+        <table class="sales-yts-table" style="min-width:1300px;border-collapse:collapse;width:100%">
           <thead>
-            <tr style="background:#1b4332;color:#fff;text-align:center">
-              <th rowspan="2" style="min-width:40px">월</th>
-              <th colspan="4" style="background:#2d6a4f">유입량</th>
-              <th colspan="4" style="background:#1e4d8c">신청수</th>
-              <th colspan="4" style="background:#2d6a4f;font-size:11px">신청률<br>(신청수/유입량)</th>
-              <th colspan="4" style="background:#7b5e00">완료수</th>
-              <th colspan="4" style="background:#7b5e00;font-size:11px">완료율<br>(완료수/유입량)</th>
-              <th colspan="4" style="background:#1e4d8c;font-size:11px">완료/신청<br>(완료수/신청수)</th>
+            <tr style="text-align:center">
+              <th rowspan="2" ${hdr('월','#1b4332')} style="min-width:44px;background:#1b4332;color:#fff;text-align:center">월</th>
+              <th colspan="4" ${hdr('유입량','#2d6a4f')}>유입량</th>
+              <th colspan="4" ${hdr('신청수','#1e4d8c')}>신청수</th>
+              <th colspan="4" style="background:#2d6a4f;color:#fff;text-align:center;font-size:11px">신청률<br>(신청수/유입량)</th>
+              <th colspan="4" ${hdr('완료수','#7b5e00')}>완료수</th>
+              <th colspan="4" style="background:#7b5e00;color:#fff;text-align:center;font-size:11px">유입대비 완료율<br>(완료수/유입량)</th>
+              <th colspan="4" style="background:#1e4d8c;color:#fff;text-align:center;font-size:11px">신청대비 완료율<br>(완료수/신청수)</th>
             </tr>
-            <tr style="background:#f8f9fa;text-align:center;font-size:12px">
-              <th>네이버</th><th>기타</th><th>외부</th><th>합계</th>
-              <th>네이버</th><th>기타</th><th>외부</th><th>합계</th>
-              <th>네이버</th><th>기타</th><th>외부</th><th>합계</th>
-              <th>네이버</th><th>기타</th><th>외부</th><th>합계</th>
-              <th>네이버</th><th>기타</th><th>외부</th><th>합계</th>
-              <th>네이버</th><th>기타</th><th>외부</th><th>합계</th>
+            <tr style="text-align:center;font-size:12px">
+              <th style="background:#3a7d5e;color:#fff">네이버</th><th style="background:#3a7d5e;color:#fff">기타</th><th style="background:#3a7d5e;color:#fff">외부</th><th style="background:#3a7d5e;color:#fff">합계</th>
+              <th style="background:#2a5fa8;color:#fff">네이버</th><th style="background:#2a5fa8;color:#fff">기타</th><th style="background:#2a5fa8;color:#fff">외부</th><th style="background:#2a5fa8;color:#fff">합계</th>
+              <th style="background:#3a7d5e;color:#fff">네이버</th><th style="background:#3a7d5e;color:#fff">기타</th><th style="background:#3a7d5e;color:#fff">외부</th><th style="background:#3a7d5e;color:#fff">합계</th>
+              <th style="background:#9c7700;color:#fff">네이버</th><th style="background:#9c7700;color:#fff">기타</th><th style="background:#9c7700;color:#fff">외부</th><th style="background:#9c7700;color:#fff">합계</th>
+              <th style="background:#9c7700;color:#fff">네이버</th><th style="background:#9c7700;color:#fff">기타</th><th style="background:#9c7700;color:#fff">외부</th><th style="background:#9c7700;color:#fff">합계</th>
+              <th style="background:#2a5fa8;color:#fff">네이버</th><th style="background:#2a5fa8;color:#fff">기타</th><th style="background:#2a5fa8;color:#fff">외부</th><th style="background:#2a5fa8;color:#fff">합계</th>
             </tr>
           </thead>
           <tbody>${bodyRows}</tbody>
         </table>
+      </div>`;
+  },
+
+  async renderYts() {
+    const year = this.activeYear;
+    const rows = await API.get(`/api/sales/yts?year=${year}`);
+    const map = this.buildYtsMap(rows);
+
+    const allYears = this.years().filter(y => y !== year);
+    const yearOpts = allYears.map(y =>
+      `<option value="${y}" ${y === this.ytsCompareYear ? 'selected' : ''}>${y}년</option>`).join('');
+
+    let compareHTML = '';
+    if (this.ytsCompareYear) {
+      const cmpRows = await API.get(`/api/sales/yts?year=${this.ytsCompareYear}`);
+      const cmpMap = this.buildYtsMap(cmpRows);
+      compareHTML = this.ytsTableHTML(cmpMap, false, `${this.ytsCompareYear}년`);
+    }
+
+    document.getElementById('sales-tab-content').innerHTML = `
+      <p style="font-size:12px;color:#6c757d;margin-bottom:10px">※ 네이버 = 네이버 예약 | 기타 = 페이스북, 인스타그램 등 | 외부 = 구글 등 | 신청률 = 신청수/유입량 | 유입대비완료율 = 완료수/유입량 | 신청대비완료율 = 완료수/신청수</p>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+        <label style="font-size:13px;font-weight:600">비교 연도</label>
+        <select id="yts-cmp-year" onchange="Sales.onChangeYtsCmpYear()" style="padding:5px 10px;border:1px solid #dee2e6;border-radius:6px;font-size:13px">
+          <option value="">없음</option>
+          ${yearOpts}
+        </select>
       </div>
+      ${this.ytsTableHTML(map, true, `${year}년`)}
+      ${compareHTML}
       <style>
         .yts-input { border:1px solid transparent;border-radius:4px;padding:3px 4px;font-size:12px;width:100%;box-sizing:border-box;background:transparent;text-align:right }
         .yts-input:focus { border-color:#1b4332;outline:none;background:#fff }
-        #sales-yts-table td { padding:4px 6px;font-size:12px }
+        .sales-yts-table td { padding:4px 6px;font-size:12px;border-bottom:1px solid #f0f0f0 }
+        .sales-yts-table th { padding:6px 8px;font-size:12px }
       </style>`;
+  },
+
+  async onChangeYtsCmpYear() {
+    const v = document.getElementById('yts-cmp-year')?.value;
+    this.ytsCompareYear = v ? parseInt(v) : null;
+    await this.renderYts();
   },
 
   onFocusYts(el) { el.value = el.value.replace(/,/g, ''); },
@@ -509,5 +551,6 @@ const Sales = {
     tds[16].textContent = tn > 0 ? tn.toLocaleString('ko-KR') : '-';
     tds[17].textContent = rat(bn, bi); tds[18].textContent = rat(on_, oi); tds[19].textContent = rat(en, ei); tds[20].textContent = rat(tn, ti);
     tds[21].textContent = rat(bn, br); tds[22].textContent = rat(on_, or_); tds[23].textContent = rat(en, er); tds[24].textContent = rat(tn, tr_);
+    // 비교 테이블은 읽기 전용이므로 업데이트 불필요
   }
 };
