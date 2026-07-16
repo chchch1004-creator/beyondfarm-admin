@@ -232,7 +232,7 @@ router.post('/upload-excel', requireAuth, upload.single('file'), async (req, res
     if (!req.file) return res.status(400).json({ error: '파일이 없습니다' });
 
     const { date, orders } = parseNaverExcel(req.file.buffer);
-    if (!date) return res.status(400).json({ error: '날짜를 인식할 수 없습니다. 네이버 예약 내보내기 파일인지 확인해주세요.' });
+    if (!date) return res.status(400).json({ error: `날짜 인식 실패. 확정행수:${confirmed.length}, 날짜셀값:"${String(confirmed[0]?.[13]??'없음')}", Raw:"${String(confirmedRaw[0]?.[13]??'없음')}"` });
 
     const slotData = assignTents(orders);
 
