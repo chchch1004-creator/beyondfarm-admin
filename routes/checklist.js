@@ -10,35 +10,58 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 
 const TENT8_LABELS = ['A','B','C','D','E','F','G','H','J','K','L','P','S'];
 
 function parseNaverExcel(buffer) {
-  const wb = xlsx.read(buffer, { type: 'buffer' });
+  // cellDates:true → Date 객체로 변환, raw:false → 문자열 표현도 같이 사용
+  const wb = xlsx.read(buffer, { type: 'buffer', cellDates: true });
   const ws = wb.Sheets[wb.SheetNames[0]];
-  const rows = xlsx.utils.sheet_to_json(ws, { header: 1, defval: '' });
+  // raw:false 로 읽으면 셀 포맷 적용된 문자열로 옴 (날짜도 한국어 포맷)
+  const rowsStr = xlsx.utils.sheet_to_json(ws, { header: 1, defval: '', raw: false });
+  const rowsRaw = xlsx.utils.sheet_to_json(ws, { header: 1, defval: '', raw: true });
 
-  const confirmed = rows.slice(3).filter(r => String(r[5] || '') === '확정');
+  const confirmed = rowsStr.slice(3).filter(r => String(r[5] || '') === '확정');
+  const confirmedRaw = rowsRaw.slice(3).filter(r => String(r[5] || '') === '확정');
 
-  const timeMap = { '오전 11:00': '11', '오후 3:00': '15', '오후 7:00': '19' };
+  // 타임슬롯 파싱: 문자열 또는 Date 객체 모두 처리
+  function parseTs(cell, cellRaw) {
+    // cellRaw가 Date 객체인 경우
+    if (cellRaw instanceof Date) {
+      const h = cellRaw.getHours();
+      if (h === 11) return '11';
+      if (h === 15) return '15';
+      if (h === 19) return '19';
+      return '';
+    }
+    const s = String(cell || '');
+    if (s.includes('오전 11') || s.includes('11:00')) return '11';
+    if (s.includes('오후 3') || s.includes('15:00')) return '15';
+    if (s.includes('오후 7') || s.includes('19:00')) return '19';
+    return '';
+  }
 
-  // Extract date from first confirmed row
+  // 날짜 파싱
   let date = '';
   if (confirmed.length > 0) {
-    const ds = String(confirmed[0][13] || '');
-    // Format: '26. 7. 17.(금) 오전 11:00' → 2026-07-17
-    const m = ds.match(/(\d+)\.\s*(\d+)\.\s*(\d+)\./);
-    if (m) {
-      const yr = parseInt(m[1]) < 100 ? 2000 + parseInt(m[1]) : parseInt(m[1]);
-      date = `${yr}-${String(m[2]).padStart(2,'0')}-${String(m[3]).padStart(2,'0')}`;
+    const cellRaw = confirmedRaw[0]?.[13];
+    const cellStr = confirmed[0][13];
+    if (cellRaw instanceof Date) {
+      const yr = cellRaw.getFullYear();
+      const mo = cellRaw.getMonth() + 1;
+      const dy = cellRaw.getDate();
+      date = `${yr}-${String(mo).padStart(2,'0')}-${String(dy).padStart(2,'0')}`;
+    } else {
+      const ds = String(cellStr || '');
+      const m = ds.match(/(\d+)\.\s*(\d+)\.\s*(\d+)\./);
+      if (m) {
+        const yr = parseInt(m[1]) < 100 ? 2000 + parseInt(m[1]) : parseInt(m[1]);
+        date = `${yr}-${String(m[2]).padStart(2,'0')}-${String(m[3]).padStart(2,'0')}`;
+      }
     }
   }
 
   const orders = {};
-  for (const r of confirmed) {
+  confirmed.forEach((r, ri) => {
     const ono = r[3];
-    const ds = String(r[13] || '');
-    let ts = '';
-    for (const [k, v] of Object.entries(timeMap)) {
-      if (ds.includes(k)) { ts = v; break; }
-    }
-    if (!ts) continue;
+    const ts = parseTs(r[13], confirmedRaw[ri]?.[13]);
+    if (!ts) return;
 
     if (!orders[ono]) {
       orders[ono] = {
