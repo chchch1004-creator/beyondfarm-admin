@@ -56,7 +56,6 @@ const Checklist = (() => {
     const num = v => parseInt(v) || 0;
     let bulmung=0, play=0, child=0, adult=0, cntS=0, cntM=0, cntL=0, cnt20=0, cnt30=0;
     allRows.forEach(r => {
-      if (!r.name) return; // 이름 없는 행은 집계 제외
       bulmung += num(r.bulmung);
       play    += num(r.play);
       child   += num(r.child_pool);
@@ -65,8 +64,8 @@ const Checklist = (() => {
       if (p === 's') cntS++;
       else if (p === 'm') cntM++;
       else if (p === 'L') cntL++;
-      else if (p === '단체20') cnt20++;
-      else if (p === '단체30') cnt30++;
+      else if (p === '단체20' || p === '단체 20') cnt20++;
+      else if (p === '단체30' || p === '단체 30') cnt30++;
     });
     if (!d.summary) d.summary = {};
     d.summary.bulmung_count = bulmung || '';
@@ -82,34 +81,23 @@ const Checklist = (() => {
     d.summary.total         = (cntS + cntM + cntL + cnt20 + cnt30) || '';
   }
 
-  // ── 요약 DOM 즉시 갱신 ──
   function pushSummaryToDOM(s) {
-    const keys = ['bulmung_count','play_count','child_pool','adult_pool','total_pool',
-                  'tent2','tent4','tent8','group20','group30','total'];
-    keys.forEach(k => {
+    ['bulmung_count','play_count','child_pool','adult_pool','total_pool',
+     'tent2','tent4','tent8','group20','group30','total'].forEach(k => {
       const el = document.getElementById(`cl-sum-${k}`);
       if (el) el.textContent = s[k] || '-';
     });
   }
 
-  // ── 자동저장 (디바운스 1.5초) ──
-  function scheduleAutoSave() {
+  // ── 무음 자동저장 ──
+  function scheduleSave() {
     clearTimeout(_saveTimer);
-    _saveTimer = setTimeout(autoSave, 1500);
-  }
-
-  async function autoSave() {
-    const ts = state.timeslot;
-    const indicator = document.getElementById('cl-save-indicator');
-    try {
-      if (indicator) { indicator.textContent = '저장 중...'; indicator.style.color = '#6b7280'; }
-      await API.put(`/api/checklist/${state.date}/${ts}`, state.data[ts] || emptyTimeslot());
-      if (!state.dates.includes(state.date)) state.dates.unshift(state.date);
-      if (indicator) { indicator.textContent = '✅ 자동저장됨'; indicator.style.color = '#16a34a'; }
-      setTimeout(() => { if (indicator) indicator.textContent = ''; }, 2000);
-    } catch {
-      if (indicator) { indicator.textContent = '⚠ 저장 실패'; indicator.style.color = '#dc2626'; }
-    }
+    _saveTimer = setTimeout(() => {
+      const ts = state.timeslot;
+      API.put(`/api/checklist/${state.date}/${ts}`, state.data[ts] || emptyTimeslot())
+        .then(() => { if (!state.dates.includes(state.date)) state.dates.unshift(state.date); })
+        .catch(() => {});
+    }, 800);
   }
 
   async function render() {
@@ -126,23 +114,14 @@ const Checklist = (() => {
       try {
         const d = await API.get(`/api/checklist/${state.date}/${ts}`);
         state.data[ts] = d || emptyTimeslot();
-        // 저장된 데이터에 없는 행 보완
-        if (!state.data[ts].tent4 || state.data[ts].tent4.length < 6)
-          state.data[ts].tent4 = TENT4_NOS.map((no,i) => state.data[ts].tent4?.[i] || emptyRow(no));
-        if (!state.data[ts].tent2 || state.data[ts].tent2.length < 6)
-          state.data[ts].tent2 = TENT2_NOS.map((no,i) => state.data[ts].tent2?.[i] || emptyRow(no));
-        if (!state.data[ts].tent8)
-          state.data[ts].tent8 = TENT8_NOS.map(emptyRow);
-        else {
-          // 티켓 행 제거 (이전 데이터 호환)
-          state.data[ts].tent8 = state.data[ts].tent8.filter(r => r.tent_no !== '티켓');
-          // 누락된 행 보완
-          TENT8_NOS.forEach((no, i) => {
-            if (!state.data[ts].tent8[i]) state.data[ts].tent8[i] = emptyRow(no);
-          });
-          state.data[ts].tent8 = state.data[ts].tent8.slice(0, TENT8_NOS.length);
-        }
-        recalcSummary(state.data[ts]);
+        const s = state.data[ts];
+        s.tent4 = TENT4_NOS.map((no,i) => s.tent4?.[i] || emptyRow(no));
+        s.tent2 = TENT2_NOS.map((no,i) => s.tent2?.[i] || emptyRow(no));
+        // 티켓 행 제거 후 TENT8_NOS에 맞춤
+        const t8 = (s.tent8 || []).filter(r => r.tent_no !== '티켓');
+        s.tent8 = TENT8_NOS.map((no,i) => t8[i] || emptyRow(no));
+        if (!s.extra) s.extra = [];
+        recalcSummary(s);
       } catch {
         state.data[ts] = emptyTimeslot();
       }
@@ -157,23 +136,18 @@ const Checklist = (() => {
           <input type="date" id="cl-date" value="${state.date}"
             style="padding:5px 10px;border:1px solid #ddd;border-radius:6px;font-size:14px">
           <button class="btn" onclick="Checklist.changeDate()">조회</button>
-          <span id="cl-save-indicator" style="font-size:12px;color:#16a34a"></span>
-          ${state.dates.length ? `<span style="color:#aaa;font-size:12px">저장: ${state.dates.slice(0,5).join(' · ')}${state.dates.length>5?' …':''}</span>` : ''}
+          ${state.dates.length ? `<span style="color:#aaa;font-size:12px">${state.dates.slice(0,5).join(' · ')}${state.dates.length>5?' …':''}</span>` : ''}
         </div>
       </div>
 
       <div style="display:flex;gap:0;margin-bottom:0">
-        ${tabBtn('11','11시')}
-        ${tabBtn('15','15시')}
-        ${tabBtn('19','19시')}
-        ${tabBtnTwoTime()}
+        ${tabBtn('11','11시')}${tabBtn('15','15시')}${tabBtn('19','19시')}${tabBtnTwoTime()}
       </div>
 
       <div id="cl-panel" style="border:1px solid #2563eb;border-top:none;border-radius:0 8px 8px 8px;
            padding:16px;background:#fff;overflow-x:auto">
         ${renderPanel()}
-      </div>
-    `;
+      </div>`;
   }
 
   function tabBtn(ts, label) {
@@ -204,7 +178,7 @@ const Checklist = (() => {
     const s = d.summary || {};
 
     const sumItem = (label, key) =>
-      `<div style="display:flex;flex-direction:column;gap:3px;min-width:100px">
+      `<div style="display:flex;flex-direction:column;gap:3px;min-width:90px">
         <div style="font-size:11px;color:#555;font-weight:600;text-align:center">${label}</div>
         <div id="cl-sum-${key}" style="padding:5px 6px;background:#fff;border:1px solid #d1d5db;
           border-radius:4px;text-align:center;font-size:13px;font-weight:700;color:#1e40af">
@@ -214,7 +188,7 @@ const Checklist = (() => {
 
     const summaryHtml = `
       <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px 14px;margin-bottom:14px">
-        <div style="font-weight:700;font-size:13px;color:#1e40af;margin-bottom:10px">📋 요약 (자동계산)</div>
+        <div style="font-weight:700;font-size:13px;color:#1e40af;margin-bottom:10px">📋 요약</div>
         <div style="display:flex;flex-wrap:wrap;gap:8px">
           ${sumItem('불멍갯수','bulmung_count')}
           ${sumItem('플레이 인원수','play_count')}
@@ -241,9 +215,10 @@ const Checklist = (() => {
     return `<colgroup>${COLS.map(c=>`<col style="width:${c.w}px;min-width:${c.w}px">`).join('')}</colgroup>`;
   }
 
-  function thead() {
+  function thead(withDel) {
     return `<thead><tr style="background:#1e40af;color:#fff">
       ${COLS.map(c=>`<th style="padding:7px 4px;text-align:center;white-space:nowrap;font-size:12px">${c.label}</th>`).join('')}
+      ${withDel ? '<th style="width:28px"></th>' : ''}
     </tr></thead>`;
   }
 
@@ -253,24 +228,20 @@ const Checklist = (() => {
         <div style="font-weight:700;font-size:13px;color:#1e40af;padding:6px 0 5px">${title}</div>
         <div style="overflow-x:auto">
           <table style="border-collapse:collapse;table-layout:fixed;font-size:12px">
-            ${colgroup()}${thead()}
-            <tbody>${rows.map((row,idx) => trHtml(row, idx, section, E)).join('')}</tbody>
+            ${colgroup()}${thead(false)}
+            <tbody>${rows.map((row,idx) => trHtml(row, idx, section, E, false)).join('')}</tbody>
           </table>
         </div>
       </div>`;
   }
 
-  function trHtml(row, idx, section, E) {
+  function trHtml(row, idx, section, E, withDel) {
     const bg = idx % 2 === 0 ? '#fff' : '#f8fafc';
     return `<tr style="background:${bg}">
       ${COLS.map((c, ci) => {
         const val = row[c.key] ?? '';
-        if (ci === 0) {
-          return `<td style="text-align:center;padding:4px 3px;border-bottom:1px solid #e5e7eb;font-weight:600;color:#374151">${val}</td>`;
-        }
-        if (!E) {
-          return `<td style="text-align:center;padding:4px 3px;border-bottom:1px solid #e5e7eb">${val}</td>`;
-        }
+        if (ci === 0) return `<td style="text-align:center;padding:4px 3px;border-bottom:1px solid #e5e7eb;font-weight:600;color:#374151">${val}</td>`;
+        if (!E)       return `<td style="text-align:center;padding:4px 3px;border-bottom:1px solid #e5e7eb">${val}</td>`;
         return `<td style="padding:2px 2px;border-bottom:1px solid #e5e7eb">
           <input type="text" value="${String(val).replace(/"/g,'&quot;')}"
             data-section="${section}" data-idx="${idx}" data-field="${c.key}"
@@ -279,6 +250,9 @@ const Checklist = (() => {
                    padding:3px 2px;font-size:12px;text-align:center;background:transparent">
         </td>`;
       }).join('')}
+      ${withDel && E ? `<td style="border-bottom:1px solid #e5e7eb;text-align:center;padding:0 2px">
+        <button onclick="Checklist.removeExtraRow(${idx})" style="border:none;background:none;color:#e53e3e;cursor:pointer;font-size:15px;line-height:1">×</button>
+      </td>` : (withDel ? '<td></td>' : '')}
     </tr>`;
   }
 
@@ -287,41 +261,17 @@ const Checklist = (() => {
     return `
       <div style="margin-bottom:18px">
         <div style="display:flex;align-items:center;gap:8px;padding:6px 0 5px">
-          <div style="font-weight:700;font-size:13px;color:#1e40af">No. (추가)</div>
+          <div style="font-weight:700;font-size:13px;color:#1e40af">티켓</div>
           ${E ? `<button class="btn" onclick="Checklist.addExtraRow()" style="font-size:11px;padding:2px 10px">+ 행 추가</button>` : ''}
         </div>
         ${rows.length ? `
         <div style="overflow-x:auto">
           <table style="border-collapse:collapse;table-layout:fixed;font-size:12px">
-            <colgroup>${COLS.map(c=>`<col style="width:${c.w}px;min-width:${c.w}px">`).join('')}<col style="width:32px"></colgroup>
-            <thead><tr style="background:#1e40af;color:#fff">
-              ${COLS.map(c=>`<th style="padding:7px 4px;text-align:center;white-space:nowrap;font-size:12px">${c.label}</th>`).join('')}
-              ${E ? '<th></th>' : ''}
-            </tr></thead>
-            <tbody>
-              ${rows.map((row,idx) => {
-                const bg = idx%2===0?'#fff':'#f8fafc';
-                return `<tr style="background:${bg}">
-                  ${COLS.map((c,ci) => {
-                    const val = row[c.key]??'';
-                    if (ci===0) return `<td style="text-align:center;padding:4px 3px;border-bottom:1px solid #e5e7eb;font-weight:600">${val}</td>`;
-                    if (!E) return `<td style="text-align:center;padding:4px 3px;border-bottom:1px solid #e5e7eb">${val}</td>`;
-                    return `<td style="padding:2px 2px;border-bottom:1px solid #e5e7eb">
-                      <input type="text" value="${String(val).replace(/"/g,'&quot;')}"
-                        data-section="extra" data-idx="${idx}" data-field="${c.key}"
-                        oninput="Checklist.onRowInput(this)"
-                        style="width:100%;box-sizing:border-box;border:1px solid #e2e8f0;border-radius:3px;
-                               padding:3px 2px;font-size:12px;text-align:center;background:transparent">
-                    </td>`;
-                  }).join('')}
-                  ${E ? `<td style="border-bottom:1px solid #e5e7eb;text-align:center">
-                    <button onclick="Checklist.removeExtraRow(${idx})" style="border:none;background:none;color:#e53e3e;cursor:pointer;font-size:15px;line-height:1">×</button>
-                  </td>` : ''}
-                </tr>`;
-              }).join('')}
-            </tbody>
+            <colgroup>${COLS.map(c=>`<col style="width:${c.w}px;min-width:${c.w}px">`).join('')}<col style="width:28px"></colgroup>
+            ${thead(true)}
+            <tbody>${rows.map((row,idx) => trHtml(row, idx, 'extra', E, true)).join('')}</tbody>
           </table>
-        </div>` : '<div style="color:#aaa;font-size:12px;padding:4px 0">추가 행 없음</div>'}
+        </div>` : '<div style="color:#aaa;font-size:12px;padding:4px 0">행 없음</div>'}
       </div>`;
   }
 
@@ -412,8 +362,18 @@ const Checklist = (() => {
       d[section][idx][field] = el.value;
       recalcSummary(d);
       pushSummaryToDOM(d.summary);
-      scheduleAutoSave();
+      silentSave();
     }
+  }
+
+  function silentSave() {
+    clearTimeout(_saveTimer);
+    _saveTimer = setTimeout(() => {
+      const ts = state.timeslot;
+      API.put(`/api/checklist/${state.date}/${ts}`, state.data[ts] || emptyTimeslot())
+        .then(() => { if (!state.dates.includes(state.date)) state.dates.unshift(state.date); })
+        .catch(() => {});
+    }, 800);
   }
 
   function switchSlot(ts) {
@@ -451,8 +411,7 @@ const Checklist = (() => {
   }
 
   async function changeDate() {
-    const inp = document.getElementById('cl-date');
-    state.date = inp.value;
+    state.date = document.getElementById('cl-date').value;
     state.tab = 'slot';
     state.timeslot = '11';
     await loadAllSlots();
@@ -464,6 +423,7 @@ const Checklist = (() => {
     if (!d.extra) d.extra = [];
     d.extra.push(emptyRow(''));
     _refreshPanel();
+    silentSave();
   }
 
   function removeExtraRow(idx) {
@@ -471,7 +431,7 @@ const Checklist = (() => {
     if (d.extra) d.extra.splice(idx, 1);
     recalcSummary(d);
     _refreshPanel();
-    scheduleAutoSave();
+    silentSave();
   }
 
   return { render, switchSlot, switchTab, changeDate, addExtraRow, removeExtraRow, onRowInput };
