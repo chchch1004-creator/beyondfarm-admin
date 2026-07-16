@@ -10,21 +10,42 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 
 const TENT8_LABELS = ['A','B','C','D','E','F','G','H','J','K','L','P','S'];
 
 function parseNaverExcel(buffer) {
-  // cellDates:true → Date 객체로 변환, raw:false → 문자열 표현도 같이 사용
   const wb = xlsx.read(buffer, { type: 'buffer', cellDates: true });
   const ws = wb.Sheets[wb.SheetNames[0]];
-  // raw:false 로 읽으면 셀 포맷 적용된 문자열로 옴 (날짜도 한국어 포맷)
-  const rowsStr = xlsx.utils.sheet_to_json(ws, { header: 1, defval: '', raw: false });
-  const rowsRaw = xlsx.utils.sheet_to_json(ws, { header: 1, defval: '', raw: true });
+  const rows = xlsx.utils.sheet_to_json(ws, { header: 1, defval: '' });
 
-  const confirmed = rowsStr.slice(3).filter(r => String(r[5] || '') === '확정');
-  const confirmedRaw = rowsRaw.slice(3).filter(r => String(r[5] || '') === '확정');
+  // 헤더 행 동적 탐색: "예약번호", "상태", "예약자명" 등의 키워드로 헤더 위치 찾기
+  let headerRow = -1;
+  let colStatus = -1, colOrderNo = -1, colName = -1, colProduct = -1, colDateTime = -1, colOption = -1;
+  for (let i = 0; i < Math.min(rows.length, 10); i++) {
+    const r = rows[i];
+    for (let j = 0; j < r.length; j++) {
+      const v = String(r[j] || '').trim();
+      if (v.includes('예약번호') || v.includes('주문번호')) { colOrderNo = j; headerRow = i; }
+      if (v === '상태' || v === '예약상태') colStatus = j;
+      if (v.includes('예약자') && v.includes('명')) colName = j;
+      if (v.includes('상품명') || v.includes('예약상품')) colProduct = j;
+      if (v.includes('방문일') || v.includes('예약일')) colDateTime = j;
+      if (v.includes('옵션') || v.includes('추가상품')) colOption = j;
+    }
+    if (headerRow >= 0 && colStatus >= 0) break;
+  }
 
-  // 타임슬롯 파싱: 문자열 또는 Date 객체 모두 처리
-  function parseTs(cell, cellRaw) {
-    // cellRaw가 Date 객체인 경우
-    if (cellRaw instanceof Date) {
-      const h = cellRaw.getHours();
+  // 헤더를 못 찾으면 Python이 사용했던 고정 인덱스로 fallback
+  if (headerRow < 0) {
+    colOrderNo = 3; colStatus = 5; colName = 7; colProduct = 15; colDateTime = 13; colOption = 17;
+    headerRow = 2;
+  }
+
+  // 데이터 행: 헤더 다음 행부터, "확정" 상태만
+  const dataRows = rows.slice(headerRow + 1).filter(r =>
+    String(r[colStatus] || '').trim() === '확정'
+  );
+
+  // 타임슬롯 파싱
+  function parseTs(cell) {
+    if (cell instanceof Date) {
+      const h = cell.getHours();
       if (h === 11) return '11';
       if (h === 15) return '15';
       if (h === 19) return '19';
@@ -32,46 +53,50 @@ function parseNaverExcel(buffer) {
     }
     const s = String(cell || '');
     if (s.includes('오전 11') || s.includes('11:00')) return '11';
-    if (s.includes('오후 3') || s.includes('15:00')) return '15';
-    if (s.includes('오후 7') || s.includes('19:00')) return '19';
+    if (s.includes('오후 3') || s.includes('15:00') || s.includes('오후3')) return '15';
+    if (s.includes('오후 7') || s.includes('19:00') || s.includes('오후7')) return '19';
     return '';
   }
 
   // 날짜 파싱
-  let date = '';
-  if (confirmed.length > 0) {
-    const cellRaw = confirmedRaw[0]?.[13];
-    const cellStr = confirmed[0][13];
-    if (cellRaw instanceof Date) {
-      const yr = cellRaw.getFullYear();
-      const mo = cellRaw.getMonth() + 1;
-      const dy = cellRaw.getDate();
-      date = `${yr}-${String(mo).padStart(2,'0')}-${String(dy).padStart(2,'0')}`;
-    } else {
-      const ds = String(cellStr || '');
-      const m = ds.match(/(\d+)\.\s*(\d+)\.\s*(\d+)\./);
-      if (m) {
-        const yr = parseInt(m[1]) < 100 ? 2000 + parseInt(m[1]) : parseInt(m[1]);
-        date = `${yr}-${String(m[2]).padStart(2,'0')}-${String(m[3]).padStart(2,'0')}`;
-      }
+  function parseDate(cell) {
+    if (cell instanceof Date) {
+      const yr = cell.getFullYear();
+      const mo = cell.getMonth() + 1;
+      const dy = cell.getDate();
+      return `${yr}-${String(mo).padStart(2,'0')}-${String(dy).padStart(2,'0')}`;
     }
+    const s = String(cell || '');
+    // "26. 7. 17.(금)" or "2026-07-17" or "2026/7/17"
+    let m = s.match(/(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);
+    if (m) return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+    m = s.match(/(\d+)\.\s*(\d+)\.\s*(\d+)\./);
+    if (m) {
+      const yr = parseInt(m[1]) < 100 ? 2000 + parseInt(m[1]) : parseInt(m[1]);
+      return `${yr}-${String(m[2]).padStart(2,'0')}-${String(m[3]).padStart(2,'0')}`;
+    }
+    return '';
   }
 
+  let date = '';
   const orders = {};
-  confirmed.forEach((r, ri) => {
-    const ono = r[3];
-    const ts = parseTs(r[13], confirmedRaw[ri]?.[13]);
-    if (!ts) return;
 
+  for (const r of dataRows) {
+    const dtCell = r[colDateTime];
+    if (!date) date = parseDate(dtCell);
+    const ts = parseTs(dtCell);
+    if (!ts) continue;
+
+    const ono = String(r[colOrderNo] || '').trim() || Math.random().toString();
     if (!orders[ono]) {
       orders[ono] = {
-        name: String(r[7] || '').trim(),
-        product_raw: String(r[15] || '').trim(),
+        name: String(r[colName] || '').trim(),
+        product_raw: String(r[colProduct] || '').trim(),
         ts,
         extra: 0, bulmung: '', child: 0, adult: 0, play: 0, ticket: 0,
       };
     }
-    const opt = String(r[17] || '').trim();
+    const opt = String(r[colOption] || '').trim();
     const ol = opt.toLowerCase();
     if (opt === '불멍 세트') orders[ono].bulmung = 'o';
     else if (ol.includes('아이') && (ol.includes('풀') || ol.includes('스위밍'))) orders[ono].child++;
@@ -79,9 +104,17 @@ function parseNaverExcel(buffer) {
     else if (ol.includes('플레이')) orders[ono].play++;
     else if (ol.includes('인원 추가')) orders[ono].extra++;
     else if (opt.includes('티켓')) orders[ono].ticket++;
-  });
+  }
 
-  return { date, orders: Object.values(orders), _debug: { confirmedCount: confirmed.length, dateCell: String(confirmed[0]?.[13]??'없음'), dateCellRaw: String(confirmedRaw[0]?.[13]??'없음') } };
+  const firstDtRaw = dataRows[0]?.[colDateTime] ?? '없음';
+  return {
+    date, orders: Object.values(orders),
+    _debug: {
+      headerRow, colStatus, colOrderNo, colName, colProduct, colDateTime, colOption,
+      confirmedCount: dataRows.length,
+      firstDateCell: String(firstDtRaw),
+    },
+  };
 }
 
 function getProductType(raw) {
