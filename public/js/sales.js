@@ -415,60 +415,96 @@ const Sales = {
     return map;
   },
 
-  ytsTableHTML(map, editable, yearLabel) {
+  ytsCalc(map, m) {
+    const r = map[m] || {};
+    const bi = r.baemin_input||0, oi = r.other_input||0, ei = r.external_input||0;
+    const br = r.baemin_request||0, or_ = r.other_request||0, er = r.external_request||0;
+    const bn = r.baemin_next||0, on_ = r.other_next||0, en = r.external_next||0;
+    return { bi,oi,ei, br,or_,er, bn,on_,en,
+      ti: bi+oi+ei, tr_: br+or_+er, tn: bn+on_+en };
+  },
+
+  ytsTableHTML(map, editable, yearLabel, globalAvg) {
     const months = Array.from({ length: 12 }, (_, i) => i + 1);
     const rat = (a, b) => b > 0 ? (a / b * 100).toFixed(1) + '%' : '-';
 
+    // 전체연도 평균 기준 합계 색상
+    const sumCell = (val, avgVal, bg) => {
+      if (!val) return `<td style="text-align:right;font-weight:600;background:${bg}">-</td>`;
+      let color = '#212529';
+      if (globalAvg && avgVal > 0) color = val > avgVal ? '#dc3545' : '#1565c0';
+      return `<td style="text-align:right;font-weight:700;background:${bg};color:${color}">${val.toLocaleString('ko-KR')}</td>`;
+    };
+
+    // colgroup for fixed column widths
+    const CW = 52; // input cell width
+    const colgroup = `<colgroup>
+      <col style="width:44px">
+      <col style="width:${CW}px"><col style="width:${CW}px"><col style="width:${CW}px"><col style="width:64px">
+      <col style="width:${CW}px"><col style="width:${CW}px"><col style="width:${CW}px"><col style="width:64px">
+      <col style="width:52px"><col style="width:52px"><col style="width:52px"><col style="width:52px">
+      <col style="width:${CW}px"><col style="width:${CW}px"><col style="width:${CW}px"><col style="width:64px">
+      <col style="width:52px"><col style="width:52px"><col style="width:52px"><col style="width:52px">
+      <col style="width:52px"><col style="width:52px"><col style="width:52px"><col style="width:52px">
+    </colgroup>`;
+
     const bodyRows = months.map(m => {
-      const r = map[m] || {};
-      const bi = r.baemin_input || 0, oi = r.other_input || 0, ei = r.external_input || 0;
-      const br = r.baemin_request || 0, or_ = r.other_request || 0, er = r.external_request || 0;
-      const bn = r.baemin_next || 0, on_ = r.other_next || 0, en = r.external_next || 0;
-      const ti = bi + oi + ei, tr_ = br + or_ + er, tn = bn + on_ + en;
+      const { bi,oi,ei, br,or_,er, bn,on_,en, ti,tr_,tn } = this.ytsCalc(map, m);
+      const ga = globalAvg ? globalAvg[m] : null;
 
       const cell = (field, val) => editable
-        ? `<input type="text" inputmode="numeric" class="yts-input" value="${val > 0 ? val.toLocaleString('ko-KR') : ''}" onfocus="Sales.onFocusYts(this)" onblur="Sales.onBlurYts(this,${m})" data-field="${field}" data-month="${m}">`
-        : `<span style="display:block;text-align:right;font-size:12px;color:#495057">${val > 0 ? val.toLocaleString('ko-KR') : '-'}</span>`;
+        ? `<td><input type="text" inputmode="numeric" class="yts-input" value="${val > 0 ? val.toLocaleString('ko-KR') : ''}" onfocus="Sales.onFocusYts(this)" onblur="Sales.onBlurYts(this,${m})" data-field="${field}" data-month="${m}"></td>`
+        : `<td style="text-align:right;font-size:12px;color:#495057">${val > 0 ? val.toLocaleString('ko-KR') : '-'}</td>`;
 
       return `<tr>
-        <td style="text-align:center;font-weight:600;white-space:nowrap">${m}월</td>
-        <td>${cell('baemin_input',bi)}</td><td>${cell('other_input',oi)}</td><td>${cell('external_input',ei)}</td>
-        <td style="text-align:right;font-weight:600;background:#f0f0f0">${ti>0?ti.toLocaleString('ko-KR'):'-'}</td>
-        <td>${cell('baemin_request',br)}</td><td>${cell('other_request',or_)}</td><td>${cell('external_request',er)}</td>
-        <td style="text-align:right;font-weight:600;background:#f0f0f0">${tr_>0?tr_.toLocaleString('ko-KR'):'-'}</td>
-        <td style="text-align:right;color:#555;background:#f0fdf4">${rat(br,bi)}</td><td style="text-align:right;color:#555;background:#f0fdf4">${rat(or_,oi)}</td><td style="text-align:right;color:#555;background:#f0fdf4">${rat(er,ei)}</td>
+        <td style="text-align:center;font-weight:600">${m}월</td>
+        ${cell('baemin_input',bi)}${cell('other_input',oi)}${cell('external_input',ei)}
+        ${sumCell(ti, ga?.ti, '#e8f0e8')}
+        ${cell('baemin_request',br)}${cell('other_request',or_)}${cell('external_request',er)}
+        ${sumCell(tr_, ga?.tr_, '#e0e8f4')}
+        <td style="text-align:right;color:#555;background:#f0fdf4">${rat(br,bi)}</td>
+        <td style="text-align:right;color:#555;background:#f0fdf4">${rat(or_,oi)}</td>
+        <td style="text-align:right;color:#555;background:#f0fdf4">${rat(er,ei)}</td>
         <td style="text-align:right;font-weight:600;background:#f0fdf4">${rat(tr_,ti)}</td>
-        <td>${cell('baemin_next',bn)}</td><td>${cell('other_next',on_)}</td><td>${cell('external_next',en)}</td>
-        <td style="text-align:right;font-weight:600;background:#f0f0f0">${tn>0?tn.toLocaleString('ko-KR'):'-'}</td>
-        <td style="text-align:right;color:#555;background:#fff3cd">${rat(bn,bi)}</td><td style="text-align:right;color:#555;background:#fff3cd">${rat(on_,oi)}</td><td style="text-align:right;color:#555;background:#fff3cd">${rat(en,ei)}</td>
+        ${cell('baemin_next',bn)}${cell('other_next',on_)}${cell('external_next',en)}
+        ${sumCell(tn, ga?.tn, '#f4edd8')}
+        <td style="text-align:right;color:#555;background:#fff3cd">${rat(bn,bi)}</td>
+        <td style="text-align:right;color:#555;background:#fff3cd">${rat(on_,oi)}</td>
+        <td style="text-align:right;color:#555;background:#fff3cd">${rat(en,ei)}</td>
         <td style="text-align:right;font-weight:600;background:#fff3cd">${rat(tn,ti)}</td>
-        <td style="text-align:right;color:#555;background:#e8f4fd">${rat(bn,br)}</td><td style="text-align:right;color:#555;background:#e8f4fd">${rat(on_,or_)}</td><td style="text-align:right;color:#555;background:#e8f4fd">${rat(en,er)}</td>
+        <td style="text-align:right;color:#555;background:#e8f4fd">${rat(bn,br)}</td>
+        <td style="text-align:right;color:#555;background:#e8f4fd">${rat(on_,or_)}</td>
+        <td style="text-align:right;color:#555;background:#e8f4fd">${rat(en,er)}</td>
         <td style="text-align:right;font-weight:600;background:#e8f4fd">${rat(tn,tr_)}</td>
       </tr>`;
     }).join('');
 
-    const hdr = (txt, bg) => `style="background:${bg};color:#fff;text-align:center"`;
+    const th2s = (bg) => `<th style="background:${bg};color:#fff">네이버</th><th style="background:${bg};color:#fff">기타</th><th style="background:${bg};color:#fff">외부</th>`;
+    const sumTh = (bg) => `<th style="background:${bg};color:#fff;font-size:11px">합계<br><span style="font-weight:400;font-size:10px">(색상=전체평균비교)</span></th>`;
+    const ratTh = (bg) => `<th style="background:${bg};color:#fff">네이버</th><th style="background:${bg};color:#fff">기타</th><th style="background:${bg};color:#fff">외부</th><th style="background:${bg};color:#fff">합계</th>`;
+
     return `
-      <div style="font-size:12px;font-weight:700;color:#fff;background:#1b4332;padding:6px 12px;border-radius:6px 6px 0 0;margin-bottom:0">${yearLabel}</div>
-      <div style="overflow-x:auto;margin-bottom:20px">
-        <table class="sales-yts-table" style="min-width:1300px;border-collapse:collapse;width:100%">
+      <div style="font-size:12px;font-weight:700;color:#fff;background:#1b4332;padding:6px 12px;border-radius:6px 6px 0 0">${yearLabel}</div>
+      <div style="overflow-x:auto;margin-bottom:24px">
+        <table class="sales-yts-table" style="border-collapse:collapse;table-layout:fixed;width:1360px">
+          ${colgroup}
           <thead>
             <tr style="text-align:center">
-              <th rowspan="2" ${hdr('월','#1b4332')} style="min-width:44px;background:#1b4332;color:#fff;text-align:center">월</th>
-              <th colspan="4" ${hdr('유입량','#2d6a4f')}>유입량</th>
-              <th colspan="4" ${hdr('신청수','#1e4d8c')}>신청수</th>
-              <th colspan="4" style="background:#2d6a4f;color:#fff;text-align:center;font-size:11px">신청률<br>(신청수/유입량)</th>
-              <th colspan="4" ${hdr('완료수','#7b5e00')}>완료수</th>
-              <th colspan="4" style="background:#7b5e00;color:#fff;text-align:center;font-size:11px">유입대비 완료율<br>(완료수/유입량)</th>
-              <th colspan="4" style="background:#1e4d8c;color:#fff;text-align:center;font-size:11px">신청대비 완료율<br>(완료수/신청수)</th>
+              <th rowspan="2" style="background:#1b4332;color:#fff">월</th>
+              <th colspan="4" style="background:#2d6a4f;color:#fff">유입량</th>
+              <th colspan="4" style="background:#1e4d8c;color:#fff">신청수</th>
+              <th colspan="4" style="background:#2d6a4f;color:#fff;font-size:11px">신청률<br>(신청수/유입량)</th>
+              <th colspan="4" style="background:#7b5e00;color:#fff">완료수</th>
+              <th colspan="4" style="background:#7b5e00;color:#fff;font-size:11px">유입대비 완료율<br>(완료수/유입량)</th>
+              <th colspan="4" style="background:#1e4d8c;color:#fff;font-size:11px">신청대비 완료율<br>(완료수/신청수)</th>
             </tr>
             <tr style="text-align:center;font-size:12px">
-              <th style="background:#3a7d5e;color:#fff">네이버</th><th style="background:#3a7d5e;color:#fff">기타</th><th style="background:#3a7d5e;color:#fff">외부</th><th style="background:#3a7d5e;color:#fff">합계</th>
-              <th style="background:#2a5fa8;color:#fff">네이버</th><th style="background:#2a5fa8;color:#fff">기타</th><th style="background:#2a5fa8;color:#fff">외부</th><th style="background:#2a5fa8;color:#fff">합계</th>
-              <th style="background:#3a7d5e;color:#fff">네이버</th><th style="background:#3a7d5e;color:#fff">기타</th><th style="background:#3a7d5e;color:#fff">외부</th><th style="background:#3a7d5e;color:#fff">합계</th>
-              <th style="background:#9c7700;color:#fff">네이버</th><th style="background:#9c7700;color:#fff">기타</th><th style="background:#9c7700;color:#fff">외부</th><th style="background:#9c7700;color:#fff">합계</th>
-              <th style="background:#9c7700;color:#fff">네이버</th><th style="background:#9c7700;color:#fff">기타</th><th style="background:#9c7700;color:#fff">외부</th><th style="background:#9c7700;color:#fff">합계</th>
-              <th style="background:#2a5fa8;color:#fff">네이버</th><th style="background:#2a5fa8;color:#fff">기타</th><th style="background:#2a5fa8;color:#fff">외부</th><th style="background:#2a5fa8;color:#fff">합계</th>
+              ${th2s('#3a7d5e')}${sumTh('#3a7d5e')}
+              ${th2s('#2a5fa8')}${sumTh('#2a5fa8')}
+              ${ratTh('#3a7d5e')}
+              ${th2s('#9c7700')}${sumTh('#9c7700')}
+              ${ratTh('#9c7700')}
+              ${ratTh('#2a5fa8')}
             </tr>
           </thead>
           <tbody>${bodyRows}</tbody>
@@ -476,24 +512,106 @@ const Sales = {
       </div>`;
   },
 
+  // 전체연도 월별 평균 계산
+  computeGlobalAvg(allMaps) {
+    const globalAvg = {};
+    for (let m = 1; m <= 12; m++) {
+      const tis = [], trs = [], tns = [];
+      allMaps.forEach(map => {
+        const { ti, tr_, tn } = this.ytsCalc(map, m);
+        if (ti > 0) tis.push(ti);
+        if (tr_ > 0) trs.push(tr_);
+        if (tn > 0) tns.push(tn);
+      });
+      const avg = arr => arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : 0;
+      globalAvg[m] = { ti: avg(tis), tr_: avg(trs), tn: avg(tns) };
+    }
+    return globalAvg;
+  },
+
+  renderYtsCharts(map, cmpMap, year, cmpYear) {
+    if (!cmpMap) return;
+    const months = Array.from({ length: 12 }, (_, i) => i + 1);
+    const labels = months.map(m => `${m}월`);
+
+    const getArr = (m, key) => months.map(mo => this.ytsCalc(m, mo)[key]);
+
+    const makeChart = (id, label, key, curColor, cmpColor) => {
+      const canvas = document.getElementById(id);
+      if (!canvas || typeof Chart === 'undefined') return;
+      new Chart(canvas, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [
+            { label: `${year}년`, data: getArr(map, key), backgroundColor: curColor, borderRadius: 3 },
+            { label: `${cmpYear}년`, data: getArr(cmpMap, key), backgroundColor: cmpColor, borderRadius: 3 },
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'top', labels: { font: { size: 11 } } },
+            tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${Number(ctx.raw).toLocaleString('ko-KR')}` } }
+          },
+          scales: {
+            x: { grid: { display: false }, ticks: { font: { size: 11 } } },
+            y: { ticks: { font: { size: 11 }, callback: v => v >= 1e4 ? (v/1e4).toFixed(0)+'만' : v } }
+          }
+        }
+      });
+    };
+
+    makeChart('yts-chart-ti', '유입량합계', 'ti', 'rgba(45,106,79,0.8)', 'rgba(45,106,79,0.35)');
+    makeChart('yts-chart-tr', '신청수합계', 'tr_', 'rgba(30,77,140,0.8)', 'rgba(30,77,140,0.35)');
+    makeChart('yts-chart-tn', '완료수합계', 'tn', 'rgba(123,94,0,0.8)', 'rgba(123,94,0,0.35)');
+  },
+
   async renderYts() {
     const year = this.activeYear;
-    const rows = await API.get(`/api/sales/yts?year=${year}`);
-    const map = this.buildYtsMap(rows);
+    const allYears = this.years();
 
-    const allYears = this.years().filter(y => y !== year);
-    const yearOpts = allYears.map(y =>
+    // 모든 연도 데이터 병렬 로드 (전체평균 계산용)
+    const allData = await Promise.all(
+      allYears.map(y => API.get(`/api/sales/yts?year=${y}`).then(r => ({ y, map: this.buildYtsMap(r) })))
+    );
+    const allMaps = allData.map(d => d.map);
+    const globalAvg = this.computeGlobalAvg(allMaps);
+
+    const curData = allData.find(d => d.y === year);
+    const map = curData ? curData.map : {};
+
+    const cmpYears = allYears.filter(y => y !== year);
+    const yearOpts = cmpYears.map(y =>
       `<option value="${y}" ${y === this.ytsCompareYear ? 'selected' : ''}>${y}년</option>`).join('');
 
-    let compareHTML = '';
+    let cmpMap = null;
     if (this.ytsCompareYear) {
-      const cmpRows = await API.get(`/api/sales/yts?year=${this.ytsCompareYear}`);
-      const cmpMap = this.buildYtsMap(cmpRows);
-      compareHTML = this.ytsTableHTML(cmpMap, false, `${this.ytsCompareYear}년`);
+      const cd = allData.find(d => d.y === this.ytsCompareYear);
+      cmpMap = cd ? cd.map : {};
     }
 
+    const chartHTML = cmpMap ? `
+      <div style="margin-top:24px">
+        <h4 style="font-size:14px;font-weight:700;color:#1b4332;margin-bottom:12px">📊 연도별 비교 그래프 — ${year}년(진) vs ${this.ytsCompareYear}년(연)</h4>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px">
+          <div style="background:#fff;border:1px solid #dee2e6;border-radius:8px;padding:12px">
+            <div style="font-size:12px;font-weight:700;color:#2d6a4f;margin-bottom:8px">유입량 합계</div>
+            <div style="position:relative;height:220px"><canvas id="yts-chart-ti"></canvas></div>
+          </div>
+          <div style="background:#fff;border:1px solid #dee2e6;border-radius:8px;padding:12px">
+            <div style="font-size:12px;font-weight:700;color:#1e4d8c;margin-bottom:8px">신청수 합계</div>
+            <div style="position:relative;height:220px"><canvas id="yts-chart-tr"></canvas></div>
+          </div>
+          <div style="background:#fff;border:1px solid #dee2e6;border-radius:8px;padding:12px">
+            <div style="font-size:12px;font-weight:700;color:#7b5e00;margin-bottom:8px">완료수 합계</div>
+            <div style="position:relative;height:220px"><canvas id="yts-chart-tn"></canvas></div>
+          </div>
+        </div>
+      </div>` : '';
+
     document.getElementById('sales-tab-content').innerHTML = `
-      <p style="font-size:12px;color:#6c757d;margin-bottom:10px">※ 네이버 = 네이버 예약 | 기타 = 페이스북, 인스타그램 등 | 외부 = 구글 등 | 신청률 = 신청수/유입량 | 유입대비완료율 = 완료수/유입량 | 신청대비완료율 = 완료수/신청수</p>
+      <p style="font-size:12px;color:#6c757d;margin-bottom:10px">※ 네이버 = 네이버 예약 | 기타 = 페이스북·인스타그램 등 | 외부 = 구글 등 | 합계 셀 색상: <span style="color:#dc3545;font-weight:600">빨강=전체평균↑</span> <span style="color:#1565c0;font-weight:600">파랑=전체평균↓</span></p>
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
         <label style="font-size:13px;font-weight:600">비교 연도</label>
         <select id="yts-cmp-year" onchange="Sales.onChangeYtsCmpYear()" style="padding:5px 10px;border:1px solid #dee2e6;border-radius:6px;font-size:13px">
@@ -501,14 +619,17 @@ const Sales = {
           ${yearOpts}
         </select>
       </div>
-      ${this.ytsTableHTML(map, true, `${year}년`)}
-      ${compareHTML}
+      ${this.ytsTableHTML(map, true, `${year}년`, globalAvg)}
+      ${cmpMap ? this.ytsTableHTML(cmpMap, false, `${this.ytsCompareYear}년`, globalAvg) : ''}
+      ${chartHTML}
       <style>
         .yts-input { border:1px solid transparent;border-radius:4px;padding:3px 4px;font-size:12px;width:100%;box-sizing:border-box;background:transparent;text-align:right }
         .yts-input:focus { border-color:#1b4332;outline:none;background:#fff }
-        .sales-yts-table td { padding:4px 6px;font-size:12px;border-bottom:1px solid #f0f0f0 }
-        .sales-yts-table th { padding:6px 8px;font-size:12px }
+        .sales-yts-table td { padding:4px 6px;font-size:12px;border-bottom:1px solid #f0f0f0;overflow:hidden }
+        .sales-yts-table th { padding:5px 4px;font-size:11px }
       </style>`;
+
+    if (cmpMap) this.renderYtsCharts(map, cmpMap, year, this.ytsCompareYear);
   },
 
   async onChangeYtsCmpYear() {
