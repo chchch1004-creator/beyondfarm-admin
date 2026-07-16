@@ -9,14 +9,35 @@ function requireSuperAdmin(req, res, next) {
   next();
 }
 
-router.get('/revenue', requireSuperAdmin, async (req, res) => {
+// 해당 page에 대한 보기 권한 또는 총괄관리자 허용
+function requirePageView(page) {
+  return async (req, res, next) => {
+    if (!req.session.user) return res.status(401).json({ error: '로그인 필요' });
+    if (req.session.user.role === 'superadmin') return next();
+    const row = await getDb().prepare('SELECT can_view FROM user_permissions WHERE user_id=? AND page=?').get(req.session.user.id, page);
+    if (row?.can_view) return next();
+    res.status(403).json({ error: '접근 권한이 없습니다' });
+  };
+}
+
+function requirePageEdit(page) {
+  return async (req, res, next) => {
+    if (!req.session.user) return res.status(401).json({ error: '로그인 필요' });
+    if (req.session.user.role === 'superadmin') return next();
+    const row = await getDb().prepare('SELECT can_edit FROM user_permissions WHERE user_id=? AND page=?').get(req.session.user.id, page);
+    if (row?.can_edit) return next();
+    res.status(403).json({ error: '수정 권한이 없습니다' });
+  };
+}
+
+router.get('/revenue', requirePageView('sales'), async (req, res) => {
   try {
     const year = parseInt(req.query.year) || new Date().getFullYear();
     res.json(await db.prepare('SELECT * FROM sales_revenue WHERE year=? ORDER BY month').all(year));
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-router.post('/revenue', requireSuperAdmin, async (req, res) => {
+router.post('/revenue', requirePageEdit('sales'), async (req, res) => {
   try {
     const { year, month, working_days, baemin, other_sales, other_income, note } = req.body;
     await db.prepare(`INSERT INTO sales_revenue (year, month, working_days, baemin, other_sales, other_income, note)
@@ -29,14 +50,14 @@ router.post('/revenue', requireSuperAdmin, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-router.get('/yts', requireSuperAdmin, async (req, res) => {
+router.get('/yts', requirePageView('inflow'), async (req, res) => {
   try {
     const year = parseInt(req.query.year) || new Date().getFullYear();
     res.json(await db.prepare('SELECT * FROM sales_yts WHERE year=? ORDER BY month').all(year));
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-router.post('/yts', requireSuperAdmin, async (req, res) => {
+router.post('/yts', requirePageEdit('inflow'), async (req, res) => {
   try {
     const { year, month, baemin_input, other_input, external_input,
             baemin_request, other_request, external_request,
