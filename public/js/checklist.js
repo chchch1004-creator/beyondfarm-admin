@@ -140,16 +140,55 @@ const Checklist = (() => {
         state.data[ts] = emptyTimeslot();
       }
     }));
+    autoFillTwoTime();
+  }
+
+  // 복수 타임슬롯에 같은 이름이 있으면 two_time 자동 입력 (비어있는 경우만)
+  function autoFillTwoTime() {
+    const nameToSlots = {};
+    TIMESLOTS.forEach(ts => {
+      const d = state.data[ts];
+      [...(d.tent4||[]), ...(d.tent2||[]), ...(d.tent8||[])].forEach(r => {
+        if (!r.name) return;
+        if (!nameToSlots[r.name]) nameToSlots[r.name] = [];
+        if (!nameToSlots[r.name].includes(ts)) nameToSlots[r.name].push(ts);
+      });
+    });
+    let changed = false;
+    TIMESLOTS.forEach(ts => {
+      const d = state.data[ts];
+      [...(d.tent4||[]), ...(d.tent2||[]), ...(d.tent8||[])].forEach(r => {
+        if (!r.name || r.two_time) return;
+        const slots = nameToSlots[r.name];
+        if (slots && slots.length > 1) {
+          r.two_time = slots.join(' ');
+          changed = true;
+        }
+      });
+    });
+    if (changed) {
+      TIMESLOTS.forEach(ts => {
+        const d = state.data[ts];
+        recalcSummary(d, ts);
+        API.put(`/api/checklist/${state.date}/${ts}`, d).catch(() => {});
+      });
+    }
   }
 
   function renderUI() {
     document.getElementById('content').innerHTML = `
       <div class="card" style="margin-bottom:12px">
-        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
           <label style="font-weight:600">날짜</label>
+          <button onclick="Checklist.moveDate(-1)"
+            style="padding:4px 10px;border:1px solid #ddd;border-radius:6px;background:#f8f9fa;
+                   font-size:15px;cursor:pointer;line-height:1">◀</button>
           <input type="date" id="cl-date" value="${state.date}"
             onchange="Checklist.changeDate()"
             style="padding:5px 10px;border:1px solid #ddd;border-radius:6px;font-size:14px">
+          <button onclick="Checklist.moveDate(1)"
+            style="padding:4px 10px;border:1px solid #ddd;border-radius:6px;background:#f8f9fa;
+                   font-size:15px;cursor:pointer;line-height:1">▶</button>
         </div>
       </div>
 
@@ -546,6 +585,16 @@ const Checklist = (() => {
     renderUI();
   }
 
+  async function moveDate(delta) {
+    const d = new Date(state.date);
+    d.setDate(d.getDate() + delta);
+    state.date = d.toISOString().slice(0, 10);
+    state.tab = 'slot';
+    state.timeslot = '11';
+    await loadAllSlots();
+    renderUI();
+  }
+
   function addExtraRow() {
     const d = getCurrentData();
     if (!d.extra) d.extra = [];
@@ -563,7 +612,7 @@ const Checklist = (() => {
   }
 
   return {
-    render, switchSlot, switchTab, changeDate,
+    render, switchSlot, switchTab, changeDate, moveDate,
     addExtraRow, removeExtraRow, onRowInput,
     onDragStart, onDragOver, onDragEnter, onDragLeave, onDrop, onDragEnd,
   };
