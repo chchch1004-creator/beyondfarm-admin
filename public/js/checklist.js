@@ -189,6 +189,16 @@ const Checklist = (() => {
           <button onclick="Checklist.moveDate(1)"
             style="padding:4px 10px;border:1px solid #ddd;border-radius:6px;background:#f8f9fa;
                    font-size:15px;cursor:pointer;line-height:1">▶</button>
+          ${state.editable ? `
+          <div style="margin-left:auto">
+            <input type="file" id="cl-excel-input" accept=".xlsx,.xls" style="display:none"
+              onchange="Checklist.uploadExcel(this)">
+            <button onclick="document.getElementById('cl-excel-input').click()"
+              style="padding:6px 14px;border:1px solid #16a34a;border-radius:6px;background:#f0fdf4;
+                     color:#15803d;font-size:13px;font-weight:600;cursor:pointer">
+              📥 네이버 예약 가져오기
+            </button>
+          </div>` : ''}
         </div>
       </div>
 
@@ -611,9 +621,35 @@ const Checklist = (() => {
     silentSave();
   }
 
+  async function uploadExcel(input) {
+    const file = input.files[0];
+    if (!file) return;
+    input.value = '';
+    const btn = document.querySelector('button[onclick*="cl-excel-input"]');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ 처리 중...'; }
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await fetch('/api/checklist/upload-excel', {
+        method: 'POST', body: fd,
+        credentials: 'include',
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || '업로드 실패');
+      state.date = json.date;
+      state.tab = 'slot';
+      state.timeslot = '11';
+      await loadAllSlots();
+      renderUI();
+    } catch (e) {
+      alert('엑셀 업로드 실패: ' + e.message);
+      if (btn) { btn.disabled = false; btn.textContent = '📥 네이버 예약 가져오기'; }
+    }
+  }
+
   return {
     render, switchSlot, switchTab, changeDate, moveDate,
-    addExtraRow, removeExtraRow, onRowInput,
+    addExtraRow, removeExtraRow, onRowInput, uploadExcel,
     onDragStart, onDragOver, onDragEnter, onDragLeave, onDrop, onDragEnd,
   };
 })();
