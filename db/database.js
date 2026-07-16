@@ -412,6 +412,98 @@ async function init() {
     console.log('매출 초기 데이터 삽입 완료');
   }
 
+  // 7월 18일 인원체크리스트 초기 데이터 시드
+  const existingCL = await client.execute({ sql: "SELECT COUNT(*) as cnt FROM checklist_data WHERE date='2026-07-18'", args: [] });
+  if (!existingCL.rows[0]?.cnt) {
+    const T4 = (no, prod, name, reserved, two_time, child_pool, adult_pool, bulmung, adult_only) => ({
+      tent_no: String(no), product: prod || '', visit_count: '', name: name || '', reserved: reserved || '',
+      actual: '', two_time: two_time || '', play: '', child_pool: child_pool || '', adult_pool: adult_pool || '',
+      bulmung: bulmung || '', adult_only: adult_only || '', memo: ''
+    });
+    const EMPTY = (no) => T4(no, '', '', '', '', '', '', '', '');
+    const T8_ROWS = ['A','B','C','D','E','F','G','H','J','K','L','P','S','티켓'];
+    const emptyT8 = T8_ROWS.map(no => EMPTY(no));
+
+    const slot11 = {
+      summary: { bulmung_count:'', play_count:'', child_pool:'', adult_pool:'', total_pool:'', tent4:'', tent2:'', tent8:'', group20:'', group30:'', total:'' },
+      tent4: [
+        T4(0,'m','권민희',6,'11 15',2,4,'',''),
+        T4(1,'m','고정임',4,'11 15','','','',''),
+        T4(2,'m','국화',5,'',1,3,'',''),
+        T4(3,'s','한을',5,'',2,'','',''),
+        T4(4,'s','박은경',3,'',1,1,'',''),
+        T4(5,'s','최효경',3,'',1,1,'',''),
+      ],
+      tent2: ['6','7','8','9','10','11'].map(n => EMPTY(n)),
+      tent8: [
+        T4('A','L','김민선',10,'',4,'','',''),
+        ...T8_ROWS.slice(1).map(n => EMPTY(n)),
+      ],
+      extra: [],
+    };
+
+    const slot15 = {
+      summary: { bulmung_count:'', play_count:'', child_pool:'', adult_pool:'', total_pool:'', tent4:'', tent2:'', tent8:'', group20:'', group30:'', total:'' },
+      tent4: [
+        T4(0,'m','권민희',4,'11 15','','','',''),
+        T4(1,'m','고정임',4,'11 15',1,1,'',''),
+        T4(2,'m','김정현',6,'',2,'',1,''),
+        T4(3,'m','박기범',6,'',2,2,'',''),
+        T4(4,'m','김효정',5,'',1,2,'',''),
+        T4(5,'m','천호진',5,'',1,3,'',''),
+      ],
+      tent2: [
+        T4(6,'m','허지영',4,'',2,'','',''),
+        T4(7,'m','김연서',4,'','','','',1),
+        T4(8,'m','이지원',4,'','','','',''),
+        EMPTY(9), EMPTY(10), EMPTY(11),
+      ],
+      tent8: [
+        T4('A','L','유상림',8,'15 19','','','',''),
+        T4('B','L','최대현',10,'',4,2,'',''),
+        T4('C','L','강유나',8,'','','','',''),
+        T4('D','L','박성미(박성미)',8,'',4,3,'',''),
+        T4('E','L','한정은',7,'',2,4,'',''),
+        T4('F','L','김시훈',7,'',2,'','',''),
+        ...T8_ROWS.slice(6).map(n => EMPTY(n)),
+      ],
+      extra: [],
+    };
+
+    const slot19 = {
+      summary: { bulmung_count:'', play_count:'', child_pool:'', adult_pool:'', total_pool:'', tent4:'', tent2:'', tent8:'', group20:'', group30:'', total:'' },
+      tent4: [
+        T4(0,'s','강태훈',7,'','','',1,''),
+        T4(1,'m','구경모',4,'','','','',1),
+        T4(2,'s','박종완',3,'','','','',''),
+        T4(3,'s','한승주',2,'','','','',1),
+        T4(4,'s','이다은',2,'','','','',''),
+        T4(5,'s','김소영',2,'','','',1,1),
+      ],
+      tent2: [
+        T4(6,'s','송태석',2,'','','',1,1),
+        EMPTY(7), EMPTY(8), EMPTY(9), EMPTY(10), EMPTY(11),
+      ],
+      tent8: [
+        T4('A','L','유상림',8,'15 19','','',1,''),
+        T4('B','단체20','유인환',20,'','','','',''),
+        T4('C','단체20','유인환','','','','','',''),
+        ...T8_ROWS.slice(3).map(n => EMPTY(n)),
+      ],
+      extra: [],
+    };
+
+    for (const [ts, data] of [['11', slot11], ['15', slot15], ['19', slot19]]) {
+      try {
+        await client.execute({
+          sql: "INSERT OR IGNORE INTO checklist_data (date, timeslot, data) VALUES ('2026-07-18', ?, ?)",
+          args: [ts, JSON.stringify(data)]
+        });
+      } catch {}
+    }
+    console.log('7월 18일 인원체크리스트 초기 데이터 삽입 완료');
+  }
+
   _db = wrap(client);
   return _db;
 }
