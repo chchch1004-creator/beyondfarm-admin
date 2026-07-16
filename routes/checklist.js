@@ -10,9 +10,10 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 
 const TENT8_LABELS = ['A','B','C','D','E','F','G','H','J','K','L','P','S'];
 
 function parseNaverExcel(buffer) {
-  const wb = xlsx.read(buffer, { type: 'buffer', cellDates: true });
+  // raw:false → 날짜/시간 셀을 Date 객체 대신 포맷된 문자열로 반환 (UTC 타임존 이슈 방지)
+  const wb = xlsx.read(buffer, { type: 'buffer' });
   const ws = wb.Sheets[wb.SheetNames[0]];
-  const rows = xlsx.utils.sheet_to_json(ws, { header: 1, defval: '' });
+  const rows = xlsx.utils.sheet_to_json(ws, { header: 1, defval: '', raw: false });
 
   // 헤더 행 동적 탐색: "예약번호", "상태", "예약자명" 등의 키워드로 헤더 위치 찾기
   let headerRow = -1;
