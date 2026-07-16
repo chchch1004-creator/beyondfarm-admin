@@ -25,7 +25,7 @@ function parseNaverExcel(buffer) {
       if (v.includes('예약번호') || v.includes('주문번호')) { if (colOrderNo < 0) { colOrderNo = j; headerRow = i; } }
       if (v === '상태' || v === '예약상태') { if (colStatus < 0) colStatus = j; }
       if ((v.includes('예약자') && v.includes('명')) || v === '예약자명') colName = j;
-      if (v.includes('상품명') || v.includes('예약상품') || v === '상품구분' || v === '상품') { if (colProduct < 0) colProduct = j; }
+      if (v === '상품구분' || v === '예약상품명' || v.includes('상품구분') || v.includes('예약상품명')) { if (colProduct < 0) colProduct = j; }
       if (v.includes('방문일') || v.includes('예약일') || v.includes('이용일시') || v.includes('방문일시')) colDateTime = j;
       if (v.includes('옵션') || v.includes('추가상품') || v.includes('가격분류')) { if (colOption < 0) colOption = j; }
     }
