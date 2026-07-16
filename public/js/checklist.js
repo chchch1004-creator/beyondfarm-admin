@@ -657,7 +657,7 @@ const Checklist = (() => {
     try {
       const res = await fetch(`/api/checklist/${state.date}`, { method: 'DELETE', credentials: 'include' });
       if (!res.ok) throw new Error((await res.json()).error);
-      Object.keys(state.slots).forEach(k => delete state.slots[k]);
+      state.data = {};
       renderUI();
     } catch (e) { alert('삭제 실패: ' + e.message); }
   }
