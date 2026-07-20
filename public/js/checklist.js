@@ -771,7 +771,10 @@ const Checklist = (() => {
     const [sa, si] = resolveRow(srcSection, srcIdx);
     const [da, di] = resolveRow(section, idx);
     if (!sa || !da) return;
+    const srcName = sa[si]?.name || '';
+    const dstName = da[di]?.name || '';
     swapData(sa[si], da[di]);
+    sendLog({ tent_no: sa[si]?.tent_no ?? '', field: '', old_value: dstName, new_value: srcName, action: '자리이동' });
 
     recalcSummary(d, state.timeslot);
     _refreshPanel();
@@ -879,12 +882,13 @@ const Checklist = (() => {
       el._logTimer = setTimeout(() => {
         const newVal = el.value;
         if (newVal !== oldVal) {
+          const action = !oldVal ? '입력' : !newVal ? '삭제' : '수정';
           sendLog({
             tent_no: d[section][idx]?.tent_no ?? '',
             field,
             old_value: oldVal,
             new_value: newVal,
-            action: 'edit',
+            action,
           });
           _cellOldVal.set(cellKey, newVal);
         }
@@ -1018,7 +1022,7 @@ const Checklist = (() => {
         body.innerHTML = '<div style="color:#94a3b8;text-align:center;padding:16px">로그가 없습니다</div>';
         return;
       }
-      const ACTION_LABEL = { edit: '수정', clear: '한줄삭제', delete: '타임삭제', upload: '엑셀업로드', drag: '순서이동' };
+      const ACTION_LABEL = { '입력':'입력', '수정':'수정', '삭제':'삭제', '한줄삭제':'한줄삭제', '자리이동':'자리이동', clear:'한줄삭제', delete:'타임삭제', upload:'엑셀업로드' };
       body.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:12px;min-width:600px">
         <thead><tr style="background:#f1f5f9">
           <th style="padding:6px 8px;text-align:left;border-bottom:2px solid #e2e8f0;white-space:nowrap">시각</th>
@@ -1034,7 +1038,10 @@ const Checklist = (() => {
         <tbody>${rows.map((r,i) => {
           const bg = i%2===0?'#fff':'#f8fafc';
           const act = ACTION_LABEL[r.action] || r.action;
-          const actColor = r.action==='clear'||r.action==='delete'?'#dc2626':r.action==='upload'?'#7c3aed':'#2563eb';
+          const actColor = (r.action==='삭제'||r.action==='한줄삭제'||r.action==='clear')?'#dc2626'
+            : r.action==='입력'?'#16a34a'
+            : r.action==='자리이동'?'#ea580c'
+            : r.action==='upload'?'#7c3aed':'#2563eb';
           return `<tr style="background:${bg}">
             <td style="padding:5px 8px;border-bottom:1px solid #f1f5f9;color:#64748b;white-space:nowrap">${r.created_at?.slice(0,16)||''}</td>
             <td style="padding:5px 8px;border-bottom:1px solid #f1f5f9;font-weight:600">${r.username||''}</td>
