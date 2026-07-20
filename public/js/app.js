@@ -137,7 +137,7 @@ const App = {
     if (navSettings) navSettings.style.display = isSuperAdmin ? '' : 'none';
 
     // 접근 제어: mypage·settings는 항상 허용
-    if (page !== 'mypage' && page !== 'settings') {
+    if (page !== 'mypage' && page !== 'settings' && page !== 'announcement') {
       if (!App.canView(page)) {
         document.getElementById('content').innerHTML = '<div class="empty-state"><div class="icon">🔒</div>접근 권한이 없습니다</div>';
         return;
