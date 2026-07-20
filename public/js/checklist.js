@@ -361,7 +361,7 @@ const Checklist = (() => {
 
       const pool = (parseInt(row.child_pool)||0) + (parseInt(row.adult_pool)||0);
       const td = (content, extra='') =>
-        `<td style="padding:4px 2px;text-align:center;font-size:11px;border-bottom:1px solid #e5e7eb;${divBorder}${extra}">${content}</td>`;
+        `<td style="padding:3px 1px;text-align:center;font-size:10px;border-bottom:1px solid #e5e7eb;${divBorder}${extra}">${content}</td>`;
       const dot = (val, bg) => val ? `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${bg}"></span>` : '';
 
       return `<tr style="background:${rowBg};${divBorder}cursor:pointer" onclick="(function(){
@@ -373,7 +373,7 @@ const Checklist = (() => {
         ${td(row.name||'', `font-size:11px;font-weight:600;text-align:left;padding-left:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;${nameBg?'background:'+nameBg+';':''}`)}
         ${td(row.reserved||'')}
         ${td(row.actual||'')}
-        ${td(row.two_time ? `<span style="background:${two_bg};border-radius:3px;padding:1px 3px;font-size:9px">${row.two_time}</span>` : '')}
+        ${td(row.two_time ? `<span style="background:${two_bg};border-radius:3px;padding:1px 2px;font-size:8px;white-space:nowrap">${row.two_time}</span>` : '')}
         ${td(row.play||'')}
         ${td(pool||'')}
         ${td(dot(row.bulmung,'#fbbf24'))}
@@ -388,12 +388,12 @@ const Checklist = (() => {
         <div style="font-weight:700;font-size:12px;color:#1e40af;padding:3px 0 4px">${title}</div>
         <table style="width:100%;border-collapse:collapse;table-layout:fixed;font-size:11px">
           <colgroup>
-            <col style="width:26px">
-            <col style="width:58px">
-            <col style="width:26px"><col style="width:26px">
-            <col style="width:38px">
+            <col style="width:20px">
+            <col style="width:40px">
             <col style="width:22px"><col style="width:22px">
+            <col style="width:32px">
             <col style="width:18px"><col style="width:18px">
+            <col style="width:14px"><col style="width:14px">
           </colgroup>
           <thead><tr style="background:#1e40af;color:#fff">
             ${th('번호')}${th('이름','left')}${th('예약')}${th('입장')}
