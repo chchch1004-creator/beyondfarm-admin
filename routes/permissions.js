@@ -15,6 +15,7 @@ const PAGES = [
   { key: 'sales',                 label: '매출현황' },
   { key: 'inflow',                label: '유입량' },
   { key: 'checklist',            label: '인원체크리스트' },
+  { key: 'announcement',         label: '안내방송' },
 ];
 
 function requireSuperAdmin(req, res, next) {
