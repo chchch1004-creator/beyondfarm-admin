@@ -15,11 +15,11 @@ const Checklist = (() => {
     { key: 'play',         label: '플레이',     w: 28 },
     { key: 'child_pool',   label: '아이풀장',   w: 30 },
     { key: 'adult_pool',   label: '성인풀장',   w: 30 },
-    { key: 'bulmung',      label: '불멍세트',   w: 30 },
+    { key: 'bulmung',      label: '불멍',       w: 24 },
     { key: 'adult_only',   label: '성인만',     w: 34 },
     { key: 'extra_hour',      label: '1시간추가',  w: 40 },
     { key: 'prev_extra_hour', label: '전타임1시간', w: 50, readOnly: true },
-    { key: 'car',             label: '차량',       w: 64 },
+    { key: 'car',             label: '차량',       w: 70 },
     { key: 'memo',         label: '비고',       w: 256 },
   ];
 
@@ -583,7 +583,7 @@ const Checklist = (() => {
     if (key === 'two_time')        return twoTimeBg(row.two_time);
     if (key === 'name')            return row.actual ? '#bae6fd' : '';
     if (key === 'extra_hour')      return row.extra_hour ? '#fca5a5' : '';
-    if (key === 'prev_extra_hour') return row.prev_extra_hour ? '#fca5a5' : '';
+    if (key === 'prev_extra_hour') return row.prev_extra_hour ? '#bbf7d0' : '';
     return '';
   }
 
