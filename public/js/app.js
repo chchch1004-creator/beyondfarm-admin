@@ -126,7 +126,7 @@ const App = {
     const isSuperAdmin = App.user.role === 'superadmin';
 
     // 메뉴 표시/숨김: 권한 기반
-    const navPages = ['dashboard','employees','attendance','leaves','salary','finance','inventory','timesheet','shareholder_timesheet','sales','inflow','checklist'];
+    const navPages = ['dashboard','employees','attendance','leaves','salary','finance','inventory','timesheet','shareholder_timesheet','sales','inflow','checklist','announcement'];
     navPages.forEach(p => {
       const el = document.querySelector(`#sidebar [data-page="${p}"]`);
       if (el) el.style.display = App.canView(p) ? '' : 'none';
@@ -137,7 +137,7 @@ const App = {
     if (navSettings) navSettings.style.display = isSuperAdmin ? '' : 'none';
 
     // 접근 제어: mypage·settings는 항상 허용
-    if (page !== 'mypage' && page !== 'settings' && page !== 'announcement') {
+    if (page !== 'mypage' && page !== 'settings') {
       if (!App.canView(page)) {
         document.getElementById('content').innerHTML = '<div class="empty-state"><div class="icon">🔒</div>접근 권한이 없습니다</div>';
         return;
