@@ -9,16 +9,16 @@ const Checklist = (() => {
     { key: 'product',      label: '예약상품',   w: 36 },
     { key: 'visit_count',  label: '방문횟수',   w: 38 },
     { key: 'name',         label: '예약자성함', w: 52 },
-    { key: 'reserved',     label: '예약인원',   w: 44 },
-    { key: 'actual',       label: '입장시인원', w: 40 },
-    { key: 'two_time',     label: '2타임여부',  w: 48 },
-    { key: 'play',         label: '플레이',     w: 34 },
-    { key: 'child_pool',   label: '아이풀장',   w: 38 },
-    { key: 'adult_pool',   label: '성인풀장',   w: 38 },
-    { key: 'bulmung',      label: '불멍세트',   w: 38 },
+    { key: 'reserved',     label: '예약인원',   w: 34 },
+    { key: 'actual',       label: '입장인원',   w: 34 },
+    { key: 'two_time',     label: '2타임여부',  w: 38 },
+    { key: 'play',         label: '플레이',     w: 28 },
+    { key: 'child_pool',   label: '아이풀장',   w: 30 },
+    { key: 'adult_pool',   label: '성인풀장',   w: 30 },
+    { key: 'bulmung',      label: '불멍세트',   w: 30 },
     { key: 'adult_only',   label: '성인만',     w: 34 },
     { key: 'extra_hour',   label: '1시간추가',  w: 40 },
-    { key: 'car',          label: '차량',       w: 34 },
+    { key: 'car',          label: '차량',       w: 64 },
     { key: 'memo',         label: '비고',       w: 256 },
   ];
 
@@ -529,21 +529,22 @@ const Checklist = (() => {
       (section === 'mtent' && (idx === 1 || idx === 6)) ||
       (section === 'tent8' && idx === 7)
     ) ? 'border-top:3px solid #94a3b8;' : '';
-    const dragAttrs = E ? `draggable="true"
-      ondragstart="Checklist.onDragStart(event,'${section}',${idx})"
+    const trDropAttrs = E ? `
       ondragover="Checklist.onDragOver(event)"
       ondragenter="Checklist.onDragEnter(event,'${section}',${idx})"
       ondragleave="Checklist.onDragLeave(event)"
-      ondrop="Checklist.onDrop(event,'${section}',${idx})"
-      ondragend="Checklist.onDragEnd(event)"` : '';
-    return `<tr style="background:${bg};${divider}" ${dragAttrs}>
+      ondrop="Checklist.onDrop(event,'${section}',${idx})"` : '';
+    return `<tr style="background:${bg};${divider}" ${trDropAttrs}>
       ${COLS.map((c, ci) => {
         const val = row[c.key] ?? '';
         const tdBg = cellBg(c.key, row);
         const baseStyle = `border-bottom:1px solid #e5e7eb;${divider}${tdBg?'background:'+tdBg+';':''}`;
         if (ci === 0) {
-          const handle = E ? '<span style="color:#ccc;font-size:10px;margin-right:2px;vertical-align:middle">⠿</span>' : '';
-          return `<td style="text-align:center;padding:4px 3px;${baseStyle}font-weight:600;color:#374151;${E?'cursor:grab;user-select:none':''}">${handle}${val}</td>`;
+          const handleAttrs = E ? `draggable="true"
+            ondragstart="Checklist.onDragStart(event,'${section}',${idx})"
+            ondragend="Checklist.onDragEnd(event)"` : '';
+          const handle = E ? `<span ${handleAttrs} style="color:#bbb;font-size:12px;margin-right:2px;vertical-align:middle;cursor:grab;user-select:none;display:inline-block;padding:0 2px">⠿</span>` : '';
+          return `<td style="text-align:center;padding:4px 3px;${baseStyle}font-weight:600;color:#374151;">${handle}${val}</td>`;
         }
         if (!E) return `<td style="text-align:center;padding:4px 3px;${baseStyle}">${val}</td>`;
         return `<td id="td-${section}-${idx}-${c.key}" style="padding:2px 2px;${baseStyle}">
@@ -672,7 +673,8 @@ const Checklist = (() => {
   function onDragStart(e, section, idx) {
     _dragState = { section, idx };
     e.dataTransfer.effectAllowed = 'move';
-    e.currentTarget.style.opacity = '0.4';
+    const tr = e.currentTarget.closest('tr');
+    if (tr) tr.style.opacity = '0.4';
   }
 
   function onDragOver(e) {
@@ -721,8 +723,8 @@ const Checklist = (() => {
   }
 
   function onDragEnd(e) {
-    e.currentTarget.style.opacity = '';
-    e.currentTarget.style.outline = '';
+    const tr = e.currentTarget.closest('tr');
+    if (tr) { tr.style.opacity = ''; tr.style.outline = ''; }
     _dragState = null;
   }
 
