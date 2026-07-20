@@ -223,7 +223,13 @@ const Checklist = (() => {
             style="padding:4px 10px;border:1px solid #ddd;border-radius:6px;background:#f8f9fa;
                    font-size:15px;cursor:pointer;line-height:1">▶</button>
           ${state.editable ? `
-          <div style="margin-left:auto">
+          <div style="margin-left:auto;display:flex;align-items:center;gap:6px">
+            <button onclick="Checklist.undo()" title="되돌리기 (Ctrl+Z)"
+              style="padding:6px 10px;border:1px solid #64748b;border-radius:6px;background:#f8fafc;
+                     color:#374151;font-size:13px;font-weight:600;cursor:pointer">↩ 되돌리기</button>
+            <button onclick="Checklist.redo()" title="앞으로가기 (Ctrl+Y)"
+              style="padding:6px 10px;border:1px solid #64748b;border-radius:6px;background:#f8fafc;
+                     color:#374151;font-size:13px;font-weight:600;cursor:pointer">↪ 앞으로</button>
             <input type="file" id="cl-excel-input" accept=".xlsx,.xls" style="display:none"
               onchange="Checklist.uploadExcel(this)">
             <button onclick="document.getElementById('cl-excel-input').click()"
@@ -233,7 +239,7 @@ const Checklist = (() => {
             </button>
             <button onclick="Checklist.deleteDate()"
               style="padding:6px 14px;border:1px solid #dc2626;border-radius:6px;background:#fef2f2;
-                     color:#dc2626;font-size:13px;font-weight:600;cursor:pointer;margin-left:6px">
+                     color:#dc2626;font-size:13px;font-weight:600;cursor:pointer">
               🗑 날짜 삭제
             </button>
           </div>` : ''}
@@ -317,8 +323,8 @@ const Checklist = (() => {
       + extraSection(d.extra||[], E);
   }
 
-  function colgroup() {
-    return `<colgroup>${COLS.map(c=>`<col style="width:${c.w}px;min-width:${c.w}px">`).join('')}</colgroup>`;
+  function colgroup(withClear) {
+    return `<colgroup>${COLS.map(c=>`<col style="width:${c.w}px;min-width:${c.w}px">`).join('')}${withClear?`<col style="width:${DEL_COL_W}px">`:''}</colgroup>`;
   }
 
   // 티켓 테이블용 colgroup: memo를 DEL_COL_W만큼 줄여서 삭제버튼 컬럼 포함 시 전체 폭 동일
@@ -343,7 +349,7 @@ const Checklist = (() => {
         <div style="font-weight:700;font-size:13px;color:#1e40af;padding:6px 0 5px">${title}${dragHint}</div>
         <div style="overflow-x:auto">
           <table style="border-collapse:collapse;table-layout:fixed;font-size:12px">
-            ${colgroup()}${thead(false)}
+            ${colgroup(E)}${thead(E)}
             <tbody>${rows.map((row,idx) => trHtml(row, idx, section, E, false)).join('')}</tbody>
           </table>
         </div>
@@ -383,10 +389,7 @@ const Checklist = (() => {
         const baseStyle = `border-bottom:1px solid #e5e7eb;${divider}${tdBg?'background:'+tdBg+';':''}`;
         if (ci === 0) {
           const handle = E ? '<span style="color:#ccc;font-size:10px;margin-right:2px;vertical-align:middle">⠿</span>' : '';
-          const clrBtn = E ? `<button onclick="Checklist.clearRow('${section}',${idx})" title="한 줄 지우기"
-            style="border:none;background:none;color:#cbd5e1;cursor:pointer;font-size:13px;line-height:1;padding:0;margin-left:1px;vertical-align:middle"
-            onmouseover="this.style.color='#e53e3e'" onmouseout="this.style.color='#cbd5e1'">×</button>` : '';
-          return `<td style="text-align:center;padding:4px 2px;${baseStyle}font-weight:600;color:#374151;${E?'cursor:grab;user-select:none':''}">${handle}${val}${clrBtn}</td>`;
+          return `<td style="text-align:center;padding:4px 3px;${baseStyle}font-weight:600;color:#374151;${E?'cursor:grab;user-select:none':''}">${handle}${val}</td>`;
         }
         if (!E) return `<td style="text-align:center;padding:4px 3px;${baseStyle}">${val}</td>`;
         return `<td id="td-${section}-${idx}-${c.key}" style="padding:2px 2px;${baseStyle}">
@@ -398,9 +401,13 @@ const Checklist = (() => {
                    padding:3px 2px;font-size:12px;text-align:center;background:transparent">
         </td>`;
       }).join('')}
-      ${withDel && E ? `<td style="border-bottom:1px solid #e5e7eb;text-align:center;padding:0 2px">
+      ${withDel && E ? `<td style="border-bottom:1px solid #e5e7eb;${divider}text-align:center;padding:0 2px">
         <button onclick="Checklist.removeExtraRow(${idx})" style="border:none;background:none;color:#e53e3e;cursor:pointer;font-size:15px;line-height:1">×</button>
-      </td>` : (withDel ? '<td></td>' : '')}
+      </td>` : withDel ? '<td></td>' : E ? `<td style="border-bottom:1px solid #e5e7eb;${divider}text-align:center;padding:0 2px">
+        <button onclick="Checklist.clearRow('${section}',${idx})" title="한 줄 지우기"
+          style="border:none;background:none;color:#cbd5e1;cursor:pointer;font-size:15px;line-height:1"
+          onmouseover="this.style.color='#e53e3e'" onmouseout="this.style.color='#cbd5e1'">×</button>
+      </td>` : ''}
     </tr>`;
   }
 
@@ -567,14 +574,34 @@ const Checklist = (() => {
 
   /* ── 화살표 키 셀 이동 ── */
   function onRowKeydown(el, e) {
-    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
-    e.preventDefault();
+    const dir = e.key;
+    if (!['ArrowDown','ArrowUp','ArrowLeft','ArrowRight'].includes(dir)) return;
     const section = el.dataset.section;
     const idx = parseInt(el.dataset.idx);
     const field = el.dataset.field;
-    const nextIdx = e.key === 'ArrowDown' ? idx + 1 : idx - 1;
-    const next = document.querySelector(`input[data-section="${section}"][data-idx="${nextIdx}"][data-field="${field}"]`);
-    if (next) { next.focus(); next.select(); }
+    const fieldKeys = COLS.slice(1).map(c => c.key); // 번호 제외한 입력 가능 컬럼
+    const fi = fieldKeys.indexOf(field);
+
+    if (dir === 'ArrowDown' || dir === 'ArrowUp') {
+      e.preventDefault();
+      const nextIdx = dir === 'ArrowDown' ? idx + 1 : idx - 1;
+      const next = document.querySelector(`input[data-section="${section}"][data-idx="${nextIdx}"][data-field="${field}"]`);
+      if (next) { next.focus(); next.select(); }
+    } else if (dir === 'ArrowRight' && el.selectionStart === el.value.length) {
+      e.preventDefault();
+      const nextFi = fi + 1;
+      if (nextFi < fieldKeys.length) {
+        const next = document.querySelector(`input[data-section="${section}"][data-idx="${idx}"][data-field="${fieldKeys[nextFi]}"]`);
+        if (next) { next.focus(); next.select(); }
+      }
+    } else if (dir === 'ArrowLeft' && el.selectionStart === 0) {
+      e.preventDefault();
+      const prevFi = fi - 1;
+      if (prevFi >= 0) {
+        const prev = document.querySelector(`input[data-section="${section}"][data-idx="${idx}"][data-field="${fieldKeys[prevFi]}"]`);
+        if (prev) { prev.focus(); prev.select(); }
+      }
+    }
   }
 
   /* ── 한 줄 지우기 ── */
