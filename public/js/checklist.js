@@ -223,6 +223,23 @@ const Checklist = (() => {
             style="padding:4px 10px;border:1px solid #ddd;border-radius:6px;background:#f8f9fa;
                    font-size:15px;cursor:pointer;line-height:1">▶</button>
           ${state.editable ? `
+          ${window.innerWidth < 700 ? `
+          <div style="width:100%;display:flex;flex-wrap:wrap;gap:4px;margin-top:6px">
+            <button onclick="Checklist.undo()" title="Ctrl+Z"
+              style="flex:1;padding:5px 4px;border:1px solid #64748b;border-radius:6px;background:#f8fafc;
+                     color:#374151;font-size:12px;font-weight:600;cursor:pointer">↩ 되돌리기</button>
+            <button onclick="Checklist.redo()" title="Ctrl+Y"
+              style="flex:1;padding:5px 4px;border:1px solid #64748b;border-radius:6px;background:#f8fafc;
+                     color:#374151;font-size:12px;font-weight:600;cursor:pointer">↪ 앞으로</button>
+            <input type="file" id="cl-excel-input" accept=".xlsx,.xls" style="display:none"
+              onchange="Checklist.uploadExcel(this)">
+            <button onclick="document.getElementById('cl-excel-input').click()"
+              style="flex:1;padding:5px 4px;border:1px solid #16a34a;border-radius:6px;background:#f0fdf4;
+                     color:#15803d;font-size:12px;font-weight:600;cursor:pointer">📥 예약가져오기</button>
+            <button onclick="Checklist.deleteDate()"
+              style="flex:0 0 auto;padding:5px 8px;border:1px solid #dc2626;border-radius:6px;background:#fef2f2;
+                     color:#dc2626;font-size:12px;font-weight:600;cursor:pointer">🗑</button>
+          </div>` : `
           <div style="margin-left:auto;display:flex;align-items:center;gap:6px">
             <button onclick="Checklist.undo()" title="되돌리기 (Ctrl+Z)"
               style="padding:6px 10px;border:1px solid #64748b;border-radius:6px;background:#f8fafc;
@@ -242,7 +259,7 @@ const Checklist = (() => {
                      color:#dc2626;font-size:13px;font-weight:600;cursor:pointer">
               🗑 날짜 삭제
             </button>
-          </div>` : ''}
+          </div>`}` : ''}
         </div>
       </div>
 
@@ -251,7 +268,7 @@ const Checklist = (() => {
       </div>
 
       <div id="cl-panel" style="border:1px solid #2563eb;border-top:none;border-radius:0 8px 8px 8px;
-           padding:${window.innerWidth<700?'8px 4px':'16px'};background:#fff;overflow-x:${window.innerWidth<700?'hidden':'auto'}">
+           padding:${window.innerWidth<700?'8px 4px':'16px'};background:#fff;overflow-x:auto">
         ${renderPanel()}
       </div>`;
   }
@@ -361,7 +378,7 @@ const Checklist = (() => {
 
       const pool = (parseInt(row.child_pool)||0) + (parseInt(row.adult_pool)||0);
       const td = (content, extra='') =>
-        `<td style="padding:3px 1px;text-align:center;font-size:10px;border-bottom:1px solid #e5e7eb;overflow:hidden;max-width:0;${divBorder}${extra}">${content}</td>`;
+        `<td style="padding:3px 1px;text-align:center;font-size:10px;border-bottom:1px solid #e5e7eb;overflow:hidden;${divBorder}${extra}">${content}</td>`;
       const dot = (val, bg) => val ? `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${bg}"></span>` : '';
 
       return `<tr style="background:${rowBg};${divBorder}cursor:pointer" onclick="(function(){
