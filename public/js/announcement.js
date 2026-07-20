@@ -2,6 +2,25 @@ const Announcement = {
   _synth: window.speechSynthesis,
   _voices: [],
 
+  _defaultPresets: [
+    { label: '입장 안내', text: '안녕하세요, 비욘더팜입니다. 잠시 후 입장을 시작하겠습니다. 준비해 주시기 바랍니다.' },
+    { label: '퇴장 안내', text: '이용 시간이 종료되었습니다. 이용해 주셔서 감사합니다. 안전하게 이동해 주시기 바랍니다.' },
+    { label: '풀장 이용', text: '풀장 이용 고객님께 안내드립니다. 풀장 입수 전 반드시 준비운동을 해주시고, 안전에 유의해 주시기 바랍니다.' },
+    { label: '불멍 시작', text: '불멍 세트 이용 고객님, 지금부터 불멍을 시작하겠습니다. 화기 주변에서는 안전에 주의해 주시기 바랍니다.' },
+    { label: '마감 안내', text: '오늘 비욘더팜의 운영이 곧 마감됩니다. 즐거운 시간 보내셨기를 바라며, 안전하게 귀가해 주시기 바랍니다.' },
+  ],
+
+  _loadPresets() {
+    try {
+      const saved = localStorage.getItem('ann_presets');
+      return saved ? JSON.parse(saved) : JSON.parse(JSON.stringify(this._defaultPresets));
+    } catch { return JSON.parse(JSON.stringify(this._defaultPresets)); }
+  },
+
+  _savePresets(presets) {
+    localStorage.setItem('ann_presets', JSON.stringify(presets));
+  },
+
   _loadVoices() {
     this._voices = this._synth.getVoices();
     this._populateVoiceSelect();
@@ -12,34 +31,19 @@ const Announcement = {
     if (!sel || !this._voices.length) return;
     const current = sel.value;
     sel.innerHTML = '';
-
-    // 한국어 음성 먼저, 그 다음 나머지
     const ko = this._voices.filter(v => v.lang.startsWith('ko'));
-    const others = this._voices.filter(v => !v.lang.startsWith('ko'));
-
-    if (ko.length) {
-      const grp = document.createElement('optgroup');
-      grp.label = '한국어';
-      ko.forEach((v, i) => {
-        const opt = document.createElement('option');
-        opt.value = v.name;
-        opt.textContent = `${v.name} (${v.lang})`;
-        if (i === 0 && !current) opt.selected = true;
-        grp.appendChild(opt);
-      });
-      sel.appendChild(grp);
-    }
+    ko.forEach((v, i) => {
+      const opt = document.createElement('option');
+      opt.value = v.name;
+      opt.textContent = `${v.name} (${v.lang})`;
+      if (i === 0 && !current) opt.selected = true;
+      sel.appendChild(opt);
+    });
     if (current) sel.value = current;
   },
 
   render() {
-    const presets = [
-      { label: '입장 안내', text: '안녕하세요, 비욘더팜입니다. 잠시 후 입장을 시작하겠습니다. 준비해 주시기 바랍니다.' },
-      { label: '퇴장 안내', text: '이용 시간이 종료되었습니다. 이용해 주셔서 감사합니다. 안전하게 이동해 주시기 바랍니다.' },
-      { label: '풀장 이용', text: '풀장 이용 고객님께 안내드립니다. 풀장 입수 전 반드시 준비운동을 해주시고, 안전에 유의해 주시기 바랍니다.' },
-      { label: '불멍 시작', text: '불멍 세트 이용 고객님, 지금부터 불멍을 시작하겠습니다. 화기 주변에서는 안전에 주의해 주시기 바랍니다.' },
-      { label: '마감 안내', text: '오늘 비욘더팜의 운영이 곧 마감됩니다. 즐거운 시간 보내셨기를 바라며, 안전하게 귀가해 주시기 바랍니다.' },
-    ];
+    const presets = this._loadPresets();
 
     document.getElementById('content').innerHTML = `
       <div class="card" style="max-width:680px">
@@ -47,10 +51,15 @@ const Announcement = {
         <div style="font-size:12px;color:#94a3b8;margin-bottom:20px">내용을 입력하고 방송 버튼을 누르면 음성으로 읽어드립니다. 기기 볼륨을 최대로 설정하면 더 크게 들립니다.</div>
 
         <div style="margin-bottom:16px">
-          <div style="font-size:12px;font-weight:600;color:#64748b;margin-bottom:6px">빠른 선택</div>
-          <div style="display:flex;flex-wrap:wrap;gap:6px">
-            ${presets.map(p => `
-              <button onclick="Announcement.setPreset(${JSON.stringify(p.text).replace(/"/g,'&quot;')})"
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+            <div style="font-size:12px;font-weight:600;color:#64748b">빠른 선택</div>
+            <button onclick="Announcement.openPresetEditor()"
+              style="padding:2px 10px;border:1px solid #cbd5e1;border-radius:12px;background:#f8fafc;
+                     color:#64748b;font-size:11px;cursor:pointer">✏️ 편집</button>
+          </div>
+          <div id="ann-preset-btns" style="display:flex;flex-wrap:wrap;gap:6px">
+            ${presets.map((p, i) => `
+              <button onclick="Announcement.setPreset(${i})"
                 style="padding:6px 13px;border:1px solid #93c5fd;border-radius:20px;background:#eff6ff;
                        color:#1d4ed8;font-size:12px;font-weight:500;cursor:pointer;min-height:36px">
                 ${p.label}
@@ -107,20 +116,79 @@ const Announcement = {
         <div id="ann-status" style="margin-top:12px;font-size:13px;color:#64748b;min-height:20px;text-align:center"></div>
       </div>`;
 
-    // 음성 목록 로드
     this._loadVoices();
     if (!this._voices.length) {
       speechSynthesis.addEventListener('voiceschanged', () => this._loadVoices(), { once: true });
     }
   },
 
-  setPreset(text) {
+  setPreset(idx) {
+    const presets = this._loadPresets();
     const el = document.getElementById('ann-text');
-    if (el) { el.value = text; el.focus(); }
+    if (el && presets[idx]) { el.value = presets[idx].text; el.focus(); }
+  },
+
+  openPresetEditor() {
+    const presets = this._loadPresets();
+
+    const modal = document.createElement('div');
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
+    modal.innerHTML = `
+      <div style="background:#fff;border-radius:14px;padding:24px;width:480px;max-width:100%;max-height:85vh;
+                  display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.25);overflow:hidden">
+        <div style="font-size:16px;font-weight:700;color:#1e293b;margin-bottom:4px">빠른 선택 편집</div>
+        <div style="font-size:12px;color:#94a3b8;margin-bottom:16px">이름과 방송 내용을 수정하세요. 수정한 내용은 이 기기에 저장됩니다.</div>
+        <div id="preset-edit-list" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:12px">
+          ${presets.map((p, i) => `
+            <div style="border:1px solid #e2e8f0;border-radius:10px;padding:12px">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+                <span style="font-size:11px;font-weight:600;color:#94a3b8;min-width:24px">${i + 1}</span>
+                <input id="preset-label-${i}" value="${p.label.replace(/"/g,'&quot;')}"
+                  placeholder="버튼 이름"
+                  style="flex:1;padding:6px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px;font-weight:600;outline:none">
+              </div>
+              <textarea id="preset-text-${i}" rows="3"
+                placeholder="방송 내용"
+                style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #cbd5e1;
+                       border-radius:6px;font-size:13px;line-height:1.6;resize:vertical;font-family:inherit;outline:none">${p.text}</textarea>
+            </div>`).join('')}
+        </div>
+        <div style="display:flex;gap:8px;margin-top:16px">
+          <button id="preset-reset"
+            style="padding:9px 14px;border:1px solid #fca5a5;border-radius:7px;background:#fff5f5;
+                   font-size:13px;font-weight:600;cursor:pointer;color:#dc2626">기본값으로</button>
+          <div style="flex:1"></div>
+          <button id="preset-cancel"
+            style="padding:9px 16px;border:1px solid #cbd5e1;border-radius:7px;background:#f8fafc;
+                   font-size:13px;font-weight:600;cursor:pointer;color:#374151">취소</button>
+          <button id="preset-save"
+            style="padding:9px 20px;border:none;border-radius:7px;background:#2563eb;
+                   font-size:13px;font-weight:700;cursor:pointer;color:#fff">저장</button>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+
+    modal.querySelector('#preset-save').onclick = () => {
+      const updated = presets.map((_, i) => ({
+        label: document.getElementById(`preset-label-${i}`)?.value?.trim() || `프리셋${i+1}`,
+        text: document.getElementById(`preset-text-${i}`)?.value || '',
+      }));
+      this._savePresets(updated);
+      modal.remove();
+      this.render();
+    };
+    modal.querySelector('#preset-cancel').onclick = () => modal.remove();
+    modal.querySelector('#preset-reset').onclick = () => {
+      if (confirm('기본값으로 초기화하시겠습니까?')) {
+        this._savePresets(JSON.parse(JSON.stringify(this._defaultPresets)));
+        modal.remove();
+        this.render();
+      }
+    };
+    modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
   },
 
   speak() {
-    // iOS Safari: 유저 제스처 컨텍스트에서 호출되어야 함 (버튼 onclick이므로 정상)
     const text = document.getElementById('ann-text')?.value?.trim();
     if (!text) { this._setStatus('방송할 내용을 입력해주세요.', '#ef4444'); return; }
 
@@ -131,7 +199,6 @@ const Announcement = {
     utter.rate = parseFloat(document.getElementById('ann-rate')?.value || '0.9');
     utter.volume = parseFloat(document.getElementById('ann-vol')?.value || '1');
 
-    // 선택된 목소리 적용
     const selectedName = document.getElementById('ann-voice')?.value;
     if (selectedName) {
       const voice = this._voices.find(v => v.name === selectedName);
