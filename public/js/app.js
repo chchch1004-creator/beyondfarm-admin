@@ -174,9 +174,7 @@ const NavOrder = {
     try { return JSON.parse(localStorage.getItem(this.storageKey()) || 'null'); } catch { return null; }
   },
 
-  save() {
-    const links = [...document.querySelectorAll('#sidebar nav a[data-page]')];
-    const order = links.map(a => a.dataset.page);
+  _saveOrder(order) {
     localStorage.setItem(this.storageKey(), JSON.stringify(order));
   },
 
@@ -185,45 +183,99 @@ const NavOrder = {
     if (!order) return;
     const nav = document.querySelector('#sidebar nav');
     if (!nav) return;
-    // 커스텀 순서 사용 중이면 섹션 레이블 숨김
     nav.querySelectorAll('.nav-section').forEach(s => s.style.display = 'none');
     const links = Object.fromEntries(
       [...nav.querySelectorAll('a[data-page]')].map(a => [a.dataset.page, a])
     );
     [...nav.querySelectorAll('a[data-page]')].forEach(a => a.remove());
     order.forEach(page => { if (links[page]) nav.appendChild(links[page]); });
-    // order에 없는 신규 항목은 뒤에 붙임
     Object.entries(links).forEach(([page, a]) => { if (!order.includes(page)) nav.appendChild(a); });
   },
 
   init() {
     this.apply();
-    const nav = document.querySelector('#sidebar nav');
-    if (!nav) return;
-    let dragging = null;
+  },
 
-    nav.querySelectorAll('a[data-page]').forEach(a => {
-      a.setAttribute('draggable', 'true');
-      a.addEventListener('dragstart', e => {
-        dragging = a;
-        e.dataTransfer.effectAllowed = 'move';
-        setTimeout(() => a.style.opacity = '0.4', 0);
-      });
-      a.addEventListener('dragend', () => {
-        a.style.opacity = '';
-        nav.querySelectorAll('a[data-page]').forEach(x => x.style.outline = '');
-        dragging = null;
-        NavOrder.save();
-      });
-      a.addEventListener('dragover', e => {
-        e.preventDefault();
-        if (!dragging || dragging === a) return;
-        const rect = a.getBoundingClientRect();
-        const after = e.clientY > rect.top + rect.height / 2;
-        a.style.outline = after ? 'none' : 'none';
-        if (after) nav.insertBefore(dragging, a.nextSibling);
-        else nav.insertBefore(dragging, a);
-      });
+  openModal() {
+    // 현재 nav 링크 목록 수집 (보이는 것만)
+    const navLinks = [...document.querySelectorAll('#sidebar nav a[data-page]')]
+      .filter(a => a.style.display !== 'none')
+      .map(a => ({
+        page: a.dataset.page,
+        icon: a.querySelector('.icon')?.textContent || '',
+        label: a.querySelector('span:last-child')?.textContent || a.dataset.page,
+      }));
+
+    let dragSrc = null;
+
+    const itemHtml = navLinks.map((item, i) => `
+      <div class="nm-item" data-idx="${i}" data-page="${item.page}"
+        draggable="true"
+        style="display:flex;align-items:center;gap:10px;padding:10px 12px;margin-bottom:6px;
+               background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;cursor:grab;user-select:none">
+        <span style="color:#94a3b8;font-size:16px">⠿</span>
+        <span style="font-size:18px">${item.icon}</span>
+        <span style="font-size:14px;font-weight:500">${item.label}</span>
+      </div>`).join('');
+
+    const modal = document.createElement('div');
+    modal.id = 'nm-modal';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9999;display:flex;align-items:center;justify-content:center';
+    modal.innerHTML = `
+      <div style="background:#fff;border-radius:14px;padding:24px;width:320px;max-width:92vw;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.25)">
+        <div style="font-size:16px;font-weight:700;color:#1e293b;margin-bottom:6px">메뉴 순서 설정</div>
+        <div style="font-size:12px;color:#94a3b8;margin-bottom:14px">⠿ 핸들을 드래그해서 순서를 변경하세요</div>
+        <div id="nm-list" style="flex:1;overflow-y:auto">${itemHtml}</div>
+        <div style="display:flex;gap:8px;margin-top:16px">
+          <button id="nm-reset"
+            style="flex:1;padding:9px;border:1px solid #cbd5e1;border-radius:7px;background:#f8fafc;
+                   font-size:13px;font-weight:600;cursor:pointer;color:#64748b">초기화</button>
+          <button id="nm-cancel"
+            style="flex:1;padding:9px;border:1px solid #cbd5e1;border-radius:7px;background:#f8fafc;
+                   font-size:13px;font-weight:600;cursor:pointer;color:#374151">취소</button>
+          <button id="nm-save"
+            style="flex:2;padding:9px;border:none;border-radius:7px;background:#2563eb;
+                   font-size:13px;font-weight:700;cursor:pointer;color:#fff">저장</button>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+
+    // 드래그 로직
+    const list = modal.querySelector('#nm-list');
+    list.addEventListener('dragstart', e => {
+      dragSrc = e.target.closest('.nm-item');
+      if (dragSrc) { e.dataTransfer.effectAllowed = 'move'; setTimeout(() => dragSrc.style.opacity = '0.4', 0); }
     });
+    list.addEventListener('dragend', e => {
+      const item = e.target.closest('.nm-item');
+      if (item) item.style.opacity = '';
+      list.querySelectorAll('.nm-item').forEach(el => el.style.outline = '');
+      dragSrc = null;
+    });
+    list.addEventListener('dragover', e => {
+      e.preventDefault();
+      const target = e.target.closest('.nm-item');
+      if (!target || !dragSrc || target === dragSrc) return;
+      list.querySelectorAll('.nm-item').forEach(el => el.style.outline = '');
+      const rect = target.getBoundingClientRect();
+      const after = e.clientY > rect.top + rect.height / 2;
+      target.style.outline = after ? '2px solid transparent' : '2px solid transparent';
+      if (after) list.insertBefore(dragSrc, target.nextSibling);
+      else list.insertBefore(dragSrc, target);
+    });
+
+    // 버튼
+    modal.querySelector('#nm-save').onclick = () => {
+      const order = [...list.querySelectorAll('.nm-item')].map(el => el.dataset.page);
+      NavOrder._saveOrder(order);
+      NavOrder.apply();
+      modal.remove();
+    };
+    modal.querySelector('#nm-cancel').onclick = () => modal.remove();
+    modal.querySelector('#nm-reset').onclick = () => {
+      localStorage.removeItem(NavOrder.storageKey());
+      location.reload();
+    };
+    modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
   },
 };
