@@ -18,7 +18,8 @@ const Checklist = (() => {
     { key: 'bulmung',      label: '불멍세트',   w: 38 },
     { key: 'adult_only',   label: '성인만',     w: 34 },
     { key: 'extra_hour',   label: '1시간추가',  w: 40 },
-    { key: 'memo',         label: '비고',       w: 290 },
+    { key: 'car',          label: '차량',       w: 34 },
+    { key: 'memo',         label: '비고',       w: 256 },
   ];
 
   // 티켓(extra) 테이블: 삭제버튼 28px 만큼 memo를 줄여서 전체 폭을 M텐트/L텐트와 맞춤
@@ -69,7 +70,7 @@ const Checklist = (() => {
 
   function emptyRow(tent_no) {
     return { tent_no, product:'', visit_count:'', name:'', reserved:'', actual:'',
-             two_time:'', play:'', child_pool:'', adult_pool:'', bulmung:'', adult_only:'', extra_hour:'', memo:'' };
+             two_time:'', play:'', child_pool:'', adult_pool:'', bulmung:'', adult_only:'', extra_hour:'', car:'', memo:'' };
   }
 
   function getCurrentData() {
@@ -351,7 +352,7 @@ const Checklist = (() => {
         ['예약상품','product'],['방문횟수','visit_count'],['예약인원','reserved'],
         ['입장시인원','actual'],['2타임','two_time'],['플레이','play'],
         ['아이풀','child_pool'],['성인풀','adult_pool'],['불멍','bulmung'],
-        ['성인만','adult_only'],['1시간추가','extra_hour'],['비고','memo'],
+        ['성인만','adult_only'],['1시간추가','extra_hour'],['차량','car'],['비고','memo'],
       ];
       const detailHtml = E ? `
         <tr id="${expandId}" style="display:none;background:#f0f9ff">
@@ -376,7 +377,9 @@ const Checklist = (() => {
           </td>
         </tr>` : '';
 
-      const pool = (parseInt(row.child_pool)||0) + (parseInt(row.adult_pool)||0);
+      const child = parseInt(row.child_pool)||0;
+      const adult = parseInt(row.adult_pool)||0;
+      const poolText = (child||adult) ? [child?`아이${child}`:'', adult?`성인${adult}`:''].filter(Boolean).join('') : '';
       const td = (content, extra='') =>
         `<td style="padding:3px 1px;text-align:center;font-size:10px;border-bottom:1px solid #e5e7eb;overflow:hidden;${divBorder}${extra}">${content}</td>`;
       const dot = (val, bg) => val ? `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${bg}"></span>` : '';
@@ -387,14 +390,15 @@ const Checklist = (() => {
           r.style.display=r.style.display==='none'?'table-row':'none';
         })()">
         ${td(row.tent_no, 'font-weight:700;color:#1e40af;white-space:nowrap;')}
-        ${td(row.name||'', `font-size:11px;font-weight:600;text-align:left;padding-left:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;${nameBg?'background:'+nameBg+';':''}`)}
+        ${td(row.name||'', `font-size:10px;font-weight:600;text-align:left;padding-left:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;${nameBg?'background:'+nameBg+';':''}`)}
         ${td(row.reserved||'')}
         ${td(row.actual||'')}
         ${td(row.two_time ? `<span style="background:${two_bg};border-radius:3px;padding:1px 2px;font-size:8px;white-space:nowrap">${row.two_time}</span>` : '')}
         ${td(row.play||'')}
-        ${td(pool||'')}
+        ${td(`<span style="font-size:8px;line-height:1.2;display:block">${poolText}</span>`)}
         ${td(dot(row.bulmung,'#fbbf24'))}
         ${td(dot(row.extra_hour,'#f87171'))}
+        ${td(row.car||'')}
       </tr>${detailHtml}`;
     }
 
@@ -405,16 +409,17 @@ const Checklist = (() => {
         <div style="font-weight:700;font-size:12px;color:#1e40af;padding:3px 0 4px">${title}</div>
         <table style="width:100%;border-collapse:collapse;table-layout:fixed;font-size:10px;word-break:break-all">
           <colgroup>
+            <col style="width:18px">
             <col style="width:20px">
-            <col style="width:40px">
             <col style="width:22px"><col style="width:22px">
-            <col style="width:32px">
-            <col style="width:18px"><col style="width:18px">
-            <col style="width:14px"><col style="width:14px">
+            <col style="width:28px">
+            <col style="width:18px"><col style="width:30px">
+            <col style="width:12px"><col style="width:12px">
+            <col style="width:18px">
           </colgroup>
           <thead><tr style="background:#1e40af;color:#fff">
             ${th('번호')}${th('이름','left')}${th('예약')}${th('입장')}
-            ${th('2타임')}${th('플레이')}${th('풀장')}${th('불멍')}${th('+1h')}
+            ${th('2타임')}${th('플레이')}${th('풀장')}${th('불멍')}${th('+1h')}${th('차량')}
           </tr></thead>
           <tbody>${rows.map((row,idx)=>compactRow(row,idx,section)).join('')}</tbody>
         </table>
