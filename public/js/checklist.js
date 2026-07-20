@@ -35,6 +35,27 @@ const Checklist = (() => {
 
   let _saveTimer = null;
   let _dragState = null;
+  let _history = [];
+  let _histIdx = -1;
+
+  function pushHistory() {
+    const snap = JSON.stringify(state.data);
+    _history = _history.slice(0, _histIdx + 1);
+    _history.push(snap);
+    if (_history.length > 50) _history.shift(); else _histIdx = _history.length - 1;
+  }
+  function undo() {
+    if (_histIdx <= 0) return;
+    _histIdx--;
+    state.data = JSON.parse(_history[_histIdx]);
+    _refreshPanel(); silentSave();
+  }
+  function redo() {
+    if (_histIdx >= _history.length - 1) return;
+    _histIdx++;
+    state.data = JSON.parse(_history[_histIdx]);
+    _refreshPanel(); silentSave();
+  }
 
   function emptyTimeslot() {
     return {
@@ -121,6 +142,15 @@ const Checklist = (() => {
     try { state.dates = await API.get('/api/checklist/dates'); } catch { state.dates = []; }
     await loadAllSlots();
     renderUI();
+    // Ctrl+Z / Ctrl+Y 전역 리스너 (중복 방지)
+    if (!window._clHistoryBound) {
+      window._clHistoryBound = true;
+      document.addEventListener('keydown', e => {
+        if (App.currentPage !== 'checklist') return;
+        if (e.ctrlKey && !e.shiftKey && e.key === 'z') { e.preventDefault(); Checklist.undo(); }
+        if (e.ctrlKey && (e.key === 'y' || (e.shiftKey && e.key === 'z'))) { e.preventDefault(); Checklist.redo(); }
+      });
+    }
   }
 
   async function loadAllSlots() {
@@ -141,6 +171,9 @@ const Checklist = (() => {
       }
     }));
     autoFillTwoTime();
+    // 로드 후 히스토리 초기화
+    _history = [JSON.stringify(state.data)];
+    _histIdx = 0;
   }
 
   // 복수 타임슬롯에 같은 이름이 있으면 two_time 자동 입력 (비어있는 경우만)
@@ -331,6 +364,11 @@ const Checklist = (() => {
 
   function trHtml(row, idx, section, E, withDel) {
     const bg = idx % 2 === 0 ? '#fff' : '#f8fafc';
+    // 구분선: M텐트 0|1 사이, 5|6 사이 / L텐트 G(6)|H(7) 사이
+    const divider = (
+      (section === 'mtent' && (idx === 1 || idx === 6)) ||
+      (section === 'tent8' && idx === 7)
+    ) ? 'border-top:3px solid #94a3b8;' : '';
     const dragAttrs = E ? `draggable="true"
       ondragstart="Checklist.onDragStart(event,'${section}',${idx})"
       ondragover="Checklist.onDragOver(event)"
@@ -338,20 +376,24 @@ const Checklist = (() => {
       ondragleave="Checklist.onDragLeave(event)"
       ondrop="Checklist.onDrop(event,'${section}',${idx})"
       ondragend="Checklist.onDragEnd(event)"` : '';
-    return `<tr style="background:${bg}" ${dragAttrs}>
+    return `<tr style="background:${bg};${divider}" ${dragAttrs}>
       ${COLS.map((c, ci) => {
         const val = row[c.key] ?? '';
         const tdBg = cellBg(c.key, row);
-        const baseStyle = `border-bottom:1px solid #e5e7eb;${tdBg?'background:'+tdBg+';':''}`;
+        const baseStyle = `border-bottom:1px solid #e5e7eb;${divider}${tdBg?'background:'+tdBg+';':''}`;
         if (ci === 0) {
           const handle = E ? '<span style="color:#ccc;font-size:10px;margin-right:2px;vertical-align:middle">⠿</span>' : '';
-          return `<td style="text-align:center;padding:4px 3px;${baseStyle}font-weight:600;color:#374151;${E?'cursor:grab;user-select:none':''}">${handle}${val}</td>`;
+          const clrBtn = E ? `<button onclick="Checklist.clearRow('${section}',${idx})" title="한 줄 지우기"
+            style="border:none;background:none;color:#cbd5e1;cursor:pointer;font-size:13px;line-height:1;padding:0;margin-left:1px;vertical-align:middle"
+            onmouseover="this.style.color='#e53e3e'" onmouseout="this.style.color='#cbd5e1'">×</button>` : '';
+          return `<td style="text-align:center;padding:4px 2px;${baseStyle}font-weight:600;color:#374151;${E?'cursor:grab;user-select:none':''}">${handle}${val}${clrBtn}</td>`;
         }
         if (!E) return `<td style="text-align:center;padding:4px 3px;${baseStyle}">${val}</td>`;
         return `<td id="td-${section}-${idx}-${c.key}" style="padding:2px 2px;${baseStyle}">
           <input type="text" value="${String(val).replace(/"/g,'&quot;')}"
             data-section="${section}" data-idx="${idx}" data-field="${c.key}"
             oninput="Checklist.onRowInput(this)"
+            onkeydown="Checklist.onRowKeydown(this,event)"
             style="width:100%;box-sizing:border-box;border:1px solid #e2e8f0;border-radius:3px;
                    padding:3px 2px;font-size:12px;text-align:center;background:transparent">
         </td>`;
@@ -478,7 +520,7 @@ const Checklist = (() => {
   }
 
   function onDragEnter(e, section, idx) {
-    if (!_dragState || _dragState.section !== section || _dragState.idx === idx) return;
+    if (!_dragState || _dragState.idx === idx) return;
     e.currentTarget.style.outline = '2px dashed #2563eb';
     e.currentTarget.style.outlineOffset = '-2px';
   }
@@ -490,31 +532,27 @@ const Checklist = (() => {
   function onDrop(e, section, idx) {
     e.preventDefault();
     e.currentTarget.style.outline = '';
-    if (!_dragState || _dragState.section !== section || _dragState.idx === idx) {
-      _dragState = null;
-      return;
+    if (!_dragState || (_dragState.section === section && _dragState.idx === idx)) {
+      _dragState = null; return;
     }
+    const srcSection = _dragState.section;
     const srcIdx = _dragState.idx;
     _dragState = null;
+    pushHistory();
 
     const d = getCurrentData();
-
-    // tent_no는 위치에 고정 — 나머지 필드만 교환
     function swapData(a, b) {
       const keys = Object.keys(a).filter(k => k !== 'tent_no');
       keys.forEach(k => { const t = a[k]; a[k] = b[k]; b[k] = t; });
     }
-
-    if (section === 'mtent') {
-      const resolve = i => i < 6 ? [d.tent4, i] : [d.tent2, i - 6];
-      const [sa, si] = resolve(srcIdx);
-      const [da, di] = resolve(idx);
-      swapData(sa[si], da[di]);
-    } else {
-      const arr = d[section];
-      if (!arr) return;
-      swapData(arr[srcIdx], arr[idx]);
+    function resolveRow(sec, i) {
+      if (sec === 'mtent') return i < 6 ? [d.tent4, i] : [d.tent2, i - 6];
+      return [d[sec], i];
     }
+    const [sa, si] = resolveRow(srcSection, srcIdx);
+    const [da, di] = resolveRow(section, idx);
+    if (!sa || !da) return;
+    swapData(sa[si], da[di]);
 
     recalcSummary(d, state.timeslot);
     _refreshPanel();
@@ -527,8 +565,40 @@ const Checklist = (() => {
     _dragState = null;
   }
 
+  /* ── 화살표 키 셀 이동 ── */
+  function onRowKeydown(el, e) {
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+    e.preventDefault();
+    const section = el.dataset.section;
+    const idx = parseInt(el.dataset.idx);
+    const field = el.dataset.field;
+    const nextIdx = e.key === 'ArrowDown' ? idx + 1 : idx - 1;
+    const next = document.querySelector(`input[data-section="${section}"][data-idx="${nextIdx}"][data-field="${field}"]`);
+    if (next) { next.focus(); next.select(); }
+  }
+
+  /* ── 한 줄 지우기 ── */
+  function clearRow(section, idx) {
+    pushHistory();
+    const d = getCurrentData();
+    let arr, i;
+    if (section === 'mtent') {
+      arr = idx < 6 ? d.tent4 : d.tent2;
+      i = idx < 6 ? idx : idx - 6;
+    } else { arr = d[section]; i = idx; }
+    if (!arr || arr[i] === undefined) return;
+    const tent_no = arr[i].tent_no;
+    arr[i] = emptyRow(tent_no);
+    recalcSummary(d, state.timeslot);
+    _refreshPanel(); silentSave();
+  }
+
+  let _histTimer = null;
   /* ── 이벤트 핸들러 ── */
   function onRowInput(el) {
+    // 입력 중에는 500ms 후 히스토리 저장 (너무 잦은 스냅샷 방지)
+    clearTimeout(_histTimer);
+    _histTimer = setTimeout(pushHistory, 500);
     let section = el.dataset.section;
     let idx = parseInt(el.dataset.idx);
     const field = el.dataset.field;
@@ -664,7 +734,8 @@ const Checklist = (() => {
 
   return {
     render, switchSlot, switchTab, changeDate, moveDate,
-    addExtraRow, removeExtraRow, onRowInput, uploadExcel, deleteDate,
+    addExtraRow, removeExtraRow, onRowInput, onRowKeydown, uploadExcel, deleteDate,
+    clearRow, undo, redo,
     onDragStart, onDragOver, onDragEnter, onDragLeave, onDrop, onDragEnd,
   };
 })();
