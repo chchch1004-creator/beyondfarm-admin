@@ -326,6 +326,8 @@ const Checklist = (() => {
         <div id="cl-search-result" style="font-size:12px;color:#64748b"></div>
       </div>
 
+      ${renderAnnouncementBar()}
+
       <div style="display:flex;gap:0;margin-bottom:0">
         ${tabBtn('11','11시')}${tabBtn('15','15시')}${tabBtn('19','19시')}${tabBtnTwoTime()}${tabBtnLog()}
       </div>
@@ -333,6 +335,27 @@ const Checklist = (() => {
       <div id="cl-panel" style="border:1px solid #2563eb;border-top:none;border-radius:0 8px 8px 8px;
            padding:${window.innerWidth<700?'8px 4px':'16px'};background:#fff;overflow-x:auto">
         ${renderPanel()}
+      </div>`;
+  }
+
+  function renderAnnouncementBar() {
+    let presets = [];
+    try {
+      const saved = localStorage.getItem('ann_presets');
+      presets = saved ? JSON.parse(saved) : [];
+    } catch { presets = []; }
+    if (!presets.length) return '';
+    const isMobile = window.innerWidth < 700;
+    return `
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;flex-wrap:wrap">
+        <span style="font-size:11px;font-weight:600;color:#94a3b8;white-space:nowrap">📢 안내방송</span>
+        ${presets.map((p, i) => `
+          <button onclick="Checklist.playAnnouncement(${i})"
+            style="padding:${isMobile?'5px 10px':'6px 13px'};border:1px solid #fed7aa;border-radius:20px;
+                   background:#fff7ed;color:#c2410c;font-size:${isMobile?'11px':'12px'};
+                   font-weight:500;cursor:pointer;white-space:nowrap">
+            ${p.label}
+          </button>`).join('')}
       </div>`;
   }
 
@@ -1196,10 +1219,27 @@ const Checklist = (() => {
     }
   }
 
+  function playAnnouncement(idx) {
+    let presets = [];
+    try { const s = localStorage.getItem('ann_presets'); presets = s ? JSON.parse(s) : []; } catch {}
+    const p = presets[idx];
+    if (!p?.text) return;
+    const synth = window.speechSynthesis;
+    synth.cancel();
+    const utter = new SpeechSynthesisUtterance(p.text);
+    utter.lang = 'ko-KR';
+    utter.rate = 0.9;
+    utter.volume = 1;
+    const voices = synth.getVoices().filter(v => v.lang.startsWith('ko'));
+    if (voices.length) utter.voice = voices[0];
+    synth.speak(utter);
+  }
+
   return {
     render, switchSlot, switchTab, changeDate, moveDate,
     addExtraRow, removeExtraRow, onRowFocus, onRowInput, onRowKeydown, uploadExcel, deleteDate,
     clearRow, undo, redo, loadLog, onSearch, _jumpTo,
     onDragStart, onDragOver, onDragEnter, onDragLeave, onDrop, onDragEnd,
+    playAnnouncement,
   };
 })();
