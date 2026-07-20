@@ -251,7 +251,7 @@ const Checklist = (() => {
       </div>
 
       <div id="cl-panel" style="border:1px solid #2563eb;border-top:none;border-radius:0 8px 8px 8px;
-           padding:16px;background:#fff;overflow-x:auto">
+           padding:${window.innerWidth<700?'8px 4px':'16px'};background:#fff;overflow-x:${window.innerWidth<700?'hidden':'auto'}">
         ${renderPanel()}
       </div>`;
   }
@@ -291,7 +291,7 @@ const Checklist = (() => {
       ['L','tent8'],['단체20','group20'],['단체30','group30'],['합계','total'],
     ];
     const summaryHtml = `
-      <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:8px 10px;margin-bottom:10px">
+      <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:6px 4px;margin-bottom:8px">
         <div style="display:flex;gap:5px;overflow-x:auto;padding-bottom:2px;align-items:flex-end">
           ${sumItems.map(([label,key])=>`
             <div style="flex:0 0 auto;text-align:center;min-width:36px">
@@ -361,7 +361,7 @@ const Checklist = (() => {
 
       const pool = (parseInt(row.child_pool)||0) + (parseInt(row.adult_pool)||0);
       const td = (content, extra='') =>
-        `<td style="padding:3px 1px;text-align:center;font-size:10px;border-bottom:1px solid #e5e7eb;${divBorder}${extra}">${content}</td>`;
+        `<td style="padding:3px 1px;text-align:center;font-size:10px;border-bottom:1px solid #e5e7eb;overflow:hidden;max-width:0;${divBorder}${extra}">${content}</td>`;
       const dot = (val, bg) => val ? `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${bg}"></span>` : '';
 
       return `<tr style="background:${rowBg};${divBorder}cursor:pointer" onclick="(function(){
@@ -386,7 +386,7 @@ const Checklist = (() => {
         `<th style="padding:4px 2px;text-align:${align};white-space:nowrap;font-size:10px">${label}</th>`;
       return `<div style="margin-bottom:12px">
         <div style="font-weight:700;font-size:12px;color:#1e40af;padding:3px 0 4px">${title}</div>
-        <table style="width:100%;border-collapse:collapse;table-layout:fixed;font-size:11px">
+        <table style="width:100%;border-collapse:collapse;table-layout:fixed;font-size:10px;word-break:break-all">
           <colgroup>
             <col style="width:20px">
             <col style="width:40px">
