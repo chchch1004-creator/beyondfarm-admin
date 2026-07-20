@@ -50,8 +50,10 @@ const App = {
     const roleLabel = { superadmin: '총괄관리자', user: '사용자' };
     document.getElementById('sidebar-role').textContent = roleLabel[App.user.role] || '사용자';
     const allPages = ['dashboard','employees','attendance','leaves','salary','finance','inventory','timesheet','shareholder_timesheet','sales','inflow','checklist'];
-    const firstPage = App.user.role === 'superadmin' ? 'dashboard' : (allPages.find(p => App.canView(p)) || 'mypage');
     NavOrder.init();
+    // 저장된 메뉴 순서가 있으면 첫 번째 항목으로, 없으면 기본값
+    const savedOrder = NavOrder.load();
+    const firstPage = savedOrder?.[0] || (App.user.role === 'superadmin' ? 'dashboard' : (allPages.find(p => App.canView(p)) || 'mypage'));
     App.goto(firstPage);
   },
 
