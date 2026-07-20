@@ -129,62 +129,89 @@ const Announcement = {
   },
 
   openPresetEditor() {
-    const presets = this._loadPresets();
+    let presets = this._loadPresets().map(p => ({ ...p }));
 
     const modal = document.createElement('div');
     modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
-    modal.innerHTML = `
-      <div style="background:#fff;border-radius:14px;padding:24px;width:480px;max-width:100%;max-height:85vh;
-                  display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.25);overflow:hidden">
-        <div style="font-size:16px;font-weight:700;color:#1e293b;margin-bottom:4px">빠른 선택 편집</div>
-        <div style="font-size:12px;color:#94a3b8;margin-bottom:16px">이름과 방송 내용을 수정하세요. 수정한 내용은 이 기기에 저장됩니다.</div>
-        <div id="preset-edit-list" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:12px">
-          ${presets.map((p, i) => `
-            <div style="border:1px solid #e2e8f0;border-radius:10px;padding:12px">
-              <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-                <span style="font-size:11px;font-weight:600;color:#94a3b8;min-width:24px">${i + 1}</span>
-                <input id="preset-label-${i}" value="${p.label.replace(/"/g,'&quot;')}"
-                  placeholder="버튼 이름"
-                  style="flex:1;padding:6px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px;font-weight:600;outline:none">
-              </div>
-              <textarea id="preset-text-${i}" rows="3"
-                placeholder="방송 내용"
-                style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #cbd5e1;
-                       border-radius:6px;font-size:13px;line-height:1.6;resize:vertical;font-family:inherit;outline:none">${p.text}</textarea>
-            </div>`).join('')}
-        </div>
-        <div style="display:flex;gap:8px;margin-top:16px">
-          <button id="preset-reset"
-            style="padding:9px 14px;border:1px solid #fca5a5;border-radius:7px;background:#fff5f5;
-                   font-size:13px;font-weight:600;cursor:pointer;color:#dc2626">기본값으로</button>
-          <div style="flex:1"></div>
-          <button id="preset-cancel"
-            style="padding:9px 16px;border:1px solid #cbd5e1;border-radius:7px;background:#f8fafc;
-                   font-size:13px;font-weight:600;cursor:pointer;color:#374151">취소</button>
-          <button id="preset-save"
-            style="padding:9px 20px;border:none;border-radius:7px;background:#2563eb;
-                   font-size:13px;font-weight:700;cursor:pointer;color:#fff">저장</button>
-        </div>
-      </div>`;
     document.body.appendChild(modal);
 
-    modal.querySelector('#preset-save').onclick = () => {
-      const updated = presets.map((_, i) => ({
-        label: document.getElementById(`preset-label-${i}`)?.value?.trim() || `프리셋${i+1}`,
-        text: document.getElementById(`preset-text-${i}`)?.value || '',
-      }));
-      this._savePresets(updated);
-      modal.remove();
-      this.render();
-    };
-    modal.querySelector('#preset-cancel').onclick = () => modal.remove();
-    modal.querySelector('#preset-reset').onclick = () => {
-      if (confirm('기본값으로 초기화하시겠습니까?')) {
-        this._savePresets(JSON.parse(JSON.stringify(this._defaultPresets)));
+    const renderModal = () => {
+      modal.innerHTML = `
+        <div style="background:#fff;border-radius:14px;padding:24px;width:480px;max-width:100%;max-height:85vh;
+                    display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.25);overflow:hidden">
+          <div style="font-size:16px;font-weight:700;color:#1e293b;margin-bottom:4px">빠른 선택 편집</div>
+          <div style="font-size:12px;color:#94a3b8;margin-bottom:16px">이름과 방송 내용을 수정하고, 항목을 추가하거나 삭제할 수 있습니다.</div>
+          <div id="preset-edit-list" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:12px">
+            ${presets.map((p, i) => `
+              <div style="border:1px solid #e2e8f0;border-radius:10px;padding:12px">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+                  <input id="preset-label-${i}" value="${p.label.replace(/"/g,'&quot;')}"
+                    placeholder="버튼 이름"
+                    style="flex:1;padding:6px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px;font-weight:600;outline:none">
+                  <button data-del="${i}"
+                    style="padding:4px 10px;border:1px solid #fca5a5;border-radius:6px;background:#fff5f5;
+                           color:#dc2626;font-size:12px;cursor:pointer;white-space:nowrap">삭제</button>
+                </div>
+                <textarea id="preset-text-${i}" rows="3"
+                  placeholder="방송 내용"
+                  style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #cbd5e1;
+                         border-radius:6px;font-size:13px;line-height:1.6;resize:vertical;font-family:inherit;outline:none">${p.text}</textarea>
+              </div>`).join('')}
+          </div>
+          <button id="preset-add"
+            style="margin-top:10px;padding:9px;border:1px dashed #93c5fd;border-radius:8px;background:#f0f9ff;
+                   color:#2563eb;font-size:13px;font-weight:600;cursor:pointer;width:100%">+ 항목 추가</button>
+          <div style="display:flex;gap:8px;margin-top:12px">
+            <button id="preset-cancel"
+              style="flex:1;padding:9px;border:1px solid #cbd5e1;border-radius:7px;background:#f8fafc;
+                     font-size:13px;font-weight:600;cursor:pointer;color:#374151">취소</button>
+            <button id="preset-save"
+              style="flex:2;padding:9px;border:none;border-radius:7px;background:#2563eb;
+                     font-size:13px;font-weight:700;cursor:pointer;color:#fff">저장</button>
+          </div>
+        </div>`;
+
+      // 삭제 버튼
+      modal.querySelectorAll('[data-del]').forEach(btn => {
+        btn.onclick = () => {
+          const i = parseInt(btn.dataset.del);
+          // 현재 입력값 반영 후 해당 항목 삭제
+          presets = presets.map((p, idx) => ({
+            label: document.getElementById(`preset-label-${idx}`)?.value ?? p.label,
+            text: document.getElementById(`preset-text-${idx}`)?.value ?? p.text,
+          }));
+          presets.splice(i, 1);
+          renderModal();
+        };
+      });
+
+      // 추가 버튼
+      modal.querySelector('#preset-add').onclick = () => {
+        presets = presets.map((p, i) => ({
+          label: document.getElementById(`preset-label-${i}`)?.value ?? p.label,
+          text: document.getElementById(`preset-text-${i}`)?.value ?? p.text,
+        }));
+        presets.push({ label: '', text: '' });
+        renderModal();
+        // 새 항목으로 스크롤
+        const list = modal.querySelector('#preset-edit-list');
+        if (list) list.scrollTop = list.scrollHeight;
+        document.getElementById(`preset-label-${presets.length - 1}`)?.focus();
+      };
+
+      modal.querySelector('#preset-save').onclick = () => {
+        const updated = presets.map((_, i) => ({
+          label: document.getElementById(`preset-label-${i}`)?.value?.trim() || `프리셋${i+1}`,
+          text: document.getElementById(`preset-text-${i}`)?.value || '',
+        }));
+        this._savePresets(updated);
         modal.remove();
         this.render();
-      }
+      };
+      modal.querySelector('#preset-cancel').onclick = () => modal.remove();
     };
+
+    renderModal();
     modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
   },
 
