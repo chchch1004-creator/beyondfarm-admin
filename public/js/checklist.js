@@ -17,8 +17,9 @@ const Checklist = (() => {
     { key: 'adult_pool',   label: '성인풀장',   w: 30 },
     { key: 'bulmung',      label: '불멍세트',   w: 30 },
     { key: 'adult_only',   label: '성인만',     w: 34 },
-    { key: 'extra_hour',   label: '1시간추가',  w: 40 },
-    { key: 'car',          label: '차량',       w: 64 },
+    { key: 'extra_hour',      label: '1시간추가',  w: 40 },
+    { key: 'prev_extra_hour', label: '전타임1시간', w: 50, readOnly: true },
+    { key: 'car',             label: '차량',       w: 64 },
     { key: 'memo',         label: '비고',       w: 256 },
   ];
 
@@ -70,11 +71,32 @@ const Checklist = (() => {
 
   function emptyRow(tent_no) {
     return { tent_no, product:'', visit_count:'', name:'', reserved:'', actual:'',
-             two_time:'', play:'', child_pool:'', adult_pool:'', bulmung:'', adult_only:'', extra_hour:'', car:'', memo:'' };
+             two_time:'', play:'', child_pool:'', adult_pool:'', bulmung:'', adult_only:'', extra_hour:'', prev_extra_hour:'', car:'', memo:'' };
   }
 
   function getCurrentData() {
     return state.data[state.timeslot] || emptyTimeslot();
+  }
+
+  // ── 전타임 1시간추가 맵 ──
+  function getPrevExtraHourMap() {
+    const order = ['11', '15', '19'];
+    const i = order.indexOf(state.timeslot);
+    if (i <= 0) return {};
+    const prev = state.data[order[i - 1]];
+    if (!prev) return {};
+    const map = {};
+    [...(prev.tent4||[]), ...(prev.tent2||[]), ...(prev.tent8||[])].forEach(r => {
+      if (r.extra_hour) map[r.tent_no] = r.extra_hour;
+    });
+    return map;
+  }
+
+  function injectPrevExtraHour(d) {
+    const map = getPrevExtraHourMap();
+    ['tent4','tent2','tent8'].forEach(sec => {
+      (d[sec]||[]).forEach(row => { row.prev_extra_hour = map[row.tent_no] || ''; });
+    });
   }
 
   // ── 요약 자동계산 ──
@@ -83,6 +105,7 @@ const Checklist = (() => {
     const num = v => parseInt(v) || 0;
     let bulmung=0, play=0, child=0, adult=0, cntS=0, cntM=0, cntL=0, cnt20=0, cnt30=0;
     const extraHourNos = [];
+    const prevExtraHourNos = [];
     const extendNos = [];
     const extendTarget = timeslot === '11' ? '15' : timeslot === '15' ? '19' : null;
 
@@ -98,6 +121,7 @@ const Checklist = (() => {
       else if (p === '단체20' || p === '단체 20') cnt20++;
       else if (p === '단체30' || p === '단체 30') cnt30++;
       if (r.extra_hour) extraHourNos.push(r.tent_no);
+      if (r.prev_extra_hour) prevExtraHourNos.push(r.tent_no);
       if (extendTarget && r.two_time && String(r.two_time).includes(extendTarget))
         extendNos.push(r.tent_no);
     });
@@ -113,14 +137,15 @@ const Checklist = (() => {
     d.summary.group20        = cnt20 || '';
     d.summary.group30        = cnt30 || '';
     d.summary.total          = (cntS + cntM + cntL + cnt20 + cnt30) || '';
-    d.summary.extra_hour_nos = extraHourNos.join(' ') || '';
-    d.summary.extend_nos     = extendNos.join(' ') || '';
+    d.summary.prev_extra_hour_nos = prevExtraHourNos.join(' ') || '';
+    d.summary.extra_hour_nos      = extraHourNos.join(' ') || '';
+    d.summary.extend_nos          = extendNos.join(' ') || '';
   }
 
   function pushSummaryToDOM(s) {
     ['bulmung_count','play_count','child_pool','adult_pool','total_pool',
      'tent2','tent4','tent8','group20','group30','total',
-     'extra_hour_nos','extend_nos'].forEach(k => {
+     'prev_extra_hour_nos','extra_hour_nos','extend_nos'].forEach(k => {
       const el = document.getElementById(`cl-sum-${k}`);
       if (el) el.textContent = s[k] || '-';
     });
@@ -333,6 +358,7 @@ const Checklist = (() => {
 
   /* ── 모바일 컴팩트 테이블 ── */
   function renderSlotMobile(d, E) {
+    injectPrevExtraHour(d);
     recalcSummary(d, state.timeslot);
     const s = d.summary || {};
 
@@ -352,7 +378,8 @@ const Checklist = (() => {
             </div>`).join('')}
         </div>
         <div style="font-size:10px;color:#555;margin-top:4px">
-          1시간추가: <span id="cl-sum-extra_hour_nos" style="font-weight:700;color:#dc2626">${s.extra_hour_nos||'-'}</span>
+          전타임1시간: <span id="cl-sum-prev_extra_hour_nos" style="font-weight:700;color:#ea580c">${s.prev_extra_hour_nos||'-'}</span>
+          &nbsp;1시간추가: <span id="cl-sum-extra_hour_nos" style="font-weight:700;color:#dc2626">${s.extra_hour_nos||'-'}</span>
           &nbsp;연장: <span id="cl-sum-extend_nos" style="font-weight:700;color:#2563eb">${s.extend_nos||'-'}</span>
         </div>
       </div>`;
@@ -469,6 +496,7 @@ const Checklist = (() => {
 
   /* ── 타임슬롯 렌더링 ── */
   function renderSlot(d, E) {
+    injectPrevExtraHour(d);
     recalcSummary(d, state.timeslot);
     const s = d.summary || {};
 
@@ -499,6 +527,7 @@ const Checklist = (() => {
             ${sumItem('합계','total')}
           </div>
           <div style="margin-left:auto;display:flex;gap:8px">
+            ${sumItem('전타임1시간','prev_extra_hour_nos', 135)}
             ${sumItem('1시간추가','extra_hour_nos', 135)}
             ${sumItem('연장텐트','extend_nos', 135)}
           </div>
@@ -551,9 +580,10 @@ const Checklist = (() => {
   }
 
   function cellBg(key, row) {
-    if (key === 'two_time')   return twoTimeBg(row.two_time);
-    if (key === 'name')       return row.actual ? '#bae6fd' : '';
-    if (key === 'extra_hour') return row.extra_hour ? '#fca5a5' : '';
+    if (key === 'two_time')        return twoTimeBg(row.two_time);
+    if (key === 'name')            return row.actual ? '#bae6fd' : '';
+    if (key === 'extra_hour')      return row.extra_hour ? '#fca5a5' : '';
+    if (key === 'prev_extra_hour') return row.prev_extra_hour ? '#fca5a5' : '';
     return '';
   }
 
@@ -582,6 +612,7 @@ const Checklist = (() => {
           return `<td style="text-align:center;padding:4px 3px;${baseStyle}font-weight:600;color:#374151;">${handle}${val}</td>`;
         }
         if (!E) return `<td style="text-align:center;padding:4px 3px;${baseStyle}">${val}</td>`;
+        if (c.readOnly) return `<td style="text-align:center;padding:4px 3px;${baseStyle}font-size:12px;color:#374151;">${val}</td>`;
         return `<td id="td-${section}-${idx}-${c.key}" style="padding:2px 2px;${baseStyle}">
           <input type="text" value="${String(val).replace(/"/g,'&quot;')}"
             data-section="${section}" data-idx="${idx}" data-field="${c.key}"
@@ -771,10 +802,12 @@ const Checklist = (() => {
     const [sa, si] = resolveRow(srcSection, srcIdx);
     const [da, di] = resolveRow(section, idx);
     if (!sa || !da) return;
-    const srcName = sa[si]?.name || '';
-    const dstName = da[di]?.name || '';
+    const srcTentNo = sa[si]?.tent_no ?? '';
+    const dstTentNo = da[di]?.tent_no ?? '';
+    const srcName = sa[si]?.name || '(빈자리)';
+    const dstName = da[di]?.name || '(빈자리)';
     swapData(sa[si], da[di]);
-    sendLog({ tent_no: sa[si]?.tent_no ?? '', field: '', old_value: dstName, new_value: srcName, action: '자리이동' });
+    sendLog({ tent_no: `${srcTentNo}→${dstTentNo}`, field: '', old_value: srcName, new_value: dstName, action: '자리이동' });
 
     recalcSummary(d, state.timeslot);
     _refreshPanel();
