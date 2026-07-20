@@ -275,7 +275,104 @@ const Checklist = (() => {
 
   function renderPanel() {
     if (state.tab === 'two_time') return renderTwoTimeTable();
-    return renderSlot(getCurrentData(), state.editable);
+    const isMobile = window.innerWidth < 700;
+    return isMobile ? renderSlotMobile(getCurrentData(), state.editable) : renderSlot(getCurrentData(), state.editable);
+  }
+
+  /* ── 모바일 카드 레이아웃 ── */
+  function renderSlotMobile(d, E) {
+    recalcSummary(d, state.timeslot);
+    const s = d.summary || {};
+
+    // 요약 (가로 스크롤)
+    const sumItems = [
+      ['불멍','bulmung_count'],['플레이','play_count'],['아이풀','child_pool'],
+      ['성인풀','adult_pool'],['풀합계','total_pool'],['S','tent2'],['M','tent4'],
+      ['L','tent8'],['단체20','group20'],['단체30','group30'],['합계','total'],
+    ];
+    const summaryHtml = `
+      <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 12px;margin-bottom:12px">
+        <div style="font-weight:700;font-size:12px;color:#1e40af;margin-bottom:8px">📋 요약</div>
+        <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:4px">
+          ${sumItems.map(([label,key])=>`
+            <div style="flex:0 0 auto;text-align:center;min-width:44px">
+              <div style="font-size:10px;color:#555;font-weight:600">${label}</div>
+              <div id="cl-sum-${key}" style="padding:3px 4px;background:#fff;border:1px solid #d1d5db;border-radius:4px;font-size:13px;font-weight:700;color:#1e40af">${s[key]||'-'}</div>
+            </div>`).join('')}
+        </div>
+        <div style="display:flex;gap:8px;margin-top:6px">
+          <div style="font-size:11px;color:#555">1시간추가: <span id="cl-sum-extra_hour_nos" style="font-weight:700;color:#dc2626">${s.extra_hour_nos||'-'}</span></div>
+          <div style="font-size:11px;color:#555">연장텐트: <span id="cl-sum-extend_nos" style="font-weight:700;color:#2563eb">${s.extend_nos||'-'}</span></div>
+        </div>
+      </div>`;
+
+    function mobileCard(row, idx, section) {
+      // 구분선
+      const divStyle = (
+        (section === 'mtent' && (idx === 1 || idx === 6)) ||
+        (section === 'tent8' && idx === 7)
+      ) ? 'margin-top:10px;border-top:3px solid #94a3b8;padding-top:10px;' : '';
+
+      const two_bg = twoTimeBg(row.two_time);
+      const hasName = !!row.name;
+      const headerBg = hasName ? (row.actual ? '#bae6fd' : '#f0f9ff') : '#f9fafb';
+
+      function field(label, key, wide) {
+        const val = row[key] ?? '';
+        const extraStyle = key === 'extra_hour' && val ? 'background:#fca5a5;' : key === 'two_time' && val ? `background:${two_bg};` : '';
+        if (!E) return `<div style="flex:${wide?'1 1 100%':'1 1 45%'};min-width:0">
+          <div style="font-size:10px;color:#888">${label}</div>
+          <div style="font-size:12px;font-weight:${key==='name'?'700':'400'};${extraStyle}padding:2px 0">${val||'—'}</div>
+        </div>`;
+        return `<div style="flex:${wide?'1 1 100%':'1 1 45%'};min-width:0">
+          <div style="font-size:10px;color:#888">${label}</div>
+          <input type="text" value="${String(val).replace(/"/g,'&quot;')}"
+            data-section="${section}" data-idx="${idx}" data-field="${key}"
+            oninput="Checklist.onRowInput(this)"
+            onkeydown="Checklist.onRowKeydown(this,event)"
+            style="width:100%;box-sizing:border-box;border:1px solid #d1d5db;border-radius:4px;
+                   padding:4px 6px;font-size:13px;${extraStyle}background:${extraStyle?'':'#fff'}">
+        </div>`;
+      }
+
+      const clearBtn = E ? `<button onclick="Checklist.clearRow('${section}',${idx})"
+        style="border:none;background:none;color:#cbd5e1;font-size:16px;cursor:pointer;line-height:1;padding:0"
+        onmouseover="this.style.color='#e53e3e'" onmouseout="this.style.color='#cbd5e1'" title="한 줄 지우기">×</button>` : '';
+
+      return `<div style="${divStyle}background:${headerBg};border:1px solid #e5e7eb;border-radius:8px;
+              padding:8px 10px;margin-bottom:6px">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+          <span style="font-size:15px;font-weight:700;color:#1e40af;min-width:28px">${row.tent_no}</span>
+          <span style="font-size:11px;color:#6b7280;background:#f1f5f9;padding:1px 5px;border-radius:3px">${row.product||''}</span>
+          <span style="font-size:14px;font-weight:700;flex:1">${row.name||''}</span>
+          ${clearBtn}
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px 10px">
+          ${field('예약인원','reserved')}
+          ${field('입장시인원','actual')}
+          ${field('2타임','two_time')}
+          ${field('불멍','bulmung')}
+          ${field('플레이','play')}
+          ${field('아이풀','child_pool')}
+          ${field('성인풀','adult_pool')}
+          ${field('1시간추가','extra_hour')}
+          ${field('방문횟수','visit_count')}
+          ${field('비고','memo', true)}
+        </div>
+      </div>`;
+    }
+
+    function mobileSection(title, rows, section) {
+      return `<div style="margin-bottom:14px">
+        <div style="font-weight:700;font-size:13px;color:#1e40af;padding:4px 0 6px">${title}</div>
+        ${rows.map((row,idx) => mobileCard(row, idx, section)).join('')}
+      </div>`;
+    }
+
+    const mRows = [...(d.tent4||[]), ...(d.tent2||[])];
+    return summaryHtml
+      + mobileSection('M텐트', mRows, 'mtent')
+      + mobileSection('L텐트', d.tent8||[], 'tent8');
   }
 
   /* ── 타임슬롯 렌더링 ── */
