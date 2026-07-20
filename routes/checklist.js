@@ -192,8 +192,19 @@ function assignTents(allOrders) {
 
   const result = {};
 
-  // 배정 우선순위: 2타임 이상 예약자 우선, 동점이면 인원수
-  const sortPriority = (a, b) => {
+  // 배정 우선순위: 단체(인원수 desc) > 7인(2타임우선→인원수) > 4인(2타임우선→인원수)
+  const sortLPriority = (a, b) => {
+    const aG = getProductType(a.product_raw) === 'G' ? 1 : 0;
+    const bG = getProductType(b.product_raw) === 'G' ? 1 : 0;
+    if (bG !== aG) return bG - aG; // 단체 먼저
+    // 같은 타입끼리: 2타임 우선, 그 다음 인원수
+    const aTT = (nameToSlots[a.name]?.length || 1) > 1 ? 1 : 0;
+    const bTT = (nameToSlots[b.name]?.length || 1) > 1 ? 1 : 0;
+    if (bTT !== aTT) return bTT - aTT;
+    return getReserved(b) - getReserved(a);
+  };
+
+  const sortMPriority = (a, b) => {
     const aTT = (nameToSlots[a.name]?.length || 1) > 1 ? 1 : 0;
     const bTT = (nameToSlots[b.name]?.length || 1) > 1 ? 1 : 0;
     if (bTT !== aTT) return bTT - aTT;
@@ -202,15 +213,16 @@ function assignTents(allOrders) {
 
   for (const ts of ['11', '15', '19']) {
     const orders = byTs[ts];
-    const Llist = orders.filter(o => getProductType(o.product_raw) === 'L').sort(sortPriority);
-    const MSlist = orders.filter(o => ['M','S'].includes(getProductType(o.product_raw))).sort(sortPriority);
+    const Llist = orders.filter(o => getProductType(o.product_raw) === 'L');
+    const MSlist = orders.filter(o => ['M','S'].includes(getProductType(o.product_raw))).sort(sortMPriority);
     const Tlist = orders.filter(o => getProductType(o.product_raw) === 'T');
     const Glist = orders.filter(o => getProductType(o.product_raw) === 'G');
 
     const overflow = Math.max(0, MSlist.length - 12);
     const msToL = MSlist.slice(0, overflow);
     const msToM = MSlist.slice(overflow);
-    const allL = [...Llist, ...msToL].sort(sortPriority);
+    // 단체 + L + 넘친 M → 단체 인원수 내림차순 → L 2타임/인원수 순
+    const allL = [...Glist, ...Llist, ...msToL].sort(sortLPriority);
 
     // Assign M slots (0–11) with same-tent priority
     const mSlots = {};
@@ -233,42 +245,46 @@ function assignTents(allOrders) {
       if (tentMap[o.name].M === undefined) tentMap[o.name].M = parseInt(slot);
     }
 
-    // Assign L slots (0–12) with same-tent priority
+    // Assign L slots (0–12): 단체 포함, same-tent priority
     const lSlots = {};
+    // 1) 이전 타임에서 배정된 자리 먼저 확보 (단체 제외 — 단체는 연속 자리 필요)
     for (const o of allL) {
+      if (getProductType(o.product_raw) === 'G') continue;
       const prev = tentMap[o.name]?.L;
       if (prev !== undefined && !lSlots[prev]) lSlots[prev] = o;
     }
-    const remainingL = allL.filter(o => !Object.values(lSlots).includes(o));
-    const freeL = Array.from({length: 13}, (_, i) => i).filter(i => !(i in lSlots));
-    remainingL.forEach((o, i) => {
-      if (i < freeL.length) {
-        lSlots[freeL[i]] = o;
-        if (!tentMap[o.name]) tentMap[o.name] = {};
-        if (tentMap[o.name].L === undefined) tentMap[o.name].L = freeL[i];
+    // 2) 나머지 배정
+    const assignedSet = new Set(Object.values(lSlots));
+    const remainingL = allL.filter(o => !assignedSet.has(o));
+    let freeL = Array.from({length: 13}, (_, i) => i).filter(i => !(i in lSlots));
+    let fi = 0;
+    for (const o of remainingL) {
+      const t = getProductType(o.product_raw);
+      const cnt = t === 'G' ? getGroupCount(o.product_raw) : 0;
+      const slots = cnt ? Math.ceil(cnt / 10) : 1;
+      for (let j = 0; j < slots && fi < freeL.length; j++, fi++) {
+        lSlots[freeL[fi]] = j === 0 ? o : { ...o, name: '' };
       }
-    });
-    for (const [slot, o] of Object.entries(lSlots)) {
       if (!tentMap[o.name]) tentMap[o.name] = {};
-      if (tentMap[o.name].L === undefined) tentMap[o.name].L = parseInt(slot);
+      if (tentMap[o.name].L === undefined && freeL[fi - slots] !== undefined) tentMap[o.name].L = freeL[fi - slots];
+    }
+    for (const [slot, o] of Object.entries(lSlots)) {
+      if (o.name && !tentMap[o.name]) tentMap[o.name] = {};
+      if (o.name && tentMap[o.name].L === undefined) tentMap[o.name].L = parseInt(slot);
     }
 
     const tent4 = Array.from({length: 6}, (_, i) => makeRow(i, mSlots[i]));
     const tent2 = Array.from({length: 6}, (_, i) => makeRow(6 + i, mSlots[6 + i]));
-    const tent8 = Array.from({length: 13}, (_, i) => makeRow(TENT8_LABELS[i], lSlots[i]));
-
-    // 단체 처리: 연속 텐트 배정 (tent8 빈 자리에 추가)
-    const freeL2 = Array.from({length: 13}, (_, i) => i).filter(i => !lSlots[i]);
-    let freeIdx = 0;
-    for (const o of Glist) {
-      const cnt = getGroupCount(o.product_raw);
-      const slots = cnt ? Math.ceil(cnt / 10) : 1;
-      const prodLabel = cnt ? `단체${cnt}` : '단체';
-      for (let j = 0; j < slots && freeIdx < freeL2.length; j++, freeIdx++) {
-        const li = freeL2[freeIdx];
-        tent8[li] = makeRow(TENT8_LABELS[li], j === 0 ? o : { ...o, name: '' }, prodLabel);
+    // tent8: 단체는 prodLabel 표시
+    const tent8 = Array.from({length: 13}, (_, i) => {
+      const o = lSlots[i];
+      if (!o) return makeEmptyRow(TENT8_LABELS[i]);
+      if (getProductType(o.product_raw) === 'G') {
+        const cnt = getGroupCount(o.product_raw);
+        return makeRow(TENT8_LABELS[i], o, cnt ? `단체${cnt}` : '단체');
       }
-    }
+      return makeRow(TENT8_LABELS[i], o);
+    });
 
     const extra = Tlist.map(o => makeRow('', o));
     result[ts] = { summary: {}, tent4, tent2, tent8, extra };
