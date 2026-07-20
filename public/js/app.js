@@ -131,22 +131,9 @@ const App = {
       if (el) el.style.display = App.canView(p) ? '' : 'none';
     });
 
-    // 설정·관리자 섹션: 총괄만
-    ['nav-settings','nav-admin-section'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.style.display = isSuperAdmin ? '' : 'none';
-    });
-
-    // nav section labels 표시 제어
-    const sectionMap = {
-      '인사관리': ['employees','attendance','leaves','salary'],
-      '재무관리': ['finance'],
-      '재고관리': ['inventory'],
-    };
-    document.querySelectorAll('#sidebar .nav-section').forEach(sec => {
-      const pages = sectionMap[sec.textContent?.trim()];
-      if (pages) sec.style.display = (isSuperAdmin || pages.some(p => App.canView(p))) ? '' : 'none';
-    });
+    // 설정: 총괄만
+    const navSettings = document.getElementById('nav-settings');
+    if (navSettings) navSettings.style.display = isSuperAdmin ? '' : 'none';
 
     // 접근 제어: mypage·settings는 항상 허용
     if (page !== 'mypage' && page !== 'settings') {

@@ -58,11 +58,9 @@
       <p>내부 관리 시스템</p>
     </div>
     <nav>
-      <div class="nav-section">홈</div>
       <a href="#" onclick="App.goto('dashboard')" data-page="dashboard">
         <span class="icon">📊</span><span>대시보드</span>
       </a>
-      <div class="nav-section">인사관리</div>
       <a href="#" onclick="App.goto('employees')" data-page="employees">
         <span class="icon">👥</span><span>직원 관리</span>
       </a>
@@ -75,19 +73,15 @@
       <a href="#" onclick="App.goto('salary')" data-page="salary">
         <span class="icon">💰</span><span>급여 관리</span>
       </a>
-      <div class="nav-section admin-only">재무관리</div>
       <a href="#" onclick="App.goto('finance')" data-page="finance" id="nav-finance" class="admin-only">
         <span class="icon">📒</span><span>수입/지출</span>
       </a>
-      <div class="nav-section admin-only">재고관리</div>
       <a href="#" onclick="App.goto('inventory')" data-page="inventory" id="nav-inventory" class="admin-only">
         <span class="icon">📦</span><span>재고 현황</span>
       </a>
-      <div class="nav-section">내 계정</div>
       <a href="#" onclick="App.goto('mypage')" data-page="mypage">
         <span class="icon">👤</span><span>마이페이지</span>
       </a>
-      <div class="nav-section" id="nav-admin-section">관리자</div>
       <a href="#" onclick="App.goto('timesheet')" data-page="timesheet" id="nav-timesheet">
         <span class="icon">📋</span><span>근무표</span>
       </a>
