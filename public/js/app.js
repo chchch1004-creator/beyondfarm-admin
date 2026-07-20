@@ -116,7 +116,8 @@ const App = {
       shareholder_timesheet: '주주근무표',
       sales: '매출현황',
       inflow: '유입량',
-      checklist: '인원체크리스트'
+      checklist: '인원체크리스트',
+      announcement: '안내방송'
     };
     document.getElementById('page-title').textContent = titles[page] || page;
     const mpt = document.getElementById('mobile-page-title');
@@ -147,7 +148,7 @@ const App = {
       return;
     }
 
-    const pages = { dashboard: Dashboard, employees: Employees, attendance: Attendance, leaves: Leaves, salary: Salary, finance: Finance, inventory: Inventory, settings: Settings, mypage: MyPage, timesheet: Timesheet, shareholder_timesheet: ShareholderTimesheet, sales: Sales, inflow: Inflow, checklist: Checklist };
+    const pages = { dashboard: Dashboard, employees: Employees, attendance: Attendance, leaves: Leaves, salary: Salary, finance: Finance, inventory: Inventory, settings: Settings, mypage: MyPage, timesheet: Timesheet, shareholder_timesheet: ShareholderTimesheet, sales: Sales, inflow: Inflow, checklist: Checklist, announcement: Announcement };
     pages[page]?.render();
     App.closeSidebar();
   }
