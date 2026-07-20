@@ -29,17 +29,6 @@ const Announcement = {
       });
       sel.appendChild(grp);
     }
-    if (others.length) {
-      const grp = document.createElement('optgroup');
-      grp.label = '기타 언어';
-      others.forEach(v => {
-        const opt = document.createElement('option');
-        opt.value = v.name;
-        opt.textContent = `${v.name} (${v.lang})`;
-        grp.appendChild(opt);
-      });
-      sel.appendChild(grp);
-    }
     if (current) sel.value = current;
   },
 
