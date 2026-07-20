@@ -51,6 +51,7 @@ const App = {
     document.getElementById('sidebar-role').textContent = roleLabel[App.user.role] || '사용자';
     const allPages = ['dashboard','employees','attendance','leaves','salary','finance','inventory','timesheet','shareholder_timesheet','sales','inflow','checklist'];
     const firstPage = App.user.role === 'superadmin' ? 'dashboard' : (allPages.find(p => App.canView(p)) || 'mypage');
+    NavOrder.init();
     App.goto(firstPage);
   },
 
@@ -164,3 +165,65 @@ const App = {
 };
 
 document.addEventListener('DOMContentLoaded', () => App.init());
+
+/* ── 메뉴 순서 커스텀 ── */
+const NavOrder = {
+  storageKey() { return `nav_order_${App.user?.id || 'guest'}`; },
+
+  load() {
+    try { return JSON.parse(localStorage.getItem(this.storageKey()) || 'null'); } catch { return null; }
+  },
+
+  save() {
+    const links = [...document.querySelectorAll('#sidebar nav a[data-page]')];
+    const order = links.map(a => a.dataset.page);
+    localStorage.setItem(this.storageKey(), JSON.stringify(order));
+  },
+
+  apply() {
+    const order = this.load();
+    if (!order) return;
+    const nav = document.querySelector('#sidebar nav');
+    if (!nav) return;
+    // 커스텀 순서 사용 중이면 섹션 레이블 숨김
+    nav.querySelectorAll('.nav-section').forEach(s => s.style.display = 'none');
+    const links = Object.fromEntries(
+      [...nav.querySelectorAll('a[data-page]')].map(a => [a.dataset.page, a])
+    );
+    [...nav.querySelectorAll('a[data-page]')].forEach(a => a.remove());
+    order.forEach(page => { if (links[page]) nav.appendChild(links[page]); });
+    // order에 없는 신규 항목은 뒤에 붙임
+    Object.entries(links).forEach(([page, a]) => { if (!order.includes(page)) nav.appendChild(a); });
+  },
+
+  init() {
+    this.apply();
+    const nav = document.querySelector('#sidebar nav');
+    if (!nav) return;
+    let dragging = null;
+
+    nav.querySelectorAll('a[data-page]').forEach(a => {
+      a.setAttribute('draggable', 'true');
+      a.addEventListener('dragstart', e => {
+        dragging = a;
+        e.dataTransfer.effectAllowed = 'move';
+        setTimeout(() => a.style.opacity = '0.4', 0);
+      });
+      a.addEventListener('dragend', () => {
+        a.style.opacity = '';
+        nav.querySelectorAll('a[data-page]').forEach(x => x.style.outline = '');
+        dragging = null;
+        NavOrder.save();
+      });
+      a.addEventListener('dragover', e => {
+        e.preventDefault();
+        if (!dragging || dragging === a) return;
+        const rect = a.getBoundingClientRect();
+        const after = e.clientY > rect.top + rect.height / 2;
+        a.style.outline = after ? 'none' : 'none';
+        if (after) nav.insertBefore(dragging, a.nextSibling);
+        else nav.insertBefore(dragging, a);
+      });
+    });
+  },
+};

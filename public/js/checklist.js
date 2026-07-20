@@ -314,6 +314,18 @@ const Checklist = (() => {
         </div>
       </div>
 
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;flex-wrap:wrap">
+        <div style="position:relative;flex:1;min-width:160px;max-width:320px">
+          <input type="text" id="cl-search" placeholder="이름 검색 (예: 공혜경)"
+            oninput="Checklist.onSearch(this.value)"
+            onkeydown="if(event.key==='Escape'){this.value='';Checklist.onSearch('');}"
+            style="width:100%;box-sizing:border-box;padding:6px 32px 6px 10px;border:1px solid #93c5fd;
+                   border-radius:6px;font-size:13px;outline:none">
+          <span style="position:absolute;right:8px;top:50%;transform:translateY(-50%);color:#93c5fd;font-size:14px;pointer-events:none">🔍</span>
+        </div>
+        <div id="cl-search-result" style="font-size:12px;color:#64748b"></div>
+      </div>
+
       <div style="display:flex;gap:0;margin-bottom:0">
         ${tabBtn('11','11시')}${tabBtn('15','15시')}${tabBtn('19','19시')}${tabBtnTwoTime()}${tabBtnLog()}
       </div>
@@ -947,6 +959,7 @@ const Checklist = (() => {
   function _refreshPanel() {
     const el = document.getElementById('cl-panel');
     if (el) el.innerHTML = renderPanel();
+    if (_searchQuery) setTimeout(_highlightSearch, 0);
   }
 
   function _refreshTabs() {
@@ -1043,6 +1056,96 @@ const Checklist = (() => {
     } catch (e) { alert('삭제 실패: ' + e.message); }
   }
 
+  /* ── 이름 검색 ── */
+  let _searchQuery = '';
+  function onSearch(q) {
+    _searchQuery = q.trim();
+    const resultEl = document.getElementById('cl-search-result');
+
+    if (!_searchQuery) {
+      if (resultEl) resultEl.innerHTML = '';
+      // 하이라이트 전체 제거
+      document.querySelectorAll('.cl-search-hi').forEach(el => {
+        el.style.background = el.dataset.origBg || '';
+        el.classList.remove('cl-search-hi');
+      });
+      return;
+    }
+
+    // 전체 타임에서 이름 검색
+    const results = [];
+    TIMESLOTS.forEach(ts => {
+      const d = state.data[ts];
+      if (!d) return;
+      const sections = [
+        { key: 'tent4', rows: d.tent4||[] },
+        { key: 'tent2', rows: d.tent2||[] },
+        { key: 'tent8', rows: d.tent8||[] },
+        { key: 'extra', rows: d.extra||[] },
+      ];
+      sections.forEach(({ rows }) => {
+        rows.forEach(r => {
+          if (r.name && r.name.includes(_searchQuery)) {
+            results.push({ ts, tent_no: r.tent_no, name: r.name });
+          }
+        });
+      });
+    });
+
+    // 결과 표시
+    if (resultEl) {
+      if (!results.length) {
+        resultEl.innerHTML = `<span style="color:#ef4444">검색 결과 없음</span>`;
+      } else {
+        resultEl.innerHTML = results.map(r =>
+          `<button onclick="Checklist._jumpTo('${r.ts}','${r.tent_no}')"
+            style="padding:2px 8px;margin:0 2px;border:1px solid #2563eb;border-radius:4px;
+                   background:#eff6ff;color:#1e40af;font-size:12px;cursor:pointer;white-space:nowrap">
+            ${r.ts}시 ${r.tent_no} ${r.name}
+          </button>`
+        ).join('');
+      }
+    }
+
+    // 현재 탭에서 해당 행 하이라이트
+    _highlightSearch();
+  }
+
+  function _highlightSearch() {
+    // 이전 하이라이트 제거
+    document.querySelectorAll('.cl-search-hi').forEach(el => {
+      el.style.background = el.dataset.origBg || '';
+      el.classList.remove('cl-search-hi');
+    });
+    if (!_searchQuery) return;
+    // 현재 렌더된 input 중 name 필드이고 값이 검색어 포함하면 행 전체 강조
+    document.querySelectorAll('input[data-field="name"]').forEach(inp => {
+      if (inp.value.includes(_searchQuery)) {
+        const tr = inp.closest('tr');
+        if (tr) {
+          tr.dataset.origBg = tr.style.background || '';
+          tr.style.background = '#fef08a';
+          tr.classList.add('cl-search-hi');
+          // 첫 번째 결과는 스크롤해서 보이게
+          if (!document.querySelector('.cl-search-hi-scrolled')) {
+            tr.classList.add('cl-search-hi-scrolled');
+            tr.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }
+      }
+    });
+  }
+
+  async function _jumpTo(ts, tent_no) {
+    await switchSlot(ts);
+    // 렌더 후 해당 행으로 스크롤
+    setTimeout(() => {
+      _highlightSearch();
+      const hi = document.querySelector('.cl-search-hi');
+      if (hi) hi.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 100);
+  }
+
   async function loadLog() {
     const dateVal = document.getElementById('log-date-filter')?.value || '';
     const body = document.getElementById('cl-log-body');
@@ -1096,7 +1199,7 @@ const Checklist = (() => {
   return {
     render, switchSlot, switchTab, changeDate, moveDate,
     addExtraRow, removeExtraRow, onRowFocus, onRowInput, onRowKeydown, uploadExcel, deleteDate,
-    clearRow, undo, redo, loadLog,
+    clearRow, undo, redo, loadLog, onSearch, _jumpTo,
     onDragStart, onDragOver, onDragEnter, onDragLeave, onDrop, onDragEnd,
   };
 })();
