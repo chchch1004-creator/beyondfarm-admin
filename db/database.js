@@ -248,6 +248,20 @@ async function init() {
     UNIQUE(date, timeslot)
   )`);
 
+  tables.push(`CREATE TABLE IF NOT EXISTS checklist_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+    user_id INTEGER NOT NULL,
+    username TEXT NOT NULL,
+    date TEXT NOT NULL,
+    timeslot TEXT NOT NULL,
+    tent_no TEXT,
+    field TEXT,
+    old_value TEXT,
+    new_value TEXT,
+    action TEXT NOT NULL
+  )`);
+
   for (const sql of tables) {
     await client.execute({ sql, args: [] });
   }

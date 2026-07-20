@@ -127,14 +127,39 @@ const Checklist = (() => {
   }
 
   // ── 무음 자동저장 ──
+  function _doSave(date, ts) {
+    return API.put(`/api/checklist/${date}/${ts}`, state.data[ts] || emptyTimeslot())
+      .then(() => { if (!state.dates.includes(date)) state.dates.unshift(date); })
+      .catch(() => {});
+  }
   function silentSave() {
     clearTimeout(_saveTimer);
-    _saveTimer = setTimeout(() => {
-      const ts = state.timeslot;
-      API.put(`/api/checklist/${state.date}/${ts}`, state.data[ts] || emptyTimeslot())
-        .then(() => { if (!state.dates.includes(state.date)) state.dates.unshift(state.date); })
-        .catch(() => {});
-    }, 800);
+    _saveTimer = setTimeout(() => _doSave(state.date, state.timeslot), 800);
+  }
+  // 즉시 저장 (날짜/탭 전환 전에 호출)
+  async function flushSave() {
+    if (_saveTimer === null) return;
+    clearTimeout(_saveTimer);
+    _saveTimer = null;
+    await _doSave(state.date, state.timeslot);
+  }
+
+  // ── 변경 로그 ──
+  let _logTimer = null;
+  const _pendingLogs = [];
+  function sendLog(entry) {
+    _pendingLogs.push({ ...entry, date: state.date, timeslot: state.timeslot });
+    clearTimeout(_logTimer);
+    _logTimer = setTimeout(() => {
+      const batch = _pendingLogs.splice(0);
+      batch.forEach(e => API.post('/api/checklist/log', e).catch(() => {}));
+    }, 1000);
+  }
+  async function flushLogs() {
+    clearTimeout(_logTimer);
+    _logTimer = null;
+    const batch = _pendingLogs.splice(0);
+    await Promise.all(batch.map(e => API.post('/api/checklist/log', e).catch(() => {})));
   }
 
   async function render() {
@@ -265,7 +290,7 @@ const Checklist = (() => {
       </div>
 
       <div style="display:flex;gap:0;margin-bottom:0">
-        ${tabBtn('11','11시')}${tabBtn('15','15시')}${tabBtn('19','19시')}${tabBtnTwoTime()}
+        ${tabBtn('11','11시')}${tabBtn('15','15시')}${tabBtn('19','19시')}${tabBtnTwoTime()}${tabBtnLog()}
       </div>
 
       <div id="cl-panel" style="border:1px solid #2563eb;border-top:none;border-radius:0 8px 8px 8px;
@@ -286,12 +311,21 @@ const Checklist = (() => {
   function tabBtnTwoTime() {
     const active = state.tab === 'two_time';
     return `<button id="cl-tab-two" onclick="Checklist.switchTab('two_time')"
+      style="padding:9px 20px;border:1px solid #2563eb;border-right:none;
+      background:${active?'#2563eb':'#fff'};color:${active?'#fff':'#2563eb'};
+      cursor:pointer;font-size:13px;font-weight:600;border-radius:0">2타임연속여부</button>`;
+  }
+
+  function tabBtnLog() {
+    const active = state.tab === 'log';
+    return `<button id="cl-tab-log" onclick="Checklist.switchTab('log')"
       style="padding:9px 20px;border:1px solid #2563eb;
       background:${active?'#2563eb':'#fff'};color:${active?'#fff':'#2563eb'};
-      cursor:pointer;font-size:13px;font-weight:600;border-radius:0 8px 0 0">2타임연속여부</button>`;
+      cursor:pointer;font-size:13px;font-weight:600;border-radius:0 8px 0 0">변경 로그</button>`;
   }
 
   function renderPanel() {
+    if (state.tab === 'log') return renderLogPanel();
     if (state.tab === 'two_time') return renderTwoTimeTable();
     const isMobile = window.innerWidth < 700;
     return isMobile ? renderSlotMobile(getCurrentData(), state.editable) : renderSlot(getCurrentData(), state.editable);
@@ -365,6 +399,7 @@ const Checklist = (() => {
                   <div style="font-size:10px;color:#64748b;margin-bottom:2px">${label}</div>
                   <input type="text" value="${String(val).replace(/"/g,'&quot;')}"
                     data-section="${section}" data-idx="${idx}" data-field="${key}"
+                    onfocus="Checklist.onRowFocus(this)"
                     oninput="Checklist.onRowInput(this)"
                     style="width:100%;box-sizing:border-box;border:1px solid #bfdbfe;border-radius:4px;
                            padding:5px 7px;font-size:13px;background:${bg}">
@@ -550,6 +585,7 @@ const Checklist = (() => {
         return `<td id="td-${section}-${idx}-${c.key}" style="padding:2px 2px;${baseStyle}">
           <input type="text" value="${String(val).replace(/"/g,'&quot;')}"
             data-section="${section}" data-idx="${idx}" data-field="${c.key}"
+            onfocus="Checklist.onRowFocus(this)"
             oninput="Checklist.onRowInput(this)"
             onkeydown="Checklist.onRowKeydown(this,event)"
             style="width:100%;box-sizing:border-box;border:1px solid #e2e8f0;border-radius:3px;
@@ -584,6 +620,26 @@ const Checklist = (() => {
           </table>
         </div>` : '<div style="color:#aaa;font-size:12px;padding:4px 0">행 없음</div>'}
       </div>`;
+  }
+
+  /* ── 변경 로그 탭 ── */
+  function renderLogPanel() {
+    const dateFilter = state.date || '';
+    return `<div>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+        <span style="font-weight:700;font-size:14px;color:#1e40af">변경 로그</span>
+        <label style="font-size:12px;color:#64748b">날짜 필터:
+          <input type="date" id="log-date-filter" value="${dateFilter}"
+            style="margin-left:4px;border:1px solid #cbd5e1;border-radius:4px;padding:3px 6px;font-size:12px">
+        </label>
+        <button onclick="Checklist.loadLog()"
+          style="padding:4px 12px;background:#2563eb;color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:12px">조회</button>
+        <span style="font-size:11px;color:#94a3b8">최근 200건</span>
+      </div>
+      <div id="cl-log-body" style="overflow-x:auto">
+        <div style="color:#94a3b8;font-size:13px;padding:20px 0;text-align:center">조회 버튼을 눌러 로그를 불러오세요</div>
+      </div>
+    </div>`;
   }
 
   /* ── 2타임연속여부 탭 ── */
@@ -771,17 +827,25 @@ const Checklist = (() => {
     } else { arr = d[section]; i = idx; }
     if (!arr || arr[i] === undefined) return;
     const tent_no = arr[i].tent_no;
+    sendLog({ tent_no, field: '', old_value: JSON.stringify(arr[i]), new_value: '', action: 'clear' });
     arr[i] = emptyRow(tent_no);
     recalcSummary(d, state.timeslot);
     _refreshPanel(); silentSave();
   }
 
   let _histTimer = null;
+  const _cellOldVal = new Map(); // 셀 포커스 진입 시 이전 값 저장
   /* ── 이벤트 핸들러 ── */
+  function onRowFocus(el) {
+    const key = `${el.dataset.section}-${el.dataset.idx}-${el.dataset.field}`;
+    if (!_cellOldVal.has(key)) _cellOldVal.set(key, el.value);
+  }
   function onRowInput(el) {
     // 입력 중에는 500ms 후 히스토리 저장 (너무 잦은 스냅샷 방지)
     clearTimeout(_histTimer);
     _histTimer = setTimeout(pushHistory, 500);
+    // 포커스 진입 시 이전 값 캡처 (oninput이 먼저 올 수도 있으므로 여기서도)
+    const cellKey = `${el.dataset.section}-${el.dataset.idx}-${el.dataset.field}`;
     let section = el.dataset.section;
     let idx = parseInt(el.dataset.idx);
     const field = el.dataset.field;
@@ -791,6 +855,8 @@ const Checklist = (() => {
       else { section = 'tent2'; idx -= 6; }
     }
     if (d[section]?.[idx] !== undefined) {
+      const oldVal = _cellOldVal.has(cellKey) ? _cellOldVal.get(cellKey) : (d[section][idx][field] ?? '');
+      if (!_cellOldVal.has(cellKey)) _cellOldVal.set(cellKey, oldVal);
       d[section][idx][field] = el.value;
       const sec0 = el.dataset.section, i0 = el.dataset.idx;
       if (field === 'two_time') {
@@ -808,17 +874,34 @@ const Checklist = (() => {
       recalcSummary(d, state.timeslot);
       pushSummaryToDOM(d.summary);
       silentSave();
+      // 로그: 1초 디바운스 후 최종 변경분 전송
+      clearTimeout(el._logTimer);
+      el._logTimer = setTimeout(() => {
+        const newVal = el.value;
+        if (newVal !== oldVal) {
+          sendLog({
+            tent_no: d[section][idx]?.tent_no ?? '',
+            field,
+            old_value: oldVal,
+            new_value: newVal,
+            action: 'edit',
+          });
+          _cellOldVal.set(cellKey, newVal);
+        }
+      }, 1000);
     }
   }
 
-  function switchSlot(ts) {
+  async function switchSlot(ts) {
+    await flushSave(); await flushLogs();
     state.tab = 'slot';
     state.timeslot = ts;
     _refreshPanel();
     _refreshTabs();
   }
 
-  function switchTab(tab) {
+  async function switchTab(tab) {
+    await flushSave(); await flushLogs();
     state.tab = tab;
     _refreshPanel();
     _refreshTabs();
@@ -843,9 +926,16 @@ const Checklist = (() => {
       btn2.style.background = active ? '#2563eb' : '#fff';
       btn2.style.color = active ? '#fff' : '#2563eb';
     }
+    const btnLog = document.getElementById('cl-tab-log');
+    if (btnLog) {
+      const active = state.tab === 'log';
+      btnLog.style.background = active ? '#2563eb' : '#fff';
+      btnLog.style.color = active ? '#fff' : '#2563eb';
+    }
   }
 
   async function changeDate() {
+    await flushSave(); await flushLogs();
     state.date = document.getElementById('cl-date').value;
     state.tab = 'slot';
     state.timeslot = '11';
@@ -854,6 +944,7 @@ const Checklist = (() => {
   }
 
   async function moveDate(delta) {
+    await flushSave(); await flushLogs();
     const d = new Date(state.date);
     d.setDate(d.getDate() + delta);
     state.date = d.toISOString().slice(0, 10);
@@ -915,10 +1006,57 @@ const Checklist = (() => {
     } catch (e) { alert('삭제 실패: ' + e.message); }
   }
 
+  async function loadLog() {
+    const dateVal = document.getElementById('log-date-filter')?.value || '';
+    const body = document.getElementById('cl-log-body');
+    if (!body) return;
+    body.innerHTML = '<div style="color:#94a3b8;text-align:center;padding:16px">불러오는 중...</div>';
+    try {
+      const url = '/api/checklist/log' + (dateVal ? `?date=${dateVal}` : '');
+      const rows = await API.get(url);
+      if (!rows.length) {
+        body.innerHTML = '<div style="color:#94a3b8;text-align:center;padding:16px">로그가 없습니다</div>';
+        return;
+      }
+      const ACTION_LABEL = { edit: '수정', clear: '한줄삭제', delete: '타임삭제', upload: '엑셀업로드', drag: '순서이동' };
+      body.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:12px;min-width:600px">
+        <thead><tr style="background:#f1f5f9">
+          <th style="padding:6px 8px;text-align:left;border-bottom:2px solid #e2e8f0;white-space:nowrap">시각</th>
+          <th style="padding:6px 8px;text-align:left;border-bottom:2px solid #e2e8f0">아이디</th>
+          <th style="padding:6px 8px;text-align:left;border-bottom:2px solid #e2e8f0">날짜</th>
+          <th style="padding:6px 8px;text-align:left;border-bottom:2px solid #e2e8f0">타임</th>
+          <th style="padding:6px 8px;text-align:left;border-bottom:2px solid #e2e8f0">자리</th>
+          <th style="padding:6px 8px;text-align:left;border-bottom:2px solid #e2e8f0">항목</th>
+          <th style="padding:6px 8px;text-align:left;border-bottom:2px solid #e2e8f0">구분</th>
+          <th style="padding:6px 8px;text-align:left;border-bottom:2px solid #e2e8f0">이전값</th>
+          <th style="padding:6px 8px;text-align:left;border-bottom:2px solid #e2e8f0">변경값</th>
+        </tr></thead>
+        <tbody>${rows.map((r,i) => {
+          const bg = i%2===0?'#fff':'#f8fafc';
+          const act = ACTION_LABEL[r.action] || r.action;
+          const actColor = r.action==='clear'||r.action==='delete'?'#dc2626':r.action==='upload'?'#7c3aed':'#2563eb';
+          return `<tr style="background:${bg}">
+            <td style="padding:5px 8px;border-bottom:1px solid #f1f5f9;color:#64748b;white-space:nowrap">${r.created_at?.slice(0,16)||''}</td>
+            <td style="padding:5px 8px;border-bottom:1px solid #f1f5f9;font-weight:600">${r.username||''}</td>
+            <td style="padding:5px 8px;border-bottom:1px solid #f1f5f9">${r.date||''}</td>
+            <td style="padding:5px 8px;border-bottom:1px solid #f1f5f9">${r.timeslot?r.timeslot+'시':''}</td>
+            <td style="padding:5px 8px;border-bottom:1px solid #f1f5f9;font-weight:600;color:#1e40af">${r.tent_no||''}</td>
+            <td style="padding:5px 8px;border-bottom:1px solid #f1f5f9">${r.field||''}</td>
+            <td style="padding:5px 8px;border-bottom:1px solid #f1f5f9;font-weight:600;color:${actColor}">${act}</td>
+            <td style="padding:5px 8px;border-bottom:1px solid #f1f5f9;color:#64748b;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${(r.old_value||'').replace(/"/g,'&quot;')}">${r.old_value||''}</td>
+            <td style="padding:5px 8px;border-bottom:1px solid #f1f5f9;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${(r.new_value||'').replace(/"/g,'&quot;')}">${r.new_value||''}</td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table>`;
+    } catch (e) {
+      body.innerHTML = `<div style="color:#dc2626;text-align:center;padding:16px">로드 실패: ${e.message}</div>`;
+    }
+  }
+
   return {
     render, switchSlot, switchTab, changeDate, moveDate,
-    addExtraRow, removeExtraRow, onRowInput, onRowKeydown, uploadExcel, deleteDate,
-    clearRow, undo, redo,
+    addExtraRow, removeExtraRow, onRowFocus, onRowInput, onRowKeydown, uploadExcel, deleteDate,
+    clearRow, undo, redo, loadLog,
     onDragStart, onDragOver, onDragEnter, onDragLeave, onDrop, onDragEnd,
   };
 })();

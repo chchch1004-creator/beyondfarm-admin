@@ -381,6 +381,38 @@ router.put('/:date/:timeslot', requireAuth, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// POST /api/checklist/log - 변경 로그 기록
+router.post('/log', requireAuth, async (req, res) => {
+  try {
+    const u = req.session.user;
+    const { date, timeslot, tent_no, field, old_value, new_value, action } = req.body;
+    await getDb().prepare(`
+      INSERT INTO checklist_log (user_id, username, date, timeslot, tent_no, field, old_value, new_value, action)
+      VALUES (?,?,?,?,?,?,?,?,?)
+    `).run(u.id, u.username, date, timeslot, tent_no ?? '', field ?? '', old_value ?? '', new_value ?? '', action);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/checklist/log - 로그 조회 (superadmin 또는 can_edit)
+router.get('/log', requireAuth, async (req, res) => {
+  try {
+    if (!await canView(req)) return res.status(403).json({ error: '접근 권한이 없습니다' });
+    const { date, limit = 200 } = req.query;
+    let rows;
+    if (date) {
+      rows = await getDb().prepare(
+        'SELECT * FROM checklist_log WHERE date=? ORDER BY id DESC LIMIT ?'
+      ).all(date, Number(limit));
+    } else {
+      rows = await getDb().prepare(
+        'SELECT * FROM checklist_log ORDER BY id DESC LIMIT ?'
+      ).all(Number(limit));
+    }
+    res.json(rows);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // DELETE /api/checklist/:date (날짜 전체 삭제)
 router.delete('/:date', requireAuth, async (req, res) => {
   try {
