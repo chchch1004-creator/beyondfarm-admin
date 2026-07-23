@@ -15,13 +15,13 @@ router.get('/', async (req, res) => {
   try {
     const testFilter = `AND name NOT LIKE '%테스트%' AND name NOT LIKE '%TEST%' AND name NOT LIKE '%관리자%' AND name != 'T'`;
     if (req.session.user.role === 'superadmin') {
-      return res.json(await db.prepare('SELECT id, username, name, role, department, position, phone, email, hire_date, birth_date, status, created_at, employee_type, ssn, bank_name, bank_account, hourly_rate FROM users ORDER BY name').all());
+      return res.json(await db.prepare('SELECT id, username, name, role, department, position, phone, email, hire_date, birth_date, status, created_at, employee_type, ssn, bank_name, bank_account, hourly_rate, call_enabled FROM users ORDER BY name').all());
     }
     if (req.session.user.role === 'admin') {
-      return res.json(await db.prepare(`SELECT id, username, name, role, department, position, phone, email, hire_date, birth_date, status, created_at, employee_type, ssn, bank_name, bank_account, hourly_rate FROM users WHERE 1=1 ${testFilter} ORDER BY name`).all());
+      return res.json(await db.prepare(`SELECT id, username, name, role, department, position, phone, email, hire_date, birth_date, status, created_at, employee_type, ssn, bank_name, bank_account, hourly_rate, call_enabled FROM users WHERE 1=1 ${testFilter} ORDER BY name`).all());
     }
     // 일반 직원: 테스트 계정 제외, 민감정보 제외
-    res.json(await db.prepare(`SELECT id, name, role, department, position, hire_date, birth_date, status FROM users WHERE status = 'active' ${testFilter} ORDER BY name`).all());
+    res.json(await db.prepare(`SELECT id, name, role, department, position, hire_date, birth_date, status, call_enabled FROM users WHERE status = 'active' ${testFilter} ORDER BY name`).all());
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
