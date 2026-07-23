@@ -91,14 +91,20 @@ const Push = {
       if (LocalNotifications) {
         await LocalNotifications.addListener('localNotificationActionPerformed', (action) => {
           const url = action.notification?.extra?.url || '/community';
-          if (url.includes('community') && typeof App !== 'undefined') App.goto('community');
+          const page = url.includes('community') ? 'community' : null;
+          if (!page) return;
+          if (App.currentPage !== null) App.goto(page);
+          else sessionStorage.setItem('pendingNav', page);
         });
       }
 
       // 백그라운드 FCM 알림 탭 → 커뮤니티로 이동
       await PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
         const url = action.notification?.data?.url || '/community';
-        if (url.includes('community') && typeof App !== 'undefined') App.goto('community');
+        const page = url.includes('community') ? 'community' : null;
+        if (!page) return;
+        if (App.currentPage !== null) App.goto(page);
+        else sessionStorage.setItem('pendingNav', page);
       });
 
       await PushNotifications.register();

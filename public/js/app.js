@@ -55,7 +55,10 @@ const App = {
     NavOrder.fetchOrder().then(() => {
       NavOrder.apply();
       const savedOrder = NavOrder.load();
-      const firstPage = savedOrder?.[0] || (App.user.role === 'superadmin' ? 'dashboard' : (allPages.find(p => App.canView(p)) || 'mypage'));
+      let firstPage = savedOrder?.[0] || (App.user.role === 'superadmin' ? 'dashboard' : (allPages.find(p => App.canView(p)) || 'mypage'));
+      // 알림 탭으로 열린 경우 해당 페이지로 이동
+      const pendingNav = sessionStorage.getItem('pendingNav');
+      if (pendingNav) { sessionStorage.removeItem('pendingNav'); firstPage = pendingNav; }
       App.goto(firstPage);
     });
     Push.init().then(() => {
@@ -177,8 +180,10 @@ document.addEventListener('DOMContentLoaded', () => {
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.addEventListener('message', (e) => {
       if (e.data?.type === 'navigate' && e.data.url) {
-        const url = e.data.url;
-        if (url.includes('community')) App.goto('community');
+        const page = e.data.url.includes('community') ? 'community' : null;
+        if (!page) return;
+        if (App.currentPage !== null) App.goto(page);
+        else sessionStorage.setItem('pendingNav', page);
       }
     });
   }
