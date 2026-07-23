@@ -339,15 +339,20 @@ const Checklist = (() => {
   }
 
   function renderAnnouncementBar() {
-    let presets = [];
-    try {
-      const saved = localStorage.getItem('ann_presets');
-      presets = saved ? JSON.parse(saved) : [];
-    } catch { presets = []; }
-    if (!presets.length) return '';
-    const isMobile = window.innerWidth < 700;
-    return `
-      <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;flex-wrap:wrap">
+    // 비동기로 서버에서 불러와 채움
+    setTimeout(async () => {
+      const el = document.getElementById('cl-ann-bar');
+      if (!el) return;
+      let presets = [];
+      try {
+        const res = await API.get('/api/user-settings/ann_presets');
+        presets = res.value || [];
+      } catch {
+        try { presets = JSON.parse(localStorage.getItem('ann_presets') || '[]'); } catch {}
+      }
+      if (!presets.length) { el.style.display = 'none'; return; }
+      const isMobile = window.innerWidth < 700;
+      el.innerHTML = `
         <span style="font-size:11px;font-weight:600;color:#94a3b8;white-space:nowrap">📢 안내방송</span>
         ${presets.map((p, i) => `
           <button onclick="Checklist.playAnnouncement(${i})"
@@ -355,8 +360,11 @@ const Checklist = (() => {
                    background:#fff7ed;color:#c2410c;font-size:${isMobile?'11px':'12px'};
                    font-weight:500;cursor:pointer;white-space:nowrap">
             ${p.label}
-          </button>`).join('')}
-      </div>`;
+          </button>`).join('')}`;
+      // localStorage 동기화
+      localStorage.setItem('ann_presets', JSON.stringify(presets));
+    }, 0);
+    return `<div id="cl-ann-bar" style="display:flex;align-items:center;gap:6px;margin-bottom:8px;flex-wrap:wrap"></div>`;
   }
 
   function tabBtn(ts, label) {
@@ -1221,7 +1229,7 @@ const Checklist = (() => {
 
   function playAnnouncement(idx) {
     let presets = [];
-    try { const s = localStorage.getItem('ann_presets'); presets = s ? JSON.parse(s) : []; } catch {}
+    try { presets = JSON.parse(localStorage.getItem('ann_presets') || '[]'); } catch {}
     const p = presets[idx];
     if (!p?.text) return;
     const synth = window.speechSynthesis;
