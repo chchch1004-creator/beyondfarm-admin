@@ -262,6 +262,16 @@ async function init() {
     action TEXT NOT NULL
   )`);
 
+  tables.push(`CREATE TABLE IF NOT EXISTS push_subscriptions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    endpoint TEXT NOT NULL,
+    p256dh TEXT NOT NULL,
+    auth TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+    UNIQUE(user_id, endpoint)
+  )`);
+
   for (const sql of tables) {
     await client.execute({ sql, args: [] });
   }

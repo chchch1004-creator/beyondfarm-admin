@@ -30,6 +30,7 @@ app.use('/api/sh-timesheet', require('./routes/sh_timesheet'));
 app.use('/api/sales', require('./routes/sales'));
 app.use('/api/permissions', require('./routes/permissions'));
 app.use('/api/checklist', require('./routes/checklist'));
+app.use('/api/push', require('./routes/push'));
 
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));

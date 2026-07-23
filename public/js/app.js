@@ -51,6 +51,10 @@ const App = {
     document.getElementById('sidebar-role').textContent = roleLabel[App.user.role] || '사용자';
     const allPages = ['dashboard','employees','attendance','leaves','salary','finance','inventory','timesheet','shareholder_timesheet','sales','inflow','checklist'];
     NavOrder.init();
+    Push.init().then(() => {
+      const btn = document.getElementById('btn-push-enable');
+      if (btn) btn.style.display = Push.isSubscribed() ? 'none' : '';
+    });
     // 저장된 메뉴 순서가 있으면 첫 번째 항목으로, 없으면 기본값
     const savedOrder = NavOrder.load();
     const firstPage = savedOrder?.[0] || (App.user.role === 'superadmin' ? 'dashboard' : (allPages.find(p => App.canView(p)) || 'mypage'));
@@ -117,7 +121,8 @@ const App = {
       sales: '매출현황',
       inflow: '유입량',
       checklist: '인원체크리스트',
-      announcement: '안내방송'
+      announcement: '안내방송',
+      callstaff: '직원 호출'
     };
     document.getElementById('page-title').textContent = titles[page] || page;
     const mpt = document.getElementById('mobile-page-title');
@@ -137,7 +142,7 @@ const App = {
     if (navSettings) navSettings.style.display = isSuperAdmin ? '' : 'none';
 
     // 접근 제어: mypage·settings는 항상 허용
-    if (page !== 'mypage' && page !== 'settings') {
+    if (page !== 'mypage' && page !== 'settings' && page !== 'callstaff') {
       if (!App.canView(page)) {
         document.getElementById('content').innerHTML = '<div class="empty-state"><div class="icon">🔒</div>접근 권한이 없습니다</div>';
         return;
@@ -148,7 +153,7 @@ const App = {
       return;
     }
 
-    const pages = { dashboard: Dashboard, employees: Employees, attendance: Attendance, leaves: Leaves, salary: Salary, finance: Finance, inventory: Inventory, settings: Settings, mypage: MyPage, timesheet: Timesheet, shareholder_timesheet: ShareholderTimesheet, sales: Sales, inflow: Inflow, checklist: Checklist, announcement: Announcement };
+    const pages = { dashboard: Dashboard, employees: Employees, attendance: Attendance, leaves: Leaves, salary: Salary, finance: Finance, inventory: Inventory, settings: Settings, mypage: MyPage, timesheet: Timesheet, shareholder_timesheet: ShareholderTimesheet, sales: Sales, inflow: Inflow, checklist: Checklist, announcement: Announcement, callstaff: CallStaff };
     pages[page]?.render();
     App.closeSidebar();
   }
