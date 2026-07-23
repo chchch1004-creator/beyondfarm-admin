@@ -12,18 +12,19 @@ if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
   );
 }
 
-// FCM (안드로이드 앱)
-let firebaseAdmin = null;
+// FCM (안드로이드 앱) - firebase-admin v12+ 방식
+let fcmMessaging = null;
 let firebaseInitError = null;
 if (process.env.FIREBASE_SERVICE_ACCOUNT) {
   try {
-    const admin = require('firebase-admin');
+    const { initializeApp, getApps, cert } = require('firebase-admin/app');
+    const { getMessaging } = require('firebase-admin/messaging');
     const raw = Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT, 'base64').toString('utf8');
     const serviceAccount = JSON.parse(raw);
-    if (!admin.apps.length) {
-      admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+    if (!getApps().length) {
+      initializeApp({ credential: cert(serviceAccount) });
     }
-    firebaseAdmin = admin;
+    fcmMessaging = getMessaging();
     console.log('Firebase Admin 초기화 완료');
   } catch (e) {
     firebaseInitError = e.message;
@@ -51,7 +52,7 @@ router.get('/status', requireAuth, async (req, res) => {
     const fcmTokens = await db.prepare('SELECT token, updated_at FROM fcm_tokens WHERE user_id=?').all(userId);
     const webSubs = await db.prepare('SELECT endpoint, created_at FROM push_subscriptions WHERE user_id=?').all(userId);
     res.json({
-      firebase_initialized: !!firebaseAdmin,
+      firebase_initialized: !!fcmMessaging,
       firebase_error: firebaseInitError,
       vapid_initialized: !!(process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY),
       fcm_tokens: fcmTokens,
@@ -145,7 +146,7 @@ router.post('/send', requireAuth, async (req, res) => {
     }
 
     // FCM 전송 (안드로이드 앱)
-    if (firebaseAdmin && fcmTokens.length > 0) {
+    if (fcmMessaging && fcmTokens.length > 0) {
       const tokens = fcmTokens.map(t => t.token);
       const message = {
         notification: { title, body },
@@ -153,9 +154,8 @@ router.post('/send', requireAuth, async (req, res) => {
         tokens,
       };
       try {
-        const response = await firebaseAdmin.messaging().sendEachForMulticast(message);
+        const response = await fcmMessaging.sendEachForMulticast(message);
         sent += response.successCount;
-        // 만료된 토큰 정리
         response.responses.forEach((r, i) => {
           if (!r.success && (r.error?.code === 'messaging/invalid-registration-token' ||
               r.error?.code === 'messaging/registration-token-not-registered')) {
