@@ -64,29 +64,41 @@ const Push = {
         try {
           const { LocalNotifications } = window.Capacitor.Plugins;
           if (LocalNotifications) {
-            // Android 8+ 채널 생성
             await LocalNotifications.createChannel({
-              id: 'beyondfarm',
-              name: '비욘더팜 알림',
-              importance: 5, // IMPORTANCE_HIGH → heads-up
-              sound: 'default',
-              vibration: true,
+              id: 'beyondfarm', name: '비욘더팜 알림', importance: 5, sound: 'default', vibration: true,
             });
+            const notifId = Math.floor(Math.random() * 2000000000);
             await LocalNotifications.schedule({
               notifications: [{
-                id: Math.floor(Math.random() * 2000000000),
+                id: notifId,
                 title: notification.title || '비욘더팜',
                 body: notification.body || '',
                 channelId: 'beyondfarm',
                 sound: 'default',
                 smallIcon: 'ic_launcher_foreground',
                 autoCancel: true,
+                extra: { url: notification.data?.url || '/community' },
               }]
             });
           }
         } catch (e) {
           Utils.showToast(`📣 ${notification.title}: ${notification.body}`);
         }
+      });
+
+      // 포그라운드 로컬 알림 탭 → 커뮤니티로 이동
+      const { LocalNotifications } = window.Capacitor?.Plugins || {};
+      if (LocalNotifications) {
+        await LocalNotifications.addListener('localNotificationActionPerformed', (action) => {
+          const url = action.notification?.extra?.url || '/community';
+          if (url.includes('community') && typeof App !== 'undefined') App.goto('community');
+        });
+      }
+
+      // 백그라운드 FCM 알림 탭 → 커뮤니티로 이동
+      await PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
+        const url = action.notification?.data?.url || '/community';
+        if (url.includes('community') && typeof App !== 'undefined') App.goto('community');
       });
 
       await PushNotifications.register();

@@ -108,7 +108,7 @@ const CallStaff = {
     }
 
     try {
-      const res = await API.post('/api/push/send', { to_user_id: target, title: '비욘더팜 호출', body, url: '/' });
+      const res = await API.post('/api/push/send', { to_user_id: target, title: '비욘더팜 호출', body, url: '/community' });
       if (res.sent > 0) {
         Utils.showToast(`${res.sent}명에게 알림을 전송했습니다.`);
         document.getElementById('call-body').value = '';

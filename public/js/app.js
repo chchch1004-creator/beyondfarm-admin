@@ -172,6 +172,16 @@ const App = {
 document.addEventListener('DOMContentLoaded', () => {
   App.init();
   initPullToRefresh();
+
+  // 웹 푸시 알림 탭 → 페이지 이동 (서비스 워커 메시지 수신)
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.addEventListener('message', (e) => {
+      if (e.data?.type === 'navigate' && e.data.url) {
+        const url = e.data.url;
+        if (url.includes('community')) App.goto('community');
+      }
+    });
+  }
 });
 
 function initPullToRefresh() {
