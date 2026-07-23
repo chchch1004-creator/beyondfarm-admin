@@ -59,26 +59,32 @@ const Push = {
         if (requestPermission) Utils.showToast('FCM 등록 실패: ' + JSON.stringify(err), 'error');
       });
 
-      // 포그라운드 알림 - 로컬 알림으로 표시
+      // 포그라운드 알림 - 시스템 알림으로 표시
       await PushNotifications.addListener('pushNotificationReceived', async (notification) => {
         try {
           const { LocalNotifications } = window.Capacitor.Plugins;
           if (LocalNotifications) {
-            await LocalNotifications.requestPermissions();
+            // Android 8+ 채널 생성
+            await LocalNotifications.createChannel({
+              id: 'beyondfarm',
+              name: '비욘더팜 알림',
+              importance: 5, // IMPORTANCE_HIGH → heads-up
+              sound: 'default',
+              vibration: true,
+            });
             await LocalNotifications.schedule({
               notifications: [{
-                id: Date.now(),
+                id: Math.floor(Math.random() * 2000000000),
                 title: notification.title || '비욘더팜',
                 body: notification.body || '',
-                schedule: { at: new Date(Date.now() + 100) },
+                channelId: 'beyondfarm',
                 sound: 'default',
-                smallIcon: 'ic_launcher',
+                smallIcon: 'ic_launcher_foreground',
+                autoCancel: true,
               }]
             });
-          } else {
-            Utils.showToast(`📣 ${notification.title}: ${notification.body}`);
           }
-        } catch {
+        } catch (e) {
           Utils.showToast(`📣 ${notification.title}: ${notification.body}`);
         }
       });
