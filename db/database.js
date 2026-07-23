@@ -262,6 +262,14 @@ async function init() {
     action TEXT NOT NULL
   )`);
 
+  tables.push(`CREATE TABLE IF NOT EXISTS fcm_tokens (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    token TEXT NOT NULL,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+    UNIQUE(user_id, token)
+  )`);
+
   tables.push(`CREATE TABLE IF NOT EXISTS push_subscriptions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
