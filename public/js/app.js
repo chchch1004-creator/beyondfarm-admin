@@ -50,7 +50,14 @@ const App = {
     const roleLabel = { superadmin: '총괄관리자', user: '사용자' };
     document.getElementById('sidebar-role').textContent = roleLabel[App.user.role] || '사용자';
     const allPages = ['dashboard','employees','attendance','leaves','salary','finance','inventory','timesheet','shareholder_timesheet','sales','inflow','checklist'];
-    NavOrder.init();
+    // 서버에서 설정 불러온 후 메뉴/페이지 적용
+    Announcement.syncPresets();
+    NavOrder.fetchOrder().then(() => {
+      NavOrder.apply();
+      const savedOrder = NavOrder.load();
+      const firstPage = savedOrder?.[0] || (App.user.role === 'superadmin' ? 'dashboard' : (allPages.find(p => App.canView(p)) || 'mypage'));
+      App.goto(firstPage);
+    });
     Push.init().then(() => {
       const subscribed = Push.isSubscribed();
       const btnEnable = document.getElementById('btn-push-enable');
@@ -58,10 +65,6 @@ const App = {
       if (btnEnable) btnEnable.style.display = subscribed ? 'none' : '';
       if (btnDisable) btnDisable.style.display = subscribed ? '' : 'none';
     });
-    // 저장된 메뉴 순서가 있으면 첫 번째 항목으로, 없으면 기본값
-    const savedOrder = NavOrder.load();
-    const firstPage = savedOrder?.[0] || (App.user.role === 'superadmin' ? 'dashboard' : (allPages.find(p => App.canView(p)) || 'mypage'));
-    App.goto(firstPage);
   },
 
   async login() {
@@ -166,14 +169,20 @@ document.addEventListener('DOMContentLoaded', () => App.init());
 
 /* ── 메뉴 순서 커스텀 ── */
 const NavOrder = {
-  storageKey() { return `nav_order_${App.user?.id || 'guest'}`; },
+  _order: null,
 
-  load() {
-    try { return JSON.parse(localStorage.getItem(this.storageKey()) || 'null'); } catch { return null; }
+  async fetchOrder() {
+    try {
+      const res = await API.get('/api/user-settings/nav_order');
+      this._order = res.value || null;
+    } catch { this._order = null; }
   },
 
-  _saveOrder(order) {
-    localStorage.setItem(this.storageKey(), JSON.stringify(order));
+  load() { return this._order; },
+
+  async _saveOrder(order) {
+    this._order = order;
+    try { await API.put('/api/user-settings/nav_order', { value: order }); } catch {}
   },
 
   apply() {
@@ -188,10 +197,6 @@ const NavOrder = {
     [...nav.querySelectorAll('a[data-page]')].forEach(a => a.remove());
     order.forEach(page => { if (links[page]) nav.appendChild(links[page]); });
     Object.entries(links).forEach(([page, a]) => { if (!order.includes(page)) nav.appendChild(a); });
-  },
-
-  init() {
-    this.apply();
   },
 
   openModal() {
@@ -263,15 +268,15 @@ const NavOrder = {
     });
 
     // 버튼
-    modal.querySelector('#nm-save').onclick = () => {
+    modal.querySelector('#nm-save').onclick = async () => {
       const order = [...list.querySelectorAll('.nm-item')].map(el => el.dataset.page);
-      NavOrder._saveOrder(order);
+      await NavOrder._saveOrder(order);
       NavOrder.apply();
       modal.remove();
     };
     modal.querySelector('#nm-cancel').onclick = () => modal.remove();
-    modal.querySelector('#nm-reset').onclick = () => {
-      localStorage.removeItem(NavOrder.storageKey());
+    modal.querySelector('#nm-reset').onclick = async () => {
+      await NavOrder._saveOrder(null);
       location.reload();
     };
     modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });

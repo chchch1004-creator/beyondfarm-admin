@@ -10,15 +10,26 @@ const Announcement = {
     { label: '마감 안내', text: '오늘 비욘더팜의 운영이 곧 마감됩니다. 즐거운 시간 보내셨기를 바라며, 안전하게 귀가해 주시기 바랍니다.' },
   ],
 
-  _loadPresets() {
+  async _loadPresets() {
     try {
-      const saved = localStorage.getItem('ann_presets');
-      return saved ? JSON.parse(saved) : JSON.parse(JSON.stringify(this._defaultPresets));
+      const res = await API.get('/api/user-settings/ann_presets');
+      return res.value || JSON.parse(JSON.stringify(this._defaultPresets));
     } catch { return JSON.parse(JSON.stringify(this._defaultPresets)); }
   },
 
-  _savePresets(presets) {
+  async _savePresets(presets) {
+    // localStorage에도 저장 (checklist.js가 동기로 읽음)
     localStorage.setItem('ann_presets', JSON.stringify(presets));
+    try { await API.put('/api/user-settings/ann_presets', { value: presets }); } catch {}
+  },
+
+  // 로그인 직후 호출 - 서버 프리셋을 localStorage에 동기화
+  async syncPresets() {
+    try {
+      const res = await API.get('/api/user-settings/ann_presets');
+      const presets = res.value || JSON.parse(JSON.stringify(this._defaultPresets));
+      localStorage.setItem('ann_presets', JSON.stringify(presets));
+    } catch {}
   },
 
   _loadVoices() {
@@ -42,8 +53,8 @@ const Announcement = {
     if (current) sel.value = current;
   },
 
-  render() {
-    const presets = this._loadPresets();
+  async render() {
+    const presets = await this._loadPresets();
 
     document.getElementById('content').innerHTML = `
       <div class="card" style="max-width:680px">
@@ -122,14 +133,14 @@ const Announcement = {
     }
   },
 
-  setPreset(idx) {
-    const presets = this._loadPresets();
+  async setPreset(idx) {
+    const presets = await this._loadPresets();
     const el = document.getElementById('ann-text');
     if (el && presets[idx]) { el.value = presets[idx].text; el.focus(); }
   },
 
-  openPresetEditor() {
-    let presets = this._loadPresets().map(p => ({ ...p }));
+  async openPresetEditor() {
+    let presets = (await this._loadPresets()).map(p => ({ ...p }));
 
     const modal = document.createElement('div');
     modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';

@@ -38,6 +38,7 @@ app.use('/api/sales', require('./routes/sales'));
 app.use('/api/permissions', require('./routes/permissions'));
 app.use('/api/checklist', require('./routes/checklist'));
 app.use('/api/push', require('./routes/push'));
+app.use('/api/user-settings', require('./routes/settings_user'));
 
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
