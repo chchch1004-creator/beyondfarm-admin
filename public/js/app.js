@@ -52,8 +52,11 @@ const App = {
     const allPages = ['dashboard','employees','attendance','leaves','salary','finance','inventory','timesheet','shareholder_timesheet','sales','inflow','checklist'];
     NavOrder.init();
     Push.init().then(() => {
-      const btn = document.getElementById('btn-push-enable');
-      if (btn) btn.style.display = Push.isSubscribed() ? 'none' : '';
+      const subscribed = Push.isSubscribed();
+      const btnEnable = document.getElementById('btn-push-enable');
+      const btnDisable = document.getElementById('btn-push-disable');
+      if (btnEnable) btnEnable.style.display = subscribed ? 'none' : '';
+      if (btnDisable) btnDisable.style.display = subscribed ? '' : 'none';
     });
     // 저장된 메뉴 순서가 있으면 첫 번째 항목으로, 없으면 기본값
     const savedOrder = NavOrder.load();

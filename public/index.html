@@ -114,7 +114,8 @@
       <div class="name" id="sidebar-name"></div>
       <div class="role" id="sidebar-role"></div>
       <button onclick="NavOrder.openModal()" style="margin-bottom:4px">☰ 메뉴 순서 설정</button>
-      <button id="btn-push-enable" onclick="Push.requestPermission().then(ok=>{ if(ok){ document.getElementById('btn-push-enable').style.display='none'; Utils.showToast('알림이 활성화되었습니다.'); } else { Utils.showToast('알림 권한이 거부되었습니다.','error'); } })" style="margin-bottom:4px;background:#d97706;border-color:#d97706;color:#fff">🔔 알림 켜기</button>
+      <button id="btn-push-enable" onclick="Push.requestPermission().then(ok=>{ if(ok){ document.getElementById('btn-push-enable').style.display='none'; document.getElementById('btn-push-disable').style.display=''; Utils.showToast('알림이 활성화되었습니다.'); } else { Utils.showToast('알림 권한이 거부되었습니다.','error'); } })" style="margin-bottom:4px;background:#d97706;border-color:#d97706;color:#fff">🔔 알림 켜기</button>
+      <button id="btn-push-disable" onclick="Push.unsubscribe().then(()=>{ document.getElementById('btn-push-disable').style.display='none'; document.getElementById('btn-push-enable').style.display=''; Utils.showToast('알림이 비활성화되었습니다.'); })" style="margin-bottom:4px;display:none">🔕 알림 끄기</button>
       <button onclick="App.logout()"><span>로그아웃</span></button>
     </div>
   </div>

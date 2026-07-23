@@ -114,6 +114,24 @@ const Push = {
     } catch {}
   },
 
+  async unsubscribe() {
+    if (this._isCapacitor) {
+      // FCM은 브라우저 측에서 토큰만 삭제 (서버 DB에서 제거)
+      try {
+        await API.post('/api/push/unsubscribe', {});
+        this._fcmRegistered = false;
+      } catch (e) { console.error('알림 해제 실패:', e); }
+    } else {
+      if (this._sub) {
+        try {
+          await this._sub.unsubscribe();
+          await API.post('/api/push/unsubscribe', { endpoint: this._sub.endpoint });
+          this._sub = null;
+        } catch (e) { console.error('알림 해제 실패:', e); }
+      }
+    }
+  },
+
   isSubscribed() {
     if (this._isCapacitor) return this._fcmRegistered;
     return !!this._sub && Notification.permission === 'granted';

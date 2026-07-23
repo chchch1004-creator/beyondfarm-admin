@@ -69,6 +69,22 @@ router.post('/fcm-token', requireAuth, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// 알림 해제
+router.post('/unsubscribe', requireAuth, async (req, res) => {
+  try {
+    const db = getDb();
+    const userId = req.session.user.id;
+    const { endpoint } = req.body;
+    if (endpoint) {
+      await db.prepare('DELETE FROM push_subscriptions WHERE user_id=? AND endpoint=?').run(userId, endpoint);
+    } else {
+      // FCM: 해당 유저의 토큰 전체 삭제
+      await db.prepare('DELETE FROM fcm_tokens WHERE user_id=?').run(userId);
+    }
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // 알림 전송 (Web Push + FCM 동시)
 router.post('/send', requireAuth, async (req, res) => {
   try {
