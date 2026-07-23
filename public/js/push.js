@@ -6,22 +6,58 @@ const Push = {
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
     try {
       this._sw = await navigator.serviceWorker.register('/sw.js');
-      // 이미 구독 중이면 서버에 갱신
+      await navigator.serviceWorker.ready;
       this._sub = await this._sw.pushManager.getSubscription();
       if (this._sub) await this._sendSubToServer(this._sub);
     } catch (e) { console.warn('SW 등록 실패:', e); }
   },
 
   async requestPermission() {
+    // 지원 여부 확인
     if (!('serviceWorker' in navigator)) {
-      alert('이 브라우저는 푸시 알림을 지원하지 않습니다.');
+      alert('이 브라우저는 서비스 워커를 지원하지 않습니다.\n크롬 브라우저를 사용해 주세요.');
       return false;
     }
-    const perm = await Notification.requestPermission();
+    if (!('PushManager' in window)) {
+      // iOS Safari: 홈 화면에 추가된 PWA에서만 작동
+      const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+      if (isIOS) {
+        alert('iPhone에서 알림을 받으려면:\n\n1. Safari 하단 공유 버튼(□↑) 탭\n2. "홈 화면에 추가" 선택\n3. 홈 화면의 앱 아이콘으로 실행\n4. 다시 알림 켜기 버튼을 눌러주세요.');
+      } else {
+        alert('이 브라우저는 푸시 알림을 지원하지 않습니다.\n크롬 브라우저를 사용해 주세요.');
+      }
+      return false;
+    }
+
+    // SW 준비 대기
+    try {
+      if (!this._sw) {
+        this._sw = await navigator.serviceWorker.register('/sw.js');
+      }
+      await navigator.serviceWorker.ready;
+    } catch (e) {
+      alert('서비스 워커 등록 실패: ' + e.message);
+      return false;
+    }
+
+    // 알림 권한 요청
+    let perm = Notification.permission;
+    if (perm === 'default') {
+      perm = await Notification.requestPermission();
+    }
+    if (perm === 'denied') {
+      alert('알림이 차단되어 있습니다.\n브라우저 설정에서 이 사이트의 알림을 허용해 주세요.');
+      return false;
+    }
     if (perm !== 'granted') return false;
 
+    // 구독
     try {
       const { key } = await API.get('/api/push/vapid-public-key');
+      if (!key) {
+        alert('서버 설정이 완료되지 않았습니다. 관리자에게 문의해 주세요.');
+        return false;
+      }
       this._sub = await this._sw.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: this._urlBase64ToUint8Array(key),
@@ -29,7 +65,7 @@ const Push = {
       await this._sendSubToServer(this._sub);
       return true;
     } catch (e) {
-      console.error('구독 실패:', e);
+      alert('알림 구독 실패: ' + e.message);
       return false;
     }
   },
