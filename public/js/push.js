@@ -59,9 +59,28 @@ const Push = {
         if (requestPermission) Utils.showToast('FCM 등록 실패: ' + JSON.stringify(err), 'error');
       });
 
-      // 포그라운드 알림
-      await PushNotifications.addListener('pushNotificationReceived', (notification) => {
-        Utils.showToast(`📣 ${notification.title}: ${notification.body}`);
+      // 포그라운드 알림 - 로컬 알림으로 표시
+      await PushNotifications.addListener('pushNotificationReceived', async (notification) => {
+        try {
+          const { LocalNotifications } = window.Capacitor.Plugins;
+          if (LocalNotifications) {
+            await LocalNotifications.requestPermissions();
+            await LocalNotifications.schedule({
+              notifications: [{
+                id: Date.now(),
+                title: notification.title || '비욘더팜',
+                body: notification.body || '',
+                schedule: { at: new Date(Date.now() + 100) },
+                sound: 'default',
+                smallIcon: 'ic_launcher',
+              }]
+            });
+          } else {
+            Utils.showToast(`📣 ${notification.title}: ${notification.body}`);
+          }
+        } catch {
+          Utils.showToast(`📣 ${notification.title}: ${notification.body}`);
+        }
       });
 
       await PushNotifications.register();
