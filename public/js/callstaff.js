@@ -83,9 +83,9 @@ const CallStaff = {
       const s = await API.get('/api/push/status');
       const lines = [
         `Firebase: ${s.firebase_initialized ? '✅ 초기화됨' : '❌ 미초기화'}`,
-        `FCM 토큰: ${s.fcm_tokens.length}개`,
-        `웹 구독: ${s.web_subscriptions.length}개`,
       ];
+      if (s.firebase_error) lines.push(`오류: ${s.firebase_error}`);
+      lines.push(`FCM 토큰: ${s.fcm_tokens.length}개`, `웹 구독: ${s.web_subscriptions.length}개`);
       if (s.fcm_tokens.length > 0) lines.push(`최근 등록: ${s.fcm_tokens[0].updated_at}`);
       alert(lines.join('\n'));
     } catch (e) { alert('확인 실패: ' + e.message); }

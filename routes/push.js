@@ -14,18 +14,23 @@ if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
 
 // FCM (안드로이드 앱)
 let firebaseAdmin = null;
+let firebaseInitError = null;
 if (process.env.FIREBASE_SERVICE_ACCOUNT) {
   try {
     const admin = require('firebase-admin');
-    const serviceAccount = JSON.parse(
-      Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT, 'base64').toString()
-    );
+    const raw = Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT, 'base64').toString('utf8');
+    const serviceAccount = JSON.parse(raw);
     if (!admin.apps.length) {
       admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
     }
     firebaseAdmin = admin;
     console.log('Firebase Admin 초기화 완료');
-  } catch (e) { console.error('Firebase Admin 초기화 실패:', e.message); }
+  } catch (e) {
+    firebaseInitError = e.message;
+    console.error('Firebase Admin 초기화 실패:', e.message);
+  }
+} else {
+  firebaseInitError = 'FIREBASE_SERVICE_ACCOUNT 환경변수 없음';
 }
 
 function requireAuth(req, res, next) {
@@ -47,6 +52,7 @@ router.get('/status', requireAuth, async (req, res) => {
     const webSubs = await db.prepare('SELECT endpoint, created_at FROM push_subscriptions WHERE user_id=?').all(userId);
     res.json({
       firebase_initialized: !!firebaseAdmin,
+      firebase_error: firebaseInitError,
       vapid_initialized: !!(process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY),
       fcm_tokens: fcmTokens,
       web_subscriptions: webSubs,
