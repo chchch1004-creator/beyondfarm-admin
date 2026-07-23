@@ -7,7 +7,7 @@ const CallStaff = {
     document.getElementById('content').innerHTML = `<div style="color:#94a3b8;text-align:center;padding:40px">불러오는 중...</div>`;
     try {
       const data = await API.get('/api/employees?status=active');
-      this._employees = data.employees || [];
+      this._employees = Array.isArray(data) ? data : (data.employees || []);
       const kstDate = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
       const todayStr = `${kstDate.getFullYear()}-${String(kstDate.getMonth()+1).padStart(2,'0')}-${String(kstDate.getDate()).padStart(2,'0')}`;
       const att = await API.get('/api/attendance?date=' + todayStr);
@@ -35,7 +35,7 @@ const CallStaff = {
           </button>
           <button id="tab-individual" onclick="CallStaff.switchTab('individual')"
             style="flex:1;padding:11px 4px;border:none;background:#f8fafc;color:#64748b;font-size:12px;font-weight:600;cursor:pointer;border-left:1px solid #e2e8f0">
-            개별 선택
+            개별 직원
           </button>
           <button id="tab-all" onclick="CallStaff.switchTab('all')"
             style="flex:1;padding:11px 4px;border:none;background:#f8fafc;color:#64748b;font-size:12px;font-weight:600;cursor:pointer;border-left:1px solid #e2e8f0">
@@ -82,7 +82,7 @@ const CallStaff = {
     this._tab = tab;
     const descs = {
       clocked: '현재 출근 중인 직원에게만 전송합니다.',
-      individual: '아래에서 직원을 선택하세요.',
+      individual: '아래 직원 이름을 탭해서 선택하세요. (복수 선택 가능)',
       all: '알림에 동의한 모든 직원에게 전송합니다.',
     };
     ['clocked','individual','all'].forEach(t => {
