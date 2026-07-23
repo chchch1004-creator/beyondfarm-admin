@@ -128,7 +128,8 @@ const App = {
       inflow: '유입량',
       checklist: '인원체크리스트',
       announcement: '안내방송',
-      callstaff: '직원 호출'
+      callstaff: '직원 호출',
+      community: '커뮤니티'
     };
     document.getElementById('page-title').textContent = titles[page] || page;
     const mpt = document.getElementById('mobile-page-title');
@@ -148,7 +149,10 @@ const App = {
     if (navSettings) navSettings.style.display = isSuperAdmin ? '' : 'none';
 
     // 접근 제어: mypage·settings는 항상 허용
-    if (page !== 'mypage' && page !== 'settings' && page !== 'callstaff') {
+    // 페이지 이탈 시 커뮤니티 WS 정리
+    if (page !== 'community' && Community._ws) Community.destroy();
+
+    if (page !== 'mypage' && page !== 'settings' && page !== 'callstaff' && page !== 'community') {
       if (!App.canView(page)) {
         document.getElementById('content').innerHTML = '<div class="empty-state"><div class="icon">🔒</div>접근 권한이 없습니다</div>';
         return;
@@ -159,7 +163,7 @@ const App = {
       return;
     }
 
-    const pages = { dashboard: Dashboard, employees: Employees, attendance: Attendance, leaves: Leaves, salary: Salary, finance: Finance, inventory: Inventory, settings: Settings, mypage: MyPage, timesheet: Timesheet, shareholder_timesheet: ShareholderTimesheet, sales: Sales, inflow: Inflow, checklist: Checklist, announcement: Announcement, callstaff: CallStaff };
+    const pages = { dashboard: Dashboard, employees: Employees, attendance: Attendance, leaves: Leaves, salary: Salary, finance: Finance, inventory: Inventory, settings: Settings, mypage: MyPage, timesheet: Timesheet, shareholder_timesheet: ShareholderTimesheet, sales: Sales, inflow: Inflow, checklist: Checklist, announcement: Announcement, callstaff: CallStaff, community: Community };
     pages[page]?.render();
     App.closeSidebar();
   }

@@ -278,6 +278,15 @@ async function init() {
     PRIMARY KEY(user_id, key)
   )`);
 
+  tables.push(`CREATE TABLE IF NOT EXISTS community_messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    user_name TEXT NOT NULL,
+    channel TEXT NOT NULL DEFAULT 'free',
+    content TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+  )`);
+
   tables.push(`CREATE TABLE IF NOT EXISTS push_subscriptions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,

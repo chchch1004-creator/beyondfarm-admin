@@ -1,6 +1,8 @@
+const http = require('http');
 const express = require('express');
 const session = require('express-session');
 const path = require('path');
+const { WebSocketServer } = require('ws');
 const { init } = require('./db/database');
 
 const app = express();
@@ -39,14 +41,28 @@ app.use('/api/permissions', require('./routes/permissions'));
 app.use('/api/checklist', require('./routes/checklist'));
 app.use('/api/push', require('./routes/push'));
 app.use('/api/user-settings', require('./routes/settings_user'));
+app.use('/api/community', require('./routes/community'));
 
 app.get('*', (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+const server = http.createServer(app);
+
+const wss = new WebSocketServer({ server });
+global.wsBroadcast = (data) => {
+  const msg = JSON.stringify(data);
+  wss.clients.forEach(client => {
+    if (client.readyState === 1) client.send(msg);
+  });
+};
+wss.on('connection', (ws) => {
+  ws.on('error', () => {});
+});
+
 init().then(() => {
-  app.listen(PORT, () => {
+  server.listen(PORT, () => {
     console.log(`비욘더팜 관리 시스템 실행 중: http://localhost:${PORT}`);
   });
 }).catch(err => {
