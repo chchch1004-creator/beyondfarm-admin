@@ -114,29 +114,37 @@ router.post('/send', requireAuth, async (req, res) => {
     const db = getDb();
     const { to_user_id, title, body, url } = req.body;
 
-    // 오늘 출근 중인 직원 ID 목록 (check_in 있고 check_out 없음)
-    const today = new Date().toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' })
-      .replace(/\. /g, '-').replace('.', '');
     const kstDate = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
     const todayStr = `${kstDate.getFullYear()}-${String(kstDate.getMonth()+1).padStart(2,'0')}-${String(kstDate.getDate()).padStart(2,'0')}`;
-    const clockedIn = await db.prepare(
-      `SELECT DISTINCT user_id FROM attendance WHERE date = ? AND check_in IS NOT NULL AND (check_out IS NULL OR check_out = '')`
-    ).all(todayStr);
-    const clockedInIds = clockedIn.map(r => r.user_id);
 
     let webSubs, fcmTokens;
+
     if (to_user_id === 'all') {
-      if (clockedInIds.length === 0) {
-        return res.json({ ok: true, sent: 0, reason: '현재 출근 중인 직원이 없습니다.' });
-      }
-      const placeholders = clockedInIds.map(() => '?').join(',');
-      webSubs = await db.prepare(`SELECT * FROM push_subscriptions WHERE user_id IN (${placeholders})`).all(clockedInIds);
-      fcmTokens = await db.prepare(`SELECT token FROM fcm_tokens WHERE user_id IN (${placeholders})`).all(clockedInIds);
+      // 알림 동의한 전원 (출근 여부 무관)
+      webSubs = await db.prepare('SELECT * FROM push_subscriptions').all();
+      fcmTokens = await db.prepare('SELECT token FROM fcm_tokens').all();
+
+    } else if (to_user_id === 'clocked') {
+      // 현재 출근 중인 직원만
+      const clockedIn = await db.prepare(
+        `SELECT DISTINCT user_id FROM attendance WHERE date = ? AND check_in IS NOT NULL AND (check_out IS NULL OR check_out = '')`
+      ).all(todayStr);
+      const ids = clockedIn.map(r => r.user_id);
+      if (ids.length === 0) return res.json({ ok: true, sent: 0, reason: '현재 출근 중인 직원이 없습니다.' });
+      const ph = ids.map(() => '?').join(',');
+      webSubs = await db.prepare(`SELECT * FROM push_subscriptions WHERE user_id IN (${ph})`).all(ids);
+      fcmTokens = await db.prepare(`SELECT token FROM fcm_tokens WHERE user_id IN (${ph})`).all(ids);
+
+    } else if (to_user_id.includes(',')) {
+      // 개별 선택 (쉼표로 구분된 ID 목록)
+      const ids = to_user_id.split(',').map(id => parseInt(id)).filter(Boolean);
+      const ph = ids.map(() => '?').join(',');
+      webSubs = await db.prepare(`SELECT * FROM push_subscriptions WHERE user_id IN (${ph})`).all(ids);
+      fcmTokens = await db.prepare(`SELECT token FROM fcm_tokens WHERE user_id IN (${ph})`).all(ids);
+
     } else {
+      // 단일 직원
       const uid = parseInt(to_user_id);
-      if (!clockedInIds.includes(uid)) {
-        return res.json({ ok: true, sent: 0, reason: '해당 직원이 현재 출근 중이 아닙니다.' });
-      }
       webSubs = await db.prepare('SELECT * FROM push_subscriptions WHERE user_id = ?').all(uid);
       fcmTokens = await db.prepare('SELECT token FROM fcm_tokens WHERE user_id = ?').all(uid);
     }
