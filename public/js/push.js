@@ -42,9 +42,7 @@ const Push = {
       if (permStatus.receive !== 'granted') return false;
       if (permStatus.receive === 'granted' && !requestPermission) this._fcmRegistered = true;
 
-      await PushNotifications.register();
-
-      // 토큰 수신
+      // 리스너를 register() 호출 전에 먼저 등록해야 토큰을 놓치지 않음
       await PushNotifications.addListener('registration', async (token) => {
         try {
           await API.post('/api/push/fcm-token', { token: token.value });
@@ -52,10 +50,16 @@ const Push = {
         } catch (e) { console.error('FCM 토큰 저장 실패:', e); }
       });
 
+      await PushNotifications.addListener('registrationError', (err) => {
+        console.error('FCM 등록 실패:', err);
+      });
+
       // 포그라운드 알림
       await PushNotifications.addListener('pushNotificationReceived', (notification) => {
         Utils.showToast(`📣 ${notification.title}: ${notification.body}`);
       });
+
+      await PushNotifications.register();
 
       return true;
     } catch (e) {
