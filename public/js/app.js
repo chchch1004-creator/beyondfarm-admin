@@ -165,7 +165,61 @@ const App = {
   }
 };
 
-document.addEventListener('DOMContentLoaded', () => App.init());
+document.addEventListener('DOMContentLoaded', () => {
+  App.init();
+  initPullToRefresh();
+});
+
+function initPullToRefresh() {
+  const main = document.getElementById('main');
+  const indicator = document.getElementById('pull-indicator');
+  const pullIcon = document.getElementById('pull-icon');
+  const pullText = document.getElementById('pull-text');
+  if (!main || !indicator) return;
+
+  let startY = 0;
+  let pulling = false;
+  const THRESHOLD = 70;
+
+  main.addEventListener('touchstart', e => {
+    if (main.scrollTop === 0) {
+      startY = e.touches[0].clientY;
+      pulling = true;
+    }
+  }, { passive: true });
+
+  main.addEventListener('touchmove', e => {
+    if (!pulling) return;
+    const dist = e.touches[0].clientY - startY;
+    if (dist <= 0) { indicator.style.display = 'none'; return; }
+    if (dist > 10) {
+      indicator.style.display = 'flex';
+      if (dist >= THRESHOLD) {
+        pullIcon.style.transform = 'rotate(180deg)';
+        pullText.textContent = '놓아서 새로고침';
+      } else {
+        pullIcon.style.transform = 'rotate(0deg)';
+        pullText.textContent = '당겨서 새로고침';
+      }
+    }
+  }, { passive: true });
+
+  main.addEventListener('touchend', e => {
+    if (!pulling) return;
+    pulling = false;
+    const dist = e.changedTouches[0].clientY - startY;
+    if (dist >= THRESHOLD) {
+      pullIcon.style.transform = 'rotate(0deg)';
+      pullText.textContent = '새로고침 중...';
+      setTimeout(() => {
+        indicator.style.display = 'none';
+        App.goto(App.currentPage);
+      }, 300);
+    } else {
+      indicator.style.display = 'none';
+    }
+  }, { passive: true });
+}
 
 /* ── 메뉴 순서 커스텀 ── */
 const NavOrder = {
