@@ -24,13 +24,13 @@ router.post('/messages', requireAuth, async (req, res) => {
     const { channel = 'free', content } = req.body;
     if (!content?.trim()) return res.status(400).json({ error: '내용을 입력하세요' });
     const user = req.session.user;
-    const result = await db.prepare(
-      'INSERT INTO community_messages (user_id, user_name, channel, content) VALUES (?, ?, ?, ?)'
-    ).run(user.id, user.name, channel, content.trim());
-
     const kst = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
     const pad = n => String(n).padStart(2, '0');
     const created_at = `${kst.getFullYear()}-${pad(kst.getMonth()+1)}-${pad(kst.getDate())} ${pad(kst.getHours())}:${pad(kst.getMinutes())}:${pad(kst.getSeconds())}`;
+
+    const result = await db.prepare(
+      'INSERT INTO community_messages (user_id, user_name, channel, content, created_at) VALUES (?, ?, ?, ?, ?)'
+    ).run(user.id, user.name, channel, content.trim(), created_at);
 
     const msg = { id: result.lastInsertRowid, user_id: user.id, user_name: user.name, channel, content: content.trim(), created_at };
 
