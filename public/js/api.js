@@ -11,4 +11,5 @@ const API = {
   post: (url, body) => API.request('POST', url, body),
   put: (url, body) => API.request('PUT', url, body),
   delete: (url) => API.request('DELETE', url),
+  patch: (url, body) => API.request('PATCH', url, body),
 };

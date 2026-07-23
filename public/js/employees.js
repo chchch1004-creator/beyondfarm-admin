@@ -58,12 +58,12 @@ const Employees = {
             <input id="emp-search" placeholder="이름 검색" oninput="Employees.filter()" style="padding:6px 10px;border:1px solid #dee2e6;border-radius:6px;font-size:13px">
           </div>
           <div style="overflow-x:auto">
-            <table id="emp-table" class="resizable-table" style="border-collapse:collapse;width:100%;min-width:900px;table-layout:fixed">
+            <table id="emp-table" class="resizable-table" style="border-collapse:collapse;width:100%;min-width:700px;table-layout:fixed">
               <colgroup>
-                <col style="width:90px"><col style="width:80px"><col style="width:80px">
-                <col style="width:100px"><col style="width:80px"><col style="width:100px">
-                <col style="width:80px"><col style="width:90px">
-                ${isAdmin ? '<col style="width:80px"><col style="width:120px">' : ''}
+                <col style="width:70px"><col style="width:65px"><col style="width:65px">
+                <col style="width:90px"><col style="width:65px"><col style="width:90px">
+                <col style="width:65px"><col style="width:70px">
+                ${isAdmin ? '<col style="width:65px"><col style="width:110px">' : ''}
               </colgroup>
               <thead>
                 <tr style="background:#f8f9fa">
@@ -154,26 +154,27 @@ const Employees = {
       tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:24px;color:#6c757d">직원이 없습니다</td></tr>`;
       return;
     }
+    const p = 'padding:5px 6px';
     tbody.innerHTML = rows.map(e => `
-      <tr style="border-bottom:1px solid #dee2e6" onmouseover="this.style.background='#f8f9fa'" onmouseout="this.style.background=''">
-        <td style="padding:8px 10px;font-weight:600;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${e.name}</td>
-        <td style="padding:8px 10px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${e.department || '-'}</td>
-        <td style="padding:8px 10px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${e.position || '-'}</td>
-        <td style="padding:8px 10px;font-size:12px">${e.hire_date || '-'}</td>
-        ${(() => { const d = this.calcDday(e.hire_date,'hire'); return `<td style="padding:8px 10px;font-size:12px;${d.style||'color:#1971c2'}">${d.text}</td>`; })()}
-        <td style="padding:8px 10px;font-size:12px">${e.birth_date || '-'}</td>
-        ${(() => { const d = this.calcDday(e.birth_date,'birth'); return `<td style="padding:8px 10px;font-size:12px;${d.style||'color:#198754'}">${d.text}</td>`; })()}
-        ${isAdmin ? `<td style="padding:8px 10px"><span class="badge ${e.role==='superadmin'?'badge-danger':'badge-secondary'}">${roleLabel[e.role]||'사용자'}</span></td>` : ''}
-        ${isAdmin ? `<td style="padding:8px 10px;text-align:right;font-size:12px">${e.hourly_rate ? Utils.formatNum(e.hourly_rate)+'원' : '-'}</td>` : ''}
-        ${isAdmin ? `<td style="padding:8px 10px;white-space:nowrap">
-          <button class="btn btn-secondary btn-sm" onclick="Employees.showForm(${e.id})">수정</button>
-          <button class="btn btn-sm" style="background:#6f42c1;color:#fff" onclick="Employees.showPermissions(${e.id},'${e.name}')">권한</button>
+      <tr style="border-bottom:1px solid #dee2e6;font-size:12px" onmouseover="this.style.background='#f8f9fa'" onmouseout="this.style.background=''">
+        <td style="${p};font-weight:600;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${e.name}</td>
+        <td style="${p};overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${e.department || '-'}</td>
+        <td style="${p};overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${e.position || '-'}</td>
+        <td style="${p}">${e.hire_date || '-'}</td>
+        ${(() => { const d = this.calcDday(e.hire_date,'hire'); return `<td style="${p};${d.style||'color:#1971c2'}">${d.text}</td>`; })()}
+        <td style="${p}">${e.birth_date || '-'}</td>
+        ${(() => { const d = this.calcDday(e.birth_date,'birth'); return `<td style="${p};${d.style||'color:#198754'}">${d.text}</td>`; })()}
+        ${isAdmin ? `<td style="${p}"><span class="badge ${e.role==='superadmin'?'badge-danger':'badge-secondary'}">${roleLabel[e.role]||'사용자'}</span></td>` : ''}
+        ${isAdmin ? `<td style="${p};text-align:right">${e.hourly_rate ? Utils.formatNum(e.hourly_rate)+'원' : '-'}</td>` : ''}
+        ${isAdmin ? `<td style="${p};white-space:nowrap">
+          <button class="btn btn-secondary btn-sm" style="padding:2px 5px;font-size:11px" onclick="Employees.showForm(${e.id})">수정</button>
+          <button class="btn btn-sm" style="background:#6f42c1;color:#fff;padding:2px 5px;font-size:11px" onclick="Employees.showPermissions(${e.id},'${e.name}')">권한</button>
           <button id="call-btn-${e.id}" class="btn btn-sm" onclick="Employees.toggleCall(${e.id})"
-            style="background:${e.call_enabled?'#d97706':'#e2e8f0'};color:${e.call_enabled?'#fff':'#64748b'}">
-            📣${e.call_enabled?'호출ON':'호출OFF'}</button>
+            style="padding:2px 5px;font-size:11px;background:${e.call_enabled?'#d97706':'#e2e8f0'};color:${e.call_enabled?'#fff':'#64748b'}">
+            📣${e.call_enabled?'ON':'OFF'}</button>
           ${e.status === 'active'
-            ? `<button class="btn btn-danger btn-sm" onclick="Employees.retire(${e.id},'${e.name}')">퇴직</button>`
-            : `<button class="btn btn-success btn-sm" onclick="Employees.restore(${e.id},'${e.name}')">복구</button>`}
+            ? `<button class="btn btn-danger btn-sm" style="padding:2px 5px;font-size:11px" onclick="Employees.retire(${e.id},'${e.name}')">퇴직</button>`
+            : `<button class="btn btn-success btn-sm" style="padding:2px 5px;font-size:11px" onclick="Employees.restore(${e.id},'${e.name}')">복구</button>`}
         </td>` : ''}
       </tr>`).join('');
   },
