@@ -38,6 +38,22 @@ router.get('/vapid-public-key', (req, res) => {
   res.json({ key: process.env.VAPID_PUBLIC_KEY || null });
 });
 
+// 진단: FCM 상태 확인
+router.get('/status', requireAuth, async (req, res) => {
+  try {
+    const db = getDb();
+    const userId = req.session.user.id;
+    const fcmTokens = await db.prepare('SELECT token, updated_at FROM fcm_tokens WHERE user_id=?').all(userId);
+    const webSubs = await db.prepare('SELECT endpoint, created_at FROM push_subscriptions WHERE user_id=?').all(userId);
+    res.json({
+      firebase_initialized: !!firebaseAdmin,
+      vapid_initialized: !!(process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY),
+      fcm_tokens: fcmTokens,
+      web_subscriptions: webSubs,
+    });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // Web Push 구독 저장 (브라우저/PWA)
 router.post('/subscribe', requireAuth, async (req, res) => {
   try {

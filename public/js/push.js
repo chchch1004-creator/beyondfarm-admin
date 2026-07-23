@@ -47,11 +47,16 @@ const Push = {
         try {
           await API.post('/api/push/fcm-token', { token: token.value });
           this._fcmRegistered = true;
-        } catch (e) { console.error('FCM 토큰 저장 실패:', e); }
+          if (requestPermission) Utils.showToast('알림이 활성화되었습니다.');
+        } catch (e) {
+          console.error('FCM 토큰 저장 실패:', e);
+          if (requestPermission) Utils.showToast('토큰 저장 실패: ' + e.message, 'error');
+        }
       });
 
       await PushNotifications.addListener('registrationError', (err) => {
-        console.error('FCM 등록 실패:', err);
+        console.error('FCM 등록 실패:', JSON.stringify(err));
+        if (requestPermission) Utils.showToast('FCM 등록 실패: ' + JSON.stringify(err), 'error');
       });
 
       // 포그라운드 알림

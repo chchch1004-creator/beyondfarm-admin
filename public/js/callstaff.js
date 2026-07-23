@@ -18,7 +18,8 @@ const CallStaff = {
     document.getElementById('content').innerHTML = `
       <div class="card" style="max-width:600px">
         <div style="font-size:16px;font-weight:700;color:#1e293b;margin-bottom:4px">📣 직원 호출</div>
-        <div style="font-size:12px;color:#94a3b8;margin-bottom:20px">호출 버튼을 누르면 해당 직원의 핸드폰에 알림이 전송됩니다.<br>알림을 받으려면 직원이 앱에서 <b>🔔 알림 켜기</b>를 눌러야 합니다.</div>
+        <div style="font-size:12px;color:#94a3b8;margin-bottom:8px">호출 버튼을 누르면 해당 직원의 핸드폰에 알림이 전송됩니다.<br>알림을 받으려면 직원이 앱에서 <b>🔔 알림 켜기</b>를 눌러야 합니다.</div>
+        <button onclick="CallStaff.checkStatus()" style="font-size:11px;padding:4px 10px;border:1px solid #cbd5e1;border-radius:6px;background:#f8fafc;color:#64748b;cursor:pointer;margin-bottom:16px">🔍 알림 상태 확인</button>
 
         <div style="margin-bottom:16px">
           <button onclick="CallStaff.send('all','전체 호출','모든 직원을 호출합니다.')"
@@ -75,6 +76,19 @@ const CallStaff = {
     } catch (e) {
       Utils.showToast(e.message, 'error');
     }
+  },
+
+  async checkStatus() {
+    try {
+      const s = await API.get('/api/push/status');
+      const lines = [
+        `Firebase: ${s.firebase_initialized ? '✅ 초기화됨' : '❌ 미초기화'}`,
+        `FCM 토큰: ${s.fcm_tokens.length}개`,
+        `웹 구독: ${s.web_subscriptions.length}개`,
+      ];
+      if (s.fcm_tokens.length > 0) lines.push(`최근 등록: ${s.fcm_tokens[0].updated_at}`);
+      alert(lines.join('\n'));
+    } catch (e) { alert('확인 실패: ' + e.message); }
   },
 
   async sendCustom() {
