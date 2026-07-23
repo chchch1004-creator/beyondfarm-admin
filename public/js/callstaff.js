@@ -6,6 +6,14 @@ const CallStaff = {
     try {
       const data = await API.get('/api/employees?status=active');
       this._employees = data.employees || [];
+      // 오늘 출근 중인 직원 ID 조회
+      const att = await API.get('/api/attendance?date=' + new Date().toISOString().slice(0,10));
+      const clockedInIds = new Set(
+        (Array.isArray(att) ? att : [])
+          .filter(a => a.check_in && !a.check_out)
+          .map(a => a.user_id)
+      );
+      this._clockedInIds = clockedInIds;
     } catch (e) {
       document.getElementById('content').innerHTML = `<div style="color:#dc2626;text-align:center;padding:40px">${e.message}</div>`;
       return;
@@ -29,22 +37,25 @@ const CallStaff = {
           </button>
         </div>
 
-        <div style="font-size:12px;font-weight:600;color:#64748b;margin-bottom:10px">개별 호출</div>
+        <div style="font-size:12px;font-weight:600;color:#64748b;margin-bottom:10px">개별 호출 <span style="font-weight:400;color:#94a3b8">(출근 중인 직원만)</span></div>
         <div style="display:flex;flex-direction:column;gap:8px">
           ${emps.length === 0 ? '<div style="color:#94a3b8;text-align:center;padding:20px">활성 직원이 없습니다</div>' :
-            emps.map(e => `
+            emps.map(e => {
+              const on = this._clockedInIds?.has(e.user_id ?? e.id);
+              return `
               <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;
-                          border:1px solid #e2e8f0;border-radius:10px;background:#f8fafc">
+                          border:1px solid #e2e8f0;border-radius:10px;background:${on?'#f8fafc':'#f1f5f9'}">
                 <div style="flex:1">
-                  <div style="font-size:14px;font-weight:600;color:#1e293b">${e.name}</div>
-                  <div style="font-size:12px;color:#94a3b8">${e.position || ''} ${e.department || ''}</div>
+                  <div style="font-size:14px;font-weight:600;color:${on?'#1e293b':'#94a3b8'}">${e.name}</div>
+                  <div style="font-size:12px;color:#94a3b8">${e.position || ''} ${e.department || ''} ${on?'<span style="color:#16a34a;font-weight:600">● 출근중</span>':'<span>● 퇴근</span>'}</div>
                 </div>
                 <button onclick="CallStaff.send(${e.id},'호출: ${e.name}','${e.name}님, 호출합니다.')"
-                  style="padding:8px 18px;background:#2563eb;color:#fff;border:none;border-radius:8px;
-                         font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">
+                  style="padding:8px 18px;background:${on?'#2563eb':'#cbd5e1'};color:#fff;border:none;border-radius:8px;
+                         font-size:13px;font-weight:600;cursor:${on?'pointer':'default'};white-space:nowrap">
                   호출
                 </button>
-              </div>`).join('')}
+              </div>`;
+            }).join('')}
         </div>
       </div>
 
@@ -66,13 +77,15 @@ const CallStaff = {
 
   async send(userId, title, body) {
     try {
-      const { sent } = await API.post('/api/push/send', {
+      const res = await API.post('/api/push/send', {
         to_user_id: userId === 'all' ? 'all' : String(userId),
         title,
         body,
         url: '/',
       });
-      Utils.showToast(sent > 0 ? `${sent}명에게 알림을 전송했습니다.` : '알림을 받을 기기가 없습니다. (알림 켜기 필요)');
+      const { sent } = res;
+      if (sent > 0) Utils.showToast(`${sent}명에게 알림을 전송했습니다.`);
+      else Utils.showToast(res.reason || '알림을 받을 기기가 없습니다. (알림 켜기 필요)', 'error');
     } catch (e) {
       Utils.showToast(e.message, 'error');
     }

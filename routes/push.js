@@ -114,13 +114,31 @@ router.post('/send', requireAuth, async (req, res) => {
     const db = getDb();
     const { to_user_id, title, body, url } = req.body;
 
+    // 오늘 출근 중인 직원 ID 목록 (check_in 있고 check_out 없음)
+    const today = new Date().toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' })
+      .replace(/\. /g, '-').replace('.', '');
+    const kstDate = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
+    const todayStr = `${kstDate.getFullYear()}-${String(kstDate.getMonth()+1).padStart(2,'0')}-${String(kstDate.getDate()).padStart(2,'0')}`;
+    const clockedIn = await db.prepare(
+      `SELECT DISTINCT user_id FROM attendance WHERE date = ? AND check_in IS NOT NULL AND (check_out IS NULL OR check_out = '')`
+    ).all(todayStr);
+    const clockedInIds = clockedIn.map(r => r.user_id);
+
     let webSubs, fcmTokens;
     if (to_user_id === 'all') {
-      webSubs = await db.prepare('SELECT * FROM push_subscriptions').all();
-      fcmTokens = await db.prepare('SELECT token FROM fcm_tokens').all();
+      if (clockedInIds.length === 0) {
+        return res.json({ ok: true, sent: 0, reason: '현재 출근 중인 직원이 없습니다.' });
+      }
+      const placeholders = clockedInIds.map(() => '?').join(',');
+      webSubs = await db.prepare(`SELECT * FROM push_subscriptions WHERE user_id IN (${placeholders})`).all(clockedInIds);
+      fcmTokens = await db.prepare(`SELECT token FROM fcm_tokens WHERE user_id IN (${placeholders})`).all(clockedInIds);
     } else {
-      webSubs = await db.prepare('SELECT * FROM push_subscriptions WHERE user_id = ?').all(parseInt(to_user_id));
-      fcmTokens = await db.prepare('SELECT token FROM fcm_tokens WHERE user_id = ?').all(parseInt(to_user_id));
+      const uid = parseInt(to_user_id);
+      if (!clockedInIds.includes(uid)) {
+        return res.json({ ok: true, sent: 0, reason: '해당 직원이 현재 출근 중이 아닙니다.' });
+      }
+      webSubs = await db.prepare('SELECT * FROM push_subscriptions WHERE user_id = ?').all(uid);
+      fcmTokens = await db.prepare('SELECT token FROM fcm_tokens WHERE user_id = ?').all(uid);
     }
 
     let sent = 0;
