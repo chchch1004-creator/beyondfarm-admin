@@ -27,8 +27,21 @@ const Announcement = {
   async syncPresets() {
     try {
       const res = await API.get('/api/user-settings/ann_presets');
-      const presets = res.value || JSON.parse(JSON.stringify(this._defaultPresets));
-      localStorage.setItem('ann_presets', JSON.stringify(presets));
+      if (res.value) {
+        // 서버 데이터를 localStorage에 동기화
+        localStorage.setItem('ann_presets', JSON.stringify(res.value));
+      } else {
+        // 서버에 없으면 localStorage에서 마이그레이션
+        const local = localStorage.getItem('ann_presets');
+        if (local) {
+          const presets = JSON.parse(local);
+          await API.put('/api/user-settings/ann_presets', { value: presets });
+        } else {
+          // 둘 다 없으면 기본값을 서버에 저장
+          await API.put('/api/user-settings/ann_presets', { value: this._defaultPresets });
+          localStorage.setItem('ann_presets', JSON.stringify(this._defaultPresets));
+        }
+      }
     } catch {}
   },
 

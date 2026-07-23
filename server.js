@@ -41,6 +41,7 @@ app.use('/api/push', require('./routes/push'));
 app.use('/api/user-settings', require('./routes/settings_user'));
 
 app.get('*', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 

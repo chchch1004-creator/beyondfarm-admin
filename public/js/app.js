@@ -174,7 +174,20 @@ const NavOrder = {
   async fetchOrder() {
     try {
       const res = await API.get('/api/user-settings/nav_order');
-      this._order = res.value || null;
+      if (res.value) {
+        this._order = res.value;
+      } else {
+        // 서버에 없으면 localStorage에서 마이그레이션
+        const localKey = `nav_order_${App.user?.id || 'guest'}`;
+        const local = localStorage.getItem(localKey);
+        if (local) {
+          this._order = JSON.parse(local);
+          await API.put('/api/user-settings/nav_order', { value: this._order });
+          localStorage.removeItem(localKey);
+        } else {
+          this._order = null;
+        }
+      }
     } catch { this._order = null; }
   },
 
