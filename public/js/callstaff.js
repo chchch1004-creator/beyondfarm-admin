@@ -48,16 +48,17 @@ const CallStaff = {
 
         <!-- 개별 선택 직원 목록 -->
         <div id="panel-individual" style="display:none;margin-bottom:12px">
-          <div style="display:flex;flex-direction:column;gap:6px;max-height:260px;overflow-y:auto">
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px">
             ${emps.map(e => {
               const on = this._clockedInIds.has(e.user_id ?? e.id);
               return `
-              <label style="display:flex;align-items:center;gap:12px;padding:10px 14px;border:1px solid #e2e8f0;border-radius:10px;background:#f8fafc;cursor:pointer">
-                <input type="checkbox" value="${e.id}" class="ind-check" style="width:18px;height:18px;cursor:pointer;flex-shrink:0">
-                <div>
-                  <div style="font-size:14px;font-weight:600;color:#1e293b">${e.name}</div>
-                  <div style="font-size:12px;color:#94a3b8">${e.position||''} ${e.department||''} ${on?'<span style="color:#16a34a;font-weight:600">● 출근중</span>':'<span>● 퇴근</span>'}</div>
-                </div>
+              <label style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 6px;
+                            border:2px solid #e2e8f0;border-radius:10px;background:#f8fafc;cursor:pointer;
+                            text-align:center;position:relative">
+                <input type="checkbox" value="${e.id}" class="ind-check"
+                  style="position:absolute;top:6px;right:6px;width:16px;height:16px;cursor:pointer">
+                <div style="font-size:14px;font-weight:600;color:#1e293b">${e.name}</div>
+                <div style="font-size:11px;font-weight:600;color:${on?'#16a34a':'#94a3b8'}">${on?'● 출근중':'● 퇴근'}</div>
               </label>`;
             }).join('')}
           </div>
