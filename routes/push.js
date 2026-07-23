@@ -3,11 +3,13 @@ const router = express.Router();
 const webpush = require('web-push');
 const { getDb } = require('../db/database');
 
-webpush.setVapidDetails(
-  'mailto:chchch1004@gmail.com',
-  process.env.VAPID_PUBLIC_KEY,
-  process.env.VAPID_PRIVATE_KEY
-);
+if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+  webpush.setVapidDetails(
+    'mailto:chchch1004@gmail.com',
+    process.env.VAPID_PUBLIC_KEY,
+    process.env.VAPID_PRIVATE_KEY
+  );
+}
 
 function requireAuth(req, res, next) {
   if (!req.session?.user) return res.status(401).json({ error: '로그인 필요' });
