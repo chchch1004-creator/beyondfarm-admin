@@ -2,6 +2,7 @@ const Push = {
   _sw: null,
   _sub: null,
   _isCapacitor: !!(window.Capacitor?.isNativePlatform?.()),
+  _fcmRegistered: false,
 
   async init() {
     if (this._isCapacitor) {
@@ -39,6 +40,7 @@ const Push = {
         permStatus = await PushNotifications.requestPermissions();
       }
       if (permStatus.receive !== 'granted') return false;
+      if (permStatus.receive === 'granted' && !requestPermission) this._fcmRegistered = true;
 
       await PushNotifications.register();
 
@@ -46,6 +48,7 @@ const Push = {
       await PushNotifications.addListener('registration', async (token) => {
         try {
           await API.post('/api/push/fcm-token', { token: token.value });
+          this._fcmRegistered = true;
         } catch (e) { console.error('FCM 토큰 저장 실패:', e); }
       });
 
@@ -112,7 +115,7 @@ const Push = {
   },
 
   isSubscribed() {
-    if (this._isCapacitor) return true; // 앱은 항상 활성화 버튼 숨김
+    if (this._isCapacitor) return this._fcmRegistered;
     return !!this._sub && Notification.permission === 'granted';
   },
 
