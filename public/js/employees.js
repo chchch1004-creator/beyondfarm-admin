@@ -168,6 +168,9 @@ const Employees = {
         ${isAdmin ? `<td style="padding:8px 10px;white-space:nowrap">
           <button class="btn btn-secondary btn-sm" onclick="Employees.showForm(${e.id})">수정</button>
           <button class="btn btn-sm" style="background:#6f42c1;color:#fff" onclick="Employees.showPermissions(${e.id},'${e.name}')">권한</button>
+          <button id="call-btn-${e.id}" class="btn btn-sm" onclick="Employees.toggleCall(${e.id})"
+            style="background:${e.call_enabled?'#d97706':'#e2e8f0'};color:${e.call_enabled?'#fff':'#64748b'}">
+            📣${e.call_enabled?'호출ON':'호출OFF'}</button>
           ${e.status === 'active'
             ? `<button class="btn btn-danger btn-sm" onclick="Employees.retire(${e.id},'${e.name}')">퇴직</button>`
             : `<button class="btn btn-success btn-sm" onclick="Employees.restore(${e.id},'${e.name}')">복구</button>`}
@@ -357,5 +360,21 @@ const Employees = {
     if (!confirm(`${name} 직원을 재직 상태로 복구하시겠습니까?`)) return;
     try { await API.put(`/api/employees/${id}`, { status: 'active' }); Utils.showToast('복구되었습니다.'); Employees.render(); }
     catch (e) { Utils.showToast(e.message, 'error'); }
-  }
+  },
+
+  async toggleCall(id) {
+    const emp = this.data.find(e => e.id === id);
+    if (!emp) return;
+    const newVal = !emp.call_enabled;
+    try {
+      await API.patch(`/api/employees/${id}/call-enabled`, { enabled: newVal });
+      emp.call_enabled = newVal ? 1 : 0;
+      const btn = document.getElementById(`call-btn-${id}`);
+      if (btn) {
+        btn.style.background = newVal ? '#d97706' : '#e2e8f0';
+        btn.style.color = newVal ? '#fff' : '#64748b';
+        btn.textContent = `📣${newVal ? '호출ON' : '호출OFF'}`;
+      }
+    } catch (e) { Utils.showToast(e.message, 'error'); }
+  },
 };

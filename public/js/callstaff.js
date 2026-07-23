@@ -7,7 +7,8 @@ const CallStaff = {
     document.getElementById('content').innerHTML = `<div style="color:#94a3b8;text-align:center;padding:40px">불러오는 중...</div>`;
     try {
       const data = await API.get('/api/employees?status=active');
-      this._employees = Array.isArray(data) ? data : (data.employees || []);
+      const all = Array.isArray(data) ? data : (data.employees || []);
+      this._employees = all.filter(e => e.call_enabled);
       const kstDate = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
       const todayStr = `${kstDate.getFullYear()}-${String(kstDate.getMonth()+1).padStart(2,'0')}-${String(kstDate.getDate()).padStart(2,'0')}`;
       const att = await API.get('/api/attendance?date=' + todayStr);

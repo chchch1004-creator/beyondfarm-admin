@@ -300,6 +300,7 @@ async function init() {
     "ALTER TABLE users ADD COLUMN bank_account TEXT",
     "ALTER TABLE users ADD COLUMN hourly_rate INTEGER DEFAULT 0",
     "ALTER TABLE users ADD COLUMN birth_date TEXT",
+    "ALTER TABLE users ADD COLUMN call_enabled INTEGER DEFAULT 0",
   ];
   for (const sql of newCols) {
     try { await client.execute({ sql, args: [] }); } catch {}

@@ -63,6 +63,14 @@ router.put('/:id', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+router.patch('/:id/call-enabled', requireAdmin, async (req, res) => {
+  try {
+    const { enabled } = req.body;
+    await db.prepare('UPDATE users SET call_enabled = ? WHERE id = ?').run(enabled ? 1 : 0, parseInt(req.params.id));
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 router.delete('/:id', requireAdmin, async (req, res) => {
   try {
     await db.prepare("UPDATE users SET status = 'inactive' WHERE id = ?").run(parseInt(req.params.id));
