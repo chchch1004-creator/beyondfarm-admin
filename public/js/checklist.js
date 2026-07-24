@@ -154,6 +154,7 @@ const Checklist = (() => {
     const extendNos = [];
     const extendTarget = timeslot === '11' ? '15' : timeslot === '15' ? '19' : null;
 
+    let ticket = 0;
     allRows.forEach(r => {
       bulmung += r.bulmung ? 1 : 0;
       play    += num(r.play);
@@ -165,6 +166,7 @@ const Checklist = (() => {
       else if (p === 'l') cntL++;
       else if (p === '단체20' || p === '단체 20') cnt20++;
       else if (p === '단체30' || p === '단체 30') cnt30++;
+      else if (p === 't') ticket += num(r.reserved);
       if (r.extra_hour) extraHourNos.push(r.tent_no);
       if (r.prev_extra_hour) prevExtraHourNos.push(r.tent_no);
       if (extendTarget && r.two_time && String(r.two_time).includes(extendTarget))
@@ -182,6 +184,7 @@ const Checklist = (() => {
     d.summary.group20        = cnt20 || '';
     d.summary.group30        = cnt30 || '';
     d.summary.total          = (cntS + cntM + cntL + cnt20 + cnt30) || '';
+    d.summary.ticket         = ticket || '';
     d.summary.prev_extra_hour_nos = prevExtraHourNos.join(' ') || '';
     d.summary.extra_hour_nos      = extraHourNos.join(' ') || '';
     d.summary.extend_nos          = extendNos.join(' ') || '';
@@ -189,7 +192,7 @@ const Checklist = (() => {
 
   function pushSummaryToDOM(s) {
     ['bulmung_count','play_count','child_pool','adult_pool','total_pool',
-     'tent2','tent4','tent8','group20','group30','total',
+     'tent2','tent4','tent8','group20','group30','total','ticket',
      'prev_extra_hour_nos','extra_hour_nos','extend_nos'].forEach(k => {
       const el = document.getElementById(`cl-sum-${k}`);
       if (el) el.textContent = s[k] || '-';
@@ -461,17 +464,18 @@ const Checklist = (() => {
       ['불멍','bulmung_count'],['플레이','play_count'],['아이풀','child_pool'],
       ['성인풀','adult_pool'],['풀합계','total_pool'],['S','tent2'],['M','tent4'],
       ['L','tent8'],['단체20','group20'],['단체30','group30'],['합계','total'],
+      ['티켓','ticket','#6d28d9','#f5f3ff','#c4b5fd'],
     ];
     const sumBox = (label, key, color='#1e40af', bg='#fff', border='#d1d5db') => `
-      <div style="flex:0 0 auto;text-align:center;min-width:34px">
-        <div style="font-size:9px;color:#555;font-weight:600;white-space:nowrap">${label}</div>
-        <div id="cl-sum-${key}" style="padding:2px 3px;background:${bg};border:1px solid ${border};border-radius:3px;font-size:12px;font-weight:700;color:${color}">${s[key]||'-'}</div>
+      <div style="flex:0 0 auto;text-align:center;min-width:28px">
+        <div style="font-size:8px;color:#555;font-weight:600;white-space:nowrap">${label}</div>
+        <div id="cl-sum-${key}" style="padding:1px 2px;background:${bg};border:1px solid ${border};border-radius:3px;font-size:11px;font-weight:700;color:${color}">${s[key]||'-'}</div>
       </div>`;
     const summaryHtml = `
       <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:6px 4px;margin-bottom:8px">
         <!-- 1줄: 인원/텐트 요약 -->
         <div style="display:flex;gap:4px;overflow-x:auto;padding-bottom:4px;align-items:flex-end">
-          ${sumItems1.map(([label,key])=>sumBox(label,key)).join('')}
+          ${sumItems1.map(item=>sumBox(...item)).join('')}
         </div>
         <!-- 2줄: 전타임1시간·1시간추가·연장텐트 -->
         <div style="display:flex;gap:4px;margin-top:4px;border-top:1px solid #bfdbfe;padding-top:4px">
@@ -608,36 +612,37 @@ const Checklist = (() => {
     recalcSummary(d, state.timeslot);
     const s = d.summary || {};
 
-    const sumItem = (label, key, minW=90) =>
-      `<div style="display:flex;flex-direction:column;gap:3px;min-width:${minW}px">
-        <div style="font-size:11px;color:#555;font-weight:600;text-align:center">${label}</div>
-        <div id="cl-sum-${key}" style="padding:5px 6px;background:#fff;border:1px solid #d1d5db;
-          border-radius:4px;text-align:center;font-size:13px;font-weight:700;color:#1e40af">
+    const sumItem = (label, key, minW=68, color='#1e40af', bg='#fff') =>
+      `<div style="display:flex;flex-direction:column;gap:2px;min-width:${minW}px">
+        <div style="font-size:10px;color:#555;font-weight:600;text-align:center;white-space:nowrap">${label}</div>
+        <div id="cl-sum-${key}" style="padding:3px 5px;background:${bg};border:1px solid #d1d5db;
+          border-radius:4px;text-align:center;font-size:12px;font-weight:700;color:${color}">
           ${s[key] || '-'}
         </div>
       </div>`;
 
     const summaryHtml = `
-      <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px 14px;margin-bottom:14px">
-        <div style="font-weight:700;font-size:13px;color:#1e40af;margin-bottom:10px">📋 요약</div>
-        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start">
-          <div style="display:flex;flex-wrap:wrap;gap:8px">
-            ${sumItem('불멍갯수','bulmung_count')}
-            ${sumItem('플레이 인원수','play_count')}
-            ${sumItem('아이풀장','child_pool')}
-            ${sumItem('성인풀장','adult_pool')}
-            ${sumItem('풀장합계','total_pool')}
-            ${sumItem('S텐트','tent2')}
-            ${sumItem('M텐트','tent4')}
-            ${sumItem('L텐트','tent8')}
+      <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:8px 12px;margin-bottom:12px">
+        <div style="font-weight:700;font-size:12px;color:#1e40af;margin-bottom:8px">📋 요약</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:flex-start">
+          <div style="display:flex;flex-wrap:wrap;gap:6px">
+            ${sumItem('불멍','bulmung_count')}
+            ${sumItem('플레이','play_count')}
+            ${sumItem('아이풀','child_pool')}
+            ${sumItem('성인풀','adult_pool')}
+            ${sumItem('풀합계','total_pool')}
+            ${sumItem('S','tent2')}
+            ${sumItem('M','tent4')}
+            ${sumItem('L','tent8')}
             ${sumItem('단체20','group20')}
             ${sumItem('단체30','group30')}
             ${sumItem('합계','total')}
+            ${sumItem('티켓','ticket',68,'#6d28d9','#f5f3ff')}
           </div>
-          <div style="margin-left:auto;display:flex;gap:8px">
-            ${sumItem('전타임1시간','prev_extra_hour_nos', 135)}
-            ${sumItem('1시간추가','extra_hour_nos', 135)}
-            ${sumItem('연장텐트','extend_nos', 135)}
+          <div style="margin-left:auto;display:flex;gap:6px">
+            ${sumItem('전타임1시간','prev_extra_hour_nos', 110)}
+            ${sumItem('1시간추가','extra_hour_nos', 110)}
+            ${sumItem('연장텐트','extend_nos', 110)}
           </div>
         </div>
       </div>`;
