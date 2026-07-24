@@ -5,7 +5,7 @@ const Community = {
 
   async render() {
     document.getElementById('content').innerHTML = `
-      <div style="display:flex;flex-direction:column;height:calc(100vh - 120px);max-width:700px">
+      <div id="community-wrap" style="display:flex;flex-direction:column;height:calc(100vh - 130px);max-width:700px">
         <!-- 탭 -->
         <div style="display:flex;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;margin-bottom:12px;flex-shrink:0">
           <button id="ctab-free" onclick="Community.switchChannel('free')"

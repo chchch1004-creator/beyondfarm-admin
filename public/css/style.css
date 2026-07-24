@@ -179,41 +179,52 @@ tr:hover td { background: #f8f9fa; }
 
   #main { width: 100%; padding-top: 56px; }
   #topbar { display: none; }
-  #content { padding: 12px; }
+  #content { padding: 10px 8px; }
 
-  /* 카드 */
-  .card { padding: 14px; margin-bottom: 14px; }
-  .card-title { font-size: 14px; flex-wrap: wrap; gap: 6px; }
+  /* 카드 — 화면에 꽉 차게 */
+  .card { padding: 12px; margin-bottom: 10px; border-radius: 8px; }
+  .card-title { font-size: 13px; flex-wrap: wrap; gap: 6px; }
 
   /* 통계 그리드 */
-  .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
-  .stat-card { padding: 14px; gap: 10px; }
-  .stat-icon { width: 40px; height: 40px; font-size: 18px; }
+  .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 10px; }
+  .stat-card { padding: 12px; gap: 8px; border-radius: 8px; }
+  .stat-icon { width: 36px; height: 36px; font-size: 16px; border-radius: 8px; }
   .stat-value { font-size: 18px; }
+  .stat-label { font-size: 11px; }
 
-  /* 폼 */
-  .form-grid { grid-template-columns: 1fr !important; }
+  /* 폼 — iOS 줌 방지: input font-size 16px */
+  .form-grid { grid-template-columns: 1fr !important; gap: 10px; }
   .form-actions { flex-direction: column; }
   .form-actions .btn { width: 100%; justify-content: center; }
+  .form-group input, .form-group select, .form-group textarea,
+  .filter-bar select, .filter-bar input,
+  input[type="text"], input[type="password"], input[type="date"],
+  input[type="number"], input[type="email"], select, textarea {
+    font-size: 16px !important; /* iOS auto-zoom 방지 */
+  }
 
-  /* 버튼 */
-  .btn { padding: 10px 14px; font-size: 13px; min-height: 40px; }
-  .btn-sm { padding: 8px 12px; font-size: 12px; min-height: 36px; }
+  /* 버튼 — 터치 타겟 최소 44px */
+  .btn { padding: 10px 14px; font-size: 13px; min-height: 44px; }
+  .btn-sm { padding: 8px 12px; font-size: 12px; min-height: 38px; }
 
   /* 테이블 */
   .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   table { min-width: 500px; }
-  /* 체크리스트 모바일 테이블은 min-width 제거 */
   #cl-panel table { min-width: 0; }
   #cl-panel th, #cl-panel td { padding: 3px 1px !important; font-size: 10px !important; }
-  th, td { padding: 8px 8px !important; font-size: 12px; }
+  th, td { padding: 7px 6px !important; font-size: 12px; }
 
   /* 필터바 */
-  .filter-bar { gap: 8px; }
-  .filter-bar select, .filter-bar input { flex: 1; min-width: 0; font-size: 13px; }
+  .filter-bar { gap: 6px; }
+  .filter-bar select, .filter-bar input { flex: 1; min-width: 0; }
 
-  /* 모달 */
-  .modal { width: 96vw; max-width: none; padding: 18px; margin: 8px; }
+  /* 모달 — 하단 슬라이드 업 */
+  .modal-backdrop { align-items: flex-end; padding: 0; }
+  .modal {
+    width: 100vw; max-width: 100vw; padding: 20px 16px;
+    margin: 0; border-radius: 16px 16px 0 0;
+    max-height: 92vh; padding-bottom: calc(20px + env(safe-area-inset-bottom));
+  }
 
   /* 출퇴근 버튼 */
   .checkin-btn { width: 130px !important; height: 130px !important; font-size: 15px !important; }
@@ -224,18 +235,38 @@ tr:hover td { background: #f8f9fa; }
   .tab { white-space: nowrap; padding: 8px 12px; }
 
   /* 로그인 카드 */
-  .login-card { width: 92vw; padding: 28px 20px; }
+  .login-card { width: 92vw; padding: 28px 16px; }
 
-  /* 직원 테이블 가로 스크롤 */
-  #emp-table { min-width: 700px; }
+  /* 직원 테이블 */
+  #emp-table { min-width: 680px; }
 
   /* 근무표 */
   #ts-table { font-size: 10px !important; }
+
+  /* 커뮤니티 — 고정 레이아웃 */
+  #community-wrap {
+    position: fixed; top: 56px; left: 0; right: 0;
+    bottom: env(safe-area-inset-bottom, 0px);
+    display: flex; flex-direction: column; padding: 8px;
+  }
+  #chat-messages { -webkit-overflow-scrolling: touch; }
+  #chat-input { font-size: 16px !important; }
 }
 
 @media (max-width: 400px) {
   .stats-grid { grid-template-columns: 1fr; }
   .checkin-btn { width: 110px !important; height: 110px !important; }
+  .card { padding: 10px; }
+}
+
+/* iOS safe area 하단 여백 */
+#content {
+  padding-bottom: max(24px, env(safe-area-inset-bottom));
+}
+@media (max-width: 768px) {
+  #content {
+    padding-bottom: max(60px, env(safe-area-inset-bottom));
+  }
 }
 
 .empty-state { text-align: center; padding: 48px; color: var(--text-muted); }
