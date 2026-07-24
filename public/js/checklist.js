@@ -39,6 +39,51 @@ const Checklist = (() => {
   let _dragState = null;
   let _history = [];
   let _histIdx = -1;
+  let _ws = null;
+  let _wsReconnectTimer = null;
+
+  function _connectWS() {
+    if (_ws && (_ws.readyState === WebSocket.OPEN || _ws.readyState === WebSocket.CONNECTING)) return;
+    const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    _ws = new WebSocket(`${proto}//${location.host}`);
+    _ws.onmessage = (e) => {
+      try {
+        const msg = JSON.parse(e.data);
+        if (msg.type === 'checklist_update' && msg.date === state.date) {
+          _silentReload(msg.timeslot);
+        } else if (msg.type === 'checklist_delete' && msg.date === state.date) {
+          state.data = {};
+          renderUI();
+        }
+      } catch {}
+    };
+    _ws.onclose = () => {
+      if (App.currentPage !== 'checklist') return;
+      _wsReconnectTimer = setTimeout(_connectWS, 3000);
+    };
+    _ws.onerror = () => _ws.close();
+  }
+
+  async function _silentReload(timeslot) {
+    // 현재 타임슬롯에 미저장 편집 중이면 스킵
+    if (timeslot === state.timeslot && _saveTimer !== null) return;
+    try {
+      const d = await API.get(`/api/checklist/${state.date}/${timeslot}`);
+      if (!d) return;
+      const ts = timeslot;
+      d.tent4 = (d.tent4 || []).concat(
+        Array.from({ length: Math.max(0, 6 - (d.tent4||[]).length) }, (_, i) => emptyRow(TENT4_NOS[i + (d.tent4||[]).length]))
+      );
+      d.tent2 = (d.tent2 || []).concat(
+        Array.from({ length: Math.max(0, 6 - (d.tent2||[]).length) }, (_, i) => emptyRow(TENT2_NOS[i + (d.tent2||[]).length]))
+      );
+      d.tent8 = (d.tent8 || []).concat(
+        Array.from({ length: Math.max(0, 13 - (d.tent8||[]).length) }, (_, i) => emptyRow(TENT8_NOS[i + (d.tent8||[]).length]))
+      );
+      state.data[ts] = d;
+      if (ts === state.timeslot) _refreshPanel();
+    } catch {}
+  }
 
   function pushHistory() {
     const snap = JSON.stringify(state.data);
@@ -187,12 +232,18 @@ const Checklist = (() => {
     await Promise.all(batch.map(e => API.post('/api/checklist/log', e).catch(() => {})));
   }
 
+  function destroy() {
+    clearTimeout(_wsReconnectTimer);
+    if (_ws) { _ws.onclose = null; _ws.close(); _ws = null; }
+  }
+
   async function render() {
     state.editable = App.canEdit('checklist');
     if (!state.date) state.date = new Date().toISOString().slice(0,10);
     try { state.dates = await API.get('/api/checklist/dates'); } catch { state.dates = []; }
     await loadAllSlots();
     renderUI();
+    _connectWS();
     // Ctrl+Z / Ctrl+Y 전역 리스너 (중복 방지)
     if (!window._clHistoryBound) {
       window._clHistoryBound = true;
@@ -1258,7 +1309,7 @@ const Checklist = (() => {
   }
 
   return {
-    render, switchSlot, switchTab, changeDate, moveDate,
+    render, destroy, switchSlot, switchTab, changeDate, moveDate,
     addExtraRow, removeExtraRow, onRowFocus, onRowInput, onRowKeydown, uploadExcel, deleteDate,
     clearRow, undo, redo, loadLog, onSearch, _jumpTo,
     onDragStart, onDragOver, onDragEnter, onDragLeave, onDrop, onDragEnd,

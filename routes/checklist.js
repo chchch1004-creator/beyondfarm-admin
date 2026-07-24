@@ -17,7 +17,7 @@ function parseNaverExcel(buffer) {
 
   // 헤더 행 동적 탐색: "예약번호", "상태", "예약자명" 등의 키워드로 헤더 위치 찾기
   let headerRow = -1;
-  let colStatus = -1, colOrderNo = -1, colName = -1, colProduct = -1, colDateTime = -1, colOption = -1;
+  let colStatus = -1, colOrderNo = -1, colName = -1, colProduct = -1, colDateTime = -1, colOption = -1, colQty = -1;
   for (let i = 0; i < Math.min(rows.length, 10); i++) {
     const r = rows[i];
     for (let j = 0; j < r.length; j++) {
@@ -28,6 +28,7 @@ function parseNaverExcel(buffer) {
       if (v === '상품') { if (colProduct < 0) colProduct = j; }
       if (v.includes('방문일') || v.includes('예약일') || v.includes('이용일시') || v.includes('방문일시')) colDateTime = j;
       if (v.includes('가격분류') || v.includes('옵션') || v.includes('추가상품')) { if (colOption < 0) colOption = j; }
+      if (v === '수량' || v === '구매수량') { if (colQty < 0) colQty = j; }
     }
     if (headerRow >= 0 && colStatus >= 0) break;
   }
@@ -38,8 +39,9 @@ function parseNaverExcel(buffer) {
   if (colStatus < 0) colStatus = 5;
   if (colName < 0) colName = 7;
   if (colDateTime < 0) colDateTime = 13;
-  if (colProduct < 0) colProduct = colDateTime + 2;  // 상품 = 이용일시 + 2
-  if (colOption < 0) colOption = colDateTime + 4;    // 가격분류 = 이용일시 + 4
+  if (colProduct < 0) colProduct = colDateTime + 2;
+  if (colOption < 0) colOption = colDateTime + 4;
+  if (colQty < 0) colQty = colOption + 1;  // 수량은 보통 옵션 바로 다음 열
 
   const VALID_STATUS = ['확정', '이용완료', '예약완료', '사용완료', '방문완료'];
   // 데이터 행: 헤더 다음 행부터, 유효한 상태만
@@ -102,13 +104,14 @@ function parseNaverExcel(buffer) {
       };
     }
     const opt = String(r[colOption] || '').trim();
-    const ol = opt.toLowerCase();
-    if (opt === '불멍 세트') orders[ono].bulmung = 'o';
-    else if (ol.includes('아이') && (ol.includes('풀') || ol.includes('스위밍'))) orders[ono].child++;
-    else if (ol.includes('성인') && (ol.includes('풀') || ol.includes('스위밍'))) orders[ono].adult++;
-    else if (ol.includes('플레이')) orders[ono].play++;
-    else if (ol.includes('인원 추가')) orders[ono].extra++;
-    else if (opt.includes('티켓')) orders[ono].ticket++;
+    const ol = opt.toLowerCase().replace(/\s+/g, '');  // 공백 제거 후 비교
+    const qty = colQty >= 0 ? (parseInt(r[colQty]) || 1) : 1;
+    if (ol.includes('불멍')) orders[ono].bulmung = 'o';
+    else if (ol.includes('아이') && (ol.includes('풀') || ol.includes('수영') || ol.includes('스위밍') || ol.includes('pool'))) orders[ono].child += qty;
+    else if (ol.includes('성인') && (ol.includes('풀') || ol.includes('수영') || ol.includes('스위밍') || ol.includes('pool'))) orders[ono].adult += qty;
+    else if (ol.includes('비욘더플레이') || ol.includes('플레이존') || (ol.includes('플레이') && !ol.includes('비욘더'))) orders[ono].play += qty;
+    else if (ol.includes('인원추가') || ol.includes('추가인원') || ol.includes('인원증가')) orders[ono].extra += qty;
+    else if (ol.includes('티켓')) orders[ono].ticket += qty;
   }
 
   const firstDtRaw = dataRows[0]?.[colDateTime] ?? '없음';
@@ -117,7 +120,7 @@ function parseNaverExcel(buffer) {
   return {
     date, orders: Object.values(orders),
     _debug: {
-      headerRow, colStatus, colOrderNo, colName, colProduct, colDateTime, colOption,
+      headerRow, colStatus, colOrderNo, colName, colProduct, colDateTime, colOption, colQty,
       confirmedCount: dataRows.length,
       firstDateCell: String(firstDtRaw),
       headerSample, firstDataRow,
@@ -325,6 +328,10 @@ router.post('/upload-excel', requireAuth, upload.single('file'), async (req, res
     const orderCounts = { '11': 0, '15': 0, '19': 0 };
     for (const o of orders) if (orderCounts[o.ts] !== undefined) orderCounts[o.ts]++;
 
+    if (global.wsBroadcast) {
+      for (const ts of ['11', '15', '19'])
+        global.wsBroadcast({ type: 'checklist_update', date, timeslot: ts });
+    }
     res.json({ ok: true, date, _debug: { ...d, orderCounts, sampleOrder: orders[0] } });
   } catch (e) {
     console.error('Excel upload error:', e);
@@ -377,6 +384,7 @@ router.put('/:date/:timeslot', requireAuth, async (req, res) => {
       INSERT INTO checklist_data (date, timeslot, data, updated_at) VALUES (?,?,?,datetime('now'))
       ON CONFLICT(date, timeslot) DO UPDATE SET data=excluded.data, updated_at=datetime('now')
     `).run(req.params.date, req.params.timeslot, json);
+    if (global.wsBroadcast) global.wsBroadcast({ type: 'checklist_update', date: req.params.date, timeslot: req.params.timeslot });
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -418,6 +426,7 @@ router.delete('/:date', requireAuth, async (req, res) => {
   try {
     if (!await canEdit(req)) return res.status(403).json({ error: '수정 권한이 없습니다' });
     await getDb().prepare('DELETE FROM checklist_data WHERE date=?').run(req.params.date);
+    if (global.wsBroadcast) global.wsBroadcast({ type: 'checklist_delete', date: req.params.date });
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });

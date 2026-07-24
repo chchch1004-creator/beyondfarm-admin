@@ -154,6 +154,7 @@ const App = {
     // 접근 제어: mypage·settings는 항상 허용
     // 페이지 이탈 시 커뮤니티 WS 정리
     if (page !== 'community' && Community._ws) Community.destroy();
+    if (page !== 'checklist') Checklist.destroy();
 
     if (page !== 'mypage' && page !== 'settings' && page !== 'callstaff' && page !== 'community') {
       if (!App.canView(page)) {
