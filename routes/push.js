@@ -112,48 +112,71 @@ router.post('/unsubscribe', requireAuth, async (req, res) => {
 router.post('/send', requireAuth, async (req, res) => {
   try {
     const db = getDb();
-    const { to_user_id, title, body, url } = req.body;
+    const { to_user_id, title, body, url, create_room } = req.body;
+    const caller = req.session.user;
 
     const kstDate = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
     const todayStr = `${kstDate.getFullYear()}-${String(kstDate.getMonth()+1).padStart(2,'0')}-${String(kstDate.getDate()).padStart(2,'0')}`;
 
-    let webSubs, fcmTokens;
+    let webSubs, fcmTokens, targetUserIds = [];
 
     if (to_user_id === 'all') {
-      // 알림 동의한 전원 (출근 여부 무관)
       webSubs = await db.prepare('SELECT * FROM push_subscriptions').all();
       fcmTokens = await db.prepare('SELECT token FROM fcm_tokens').all();
+      const allUsers = await db.prepare('SELECT DISTINCT user_id FROM push_subscriptions').all();
+      const fcmUsers = await db.prepare('SELECT DISTINCT user_id FROM fcm_tokens').all();
+      const idSet = new Set([...allUsers, ...fcmUsers].map(r => r.user_id));
+      targetUserIds = [...idSet];
 
     } else if (to_user_id === 'clocked') {
-      // 현재 출근 중인 직원만
       const clockedIn = await db.prepare(
         `SELECT DISTINCT user_id FROM attendance WHERE date = ? AND check_in IS NOT NULL AND (check_out IS NULL OR check_out = '')`
       ).all(todayStr);
-      const ids = clockedIn.map(r => r.user_id);
-      if (ids.length === 0) return res.json({ ok: true, sent: 0, reason: '현재 출근 중인 직원이 없습니다.' });
-      const ph = ids.map(() => '?').join(',');
-      webSubs = await db.prepare(`SELECT * FROM push_subscriptions WHERE user_id IN (${ph})`).all(ids);
-      fcmTokens = await db.prepare(`SELECT token FROM fcm_tokens WHERE user_id IN (${ph})`).all(ids);
+      targetUserIds = clockedIn.map(r => r.user_id);
+      if (targetUserIds.length === 0) return res.json({ ok: true, sent: 0, reason: '현재 출근 중인 직원이 없습니다.' });
+      const ph = targetUserIds.map(() => '?').join(',');
+      webSubs = await db.prepare(`SELECT * FROM push_subscriptions WHERE user_id IN (${ph})`).all(targetUserIds);
+      fcmTokens = await db.prepare(`SELECT token FROM fcm_tokens WHERE user_id IN (${ph})`).all(targetUserIds);
 
     } else if (to_user_id.includes(',')) {
-      // 개별 선택 (쉼표로 구분된 ID 목록)
-      const ids = to_user_id.split(',').map(id => parseInt(id)).filter(Boolean);
-      const ph = ids.map(() => '?').join(',');
-      webSubs = await db.prepare(`SELECT * FROM push_subscriptions WHERE user_id IN (${ph})`).all(ids);
-      fcmTokens = await db.prepare(`SELECT token FROM fcm_tokens WHERE user_id IN (${ph})`).all(ids);
+      targetUserIds = to_user_id.split(',').map(id => parseInt(id)).filter(Boolean);
+      const ph = targetUserIds.map(() => '?').join(',');
+      webSubs = await db.prepare(`SELECT * FROM push_subscriptions WHERE user_id IN (${ph})`).all(targetUserIds);
+      fcmTokens = await db.prepare(`SELECT token FROM fcm_tokens WHERE user_id IN (${ph})`).all(targetUserIds);
 
     } else {
-      // 단일 직원
       const uid = parseInt(to_user_id);
+      targetUserIds = [uid];
       webSubs = await db.prepare('SELECT * FROM push_subscriptions WHERE user_id = ?').all(uid);
       fcmTokens = await db.prepare('SELECT token FROM fcm_tokens WHERE user_id = ?').all(uid);
     }
 
+    // 호출 방 생성 (호출 전송일 때만)
+    let roomId = null;
+    if (create_room) {
+      const pad = n => String(n).padStart(2, '0');
+      const kst = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
+      const created_at = `${kst.getFullYear()}-${pad(kst.getMonth()+1)}-${pad(kst.getDate())} ${pad(kst.getHours())}:${pad(kst.getMinutes())}:${pad(kst.getSeconds())}`;
+      const roomResult = await db.prepare(
+        'INSERT INTO call_rooms (title, created_by_id, created_by_name, created_at) VALUES (?, ?, ?, ?)'
+      ).run(body, caller.id, caller.name, created_at);
+      roomId = roomResult.lastInsertRowid;
+
+      // 호출자 + 호출 대상 모두 멤버로 등록
+      const memberIds = [...new Set([caller.id, ...targetUserIds])];
+      for (const uid of memberIds) {
+        try {
+          await db.prepare('INSERT OR IGNORE INTO call_room_members (room_id, user_id) VALUES (?, ?)').run(roomId, uid);
+        } catch {}
+      }
+    }
+
+    const notifUrl = roomId ? `/community?room=${roomId}` : (url || '/');
     let sent = 0;
 
     // Web Push 전송
     if (webSubs.length > 0) {
-      const payload = JSON.stringify({ title, body, url: url || '/' });
+      const payload = JSON.stringify({ title, body, url: notifUrl, room_id: roomId });
       const results = await Promise.allSettled(
         webSubs.map(s => webpush.sendNotification(
           { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
@@ -176,7 +199,7 @@ router.post('/send', requireAuth, async (req, res) => {
       const tokens = fcmTokens.map(t => t.token);
       const message = {
         notification: { title, body },
-        data: { url: url || '/' },
+        data: { url: notifUrl, room_id: roomId ? String(roomId) : '' },
         tokens,
       };
       try {
@@ -191,7 +214,7 @@ router.post('/send', requireAuth, async (req, res) => {
       } catch (e) { console.error('FCM 전송 실패:', e.message); }
     }
 
-    res.json({ ok: true, sent });
+    res.json({ ok: true, sent, room_id: roomId });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

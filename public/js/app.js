@@ -57,9 +57,17 @@ const App = {
       const savedOrder = NavOrder.load();
       let firstPage = savedOrder?.[0] || (App.user.role === 'superadmin' ? 'dashboard' : (allPages.find(p => App.canView(p)) || 'mypage'));
       // 알림 탭으로 열린 경우 해당 페이지로 이동
-      const pendingNav = sessionStorage.getItem('pendingNav');
-      if (pendingNav) { sessionStorage.removeItem('pendingNav'); firstPage = pendingNav; }
-      App.goto(firstPage);
+      const pendingNavRaw = sessionStorage.getItem('pendingNav');
+      let pendingParams = {};
+      if (pendingNavRaw) {
+        sessionStorage.removeItem('pendingNav');
+        try {
+          const parsed = JSON.parse(pendingNavRaw);
+          if (parsed.page) { firstPage = parsed.page; pendingParams = parsed.params || {}; }
+          else firstPage = pendingNavRaw; // 구형 문자열 형식 호환
+        } catch { firstPage = pendingNavRaw; }
+      }
+      App.goto(firstPage, pendingParams);
     });
     Push.init().then(() => {
       const subscribed = Push.isSubscribed();
@@ -111,9 +119,10 @@ const App = {
     App.showLogin();
   },
 
-  goto(page) {
+  goto(page, params = {}) {
     event?.preventDefault();
     App.currentPage = page;
+    App._gotoParams = params;
 
     // 네비 활성화
     document.querySelectorAll('#sidebar nav a').forEach(a => {
@@ -168,7 +177,9 @@ const App = {
     }
 
     const pages = { dashboard: Dashboard, employees: Employees, attendance: Attendance, leaves: Leaves, salary: Salary, finance: Finance, inventory: Inventory, settings: Settings, mypage: MyPage, timesheet: Timesheet, shareholder_timesheet: ShareholderTimesheet, sales: Sales, inflow: Inflow, checklist: Checklist, announcement: Announcement, callstaff: CallStaff, community: Community };
-    pages[page]?.render();
+    const params = App._gotoParams || {};
+    App._gotoParams = {};
+    pages[page]?.render(params);
     App.closeSidebar();
   }
 };
@@ -181,10 +192,13 @@ document.addEventListener('DOMContentLoaded', () => {
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.addEventListener('message', (e) => {
       if (e.data?.type === 'navigate' && e.data.url) {
-        const page = e.data.url.includes('community') ? 'community' : null;
+        const url = e.data.url;
+        const page = url.includes('community') ? 'community' : null;
         if (!page) return;
-        if (App.currentPage !== null) App.goto(page);
-        else sessionStorage.setItem('pendingNav', page);
+        const roomMatch = url.match(/room=(\d+)/);
+        const params = roomMatch ? { roomId: parseInt(roomMatch[1]) } : {};
+        if (App.currentPage !== null) App.goto(page, params);
+        else sessionStorage.setItem('pendingNav', JSON.stringify({ page, params }));
       }
     });
   }

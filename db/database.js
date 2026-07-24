@@ -293,6 +293,20 @@ async function init() {
     created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
   )`);
 
+  tables.push(`CREATE TABLE IF NOT EXISTS call_rooms (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    created_by_id INTEGER NOT NULL,
+    created_by_name TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+  )`);
+
+  tables.push(`CREATE TABLE IF NOT EXISTS call_room_members (
+    room_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    PRIMARY KEY (room_id, user_id)
+  )`);
+
   tables.push(`CREATE TABLE IF NOT EXISTS push_subscriptions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
@@ -316,6 +330,7 @@ async function init() {
     "ALTER TABLE users ADD COLUMN hourly_rate INTEGER DEFAULT 0",
     "ALTER TABLE users ADD COLUMN birth_date TEXT",
     "ALTER TABLE users ADD COLUMN call_enabled INTEGER DEFAULT 0",
+    "ALTER TABLE community_messages ADD COLUMN room_id INTEGER",
   ];
   for (const sql of newCols) {
     try { await client.execute({ sql, args: [] }); } catch {}

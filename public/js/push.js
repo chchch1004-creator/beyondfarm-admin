@@ -93,8 +93,10 @@ const Push = {
           const url = action.notification?.extra?.url || '/community';
           const page = url.includes('community') ? 'community' : null;
           if (!page) return;
-          if (App.currentPage !== null) App.goto(page);
-          else sessionStorage.setItem('pendingNav', page);
+          const roomMatch = url.match(/room=(\d+)/);
+          const params = roomMatch ? { roomId: parseInt(roomMatch[1]) } : {};
+          if (App.currentPage !== null) App.goto(page, params);
+          else sessionStorage.setItem('pendingNav', JSON.stringify({ page, params }));
         });
       }
 
@@ -103,8 +105,10 @@ const Push = {
         const url = action.notification?.data?.url || '/community';
         const page = url.includes('community') ? 'community' : null;
         if (!page) return;
-        if (App.currentPage !== null) App.goto(page);
-        else sessionStorage.setItem('pendingNav', page);
+        const roomMatch = url.match(/room=(\d+)/);
+        const params = roomMatch ? { roomId: parseInt(roomMatch[1]) } : {};
+        if (App.currentPage !== null) App.goto(page, params);
+        else sessionStorage.setItem('pendingNav', JSON.stringify({ page, params }));
       });
 
       await PushNotifications.register();

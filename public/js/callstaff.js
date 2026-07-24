@@ -108,10 +108,13 @@ const CallStaff = {
     }
 
     try {
-      const res = await API.post('/api/push/send', { to_user_id: target, title: '비욘더팜 호출', body, url: '/community' });
+      const res = await API.post('/api/push/send', { to_user_id: target, title: '비욘더팜 호출', body, create_room: true });
       if (res.sent > 0) {
         Utils.showToast(`${res.sent}명에게 알림을 전송했습니다.`);
         document.getElementById('call-body').value = '';
+        if (res.room_id) {
+          setTimeout(() => App.goto('community', { roomId: res.room_id }), 600);
+        }
       } else {
         Utils.showToast(res.reason || '알림을 받을 기기가 없습니다. (알림 켜기 필요)', 'error');
       }
