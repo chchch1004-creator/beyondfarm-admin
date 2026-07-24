@@ -278,6 +278,12 @@ async function init() {
     PRIMARY KEY(user_id, key)
   )`);
 
+  tables.push(`CREATE TABLE IF NOT EXISTS sessions (
+    sid TEXT PRIMARY KEY,
+    data TEXT NOT NULL,
+    expires INTEGER NOT NULL
+  )`);
+
   tables.push(`CREATE TABLE IF NOT EXISTS community_messages (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,

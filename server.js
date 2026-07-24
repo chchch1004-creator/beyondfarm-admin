@@ -4,6 +4,7 @@ const session = require('express-session');
 const path = require('path');
 const { WebSocketServer } = require('ws');
 const { init } = require('./db/database');
+const TursoStore = require('./db/session-store');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -18,12 +19,16 @@ app.use(express.static(path.join(__dirname, 'public'), {
     }
   }
 }));
+const sessionStore = new TursoStore();
 app.use(session({
   secret: process.env.SESSION_SECRET || 'beyondfarm-secret-2024',
   resave: false,
   saveUninitialized: false,
+  store: sessionStore,
   cookie: { maxAge: 8 * 60 * 60 * 1000 }
 }));
+// 1시간마다 만료 세션 정리
+setInterval(() => sessionStore.cleanup(), 60 * 60 * 1000);
 
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/employees', require('./routes/employees'));
