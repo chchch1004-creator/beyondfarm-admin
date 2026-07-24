@@ -177,9 +177,9 @@ const App = {
     }
 
     const pages = { dashboard: Dashboard, employees: Employees, attendance: Attendance, leaves: Leaves, salary: Salary, finance: Finance, inventory: Inventory, settings: Settings, mypage: MyPage, timesheet: Timesheet, shareholder_timesheet: ShareholderTimesheet, sales: Sales, inflow: Inflow, checklist: Checklist, announcement: Announcement, callstaff: CallStaff, community: Community };
-    const params = App._gotoParams || {};
+    const renderParams = App._gotoParams || {};
     App._gotoParams = {};
-    pages[page]?.render(params);
+    pages[page]?.render(renderParams);
     App.closeSidebar();
   }
 };
