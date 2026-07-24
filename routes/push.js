@@ -118,7 +118,8 @@ router.post('/send', requireAuth, async (req, res) => {
     const kstDate = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
     const todayStr = `${kstDate.getFullYear()}-${String(kstDate.getMonth()+1).padStart(2,'0')}-${String(kstDate.getDate()).padStart(2,'0')}`;
 
-    let webSubs, fcmTokens, targetUserIds = [];
+    let webSubs = [], fcmTokens = [], targetUserIds = [];
+    let noTargetReason = null;
 
     if (to_user_id === 'all') {
       webSubs = await db.prepare('SELECT * FROM push_subscriptions').all();
@@ -133,10 +134,13 @@ router.post('/send', requireAuth, async (req, res) => {
         `SELECT DISTINCT user_id FROM attendance WHERE date = ? AND check_in IS NOT NULL AND (check_out IS NULL OR check_out = '')`
       ).all(todayStr);
       targetUserIds = clockedIn.map(r => r.user_id);
-      if (targetUserIds.length === 0) return res.json({ ok: true, sent: 0, reason: '현재 출근 중인 직원이 없습니다.' });
-      const ph = targetUserIds.map(() => '?').join(',');
-      webSubs = await db.prepare(`SELECT * FROM push_subscriptions WHERE user_id IN (${ph})`).all(targetUserIds);
-      fcmTokens = await db.prepare(`SELECT token FROM fcm_tokens WHERE user_id IN (${ph})`).all(targetUserIds);
+      if (targetUserIds.length === 0) {
+        noTargetReason = '현재 출근 중인 직원이 없습니다.';
+      } else {
+        const ph = targetUserIds.map(() => '?').join(',');
+        webSubs = await db.prepare(`SELECT * FROM push_subscriptions WHERE user_id IN (${ph})`).all(targetUserIds);
+        fcmTokens = await db.prepare(`SELECT token FROM fcm_tokens WHERE user_id IN (${ph})`).all(targetUserIds);
+      }
 
     } else if (to_user_id.includes(',')) {
       targetUserIds = to_user_id.split(',').map(id => parseInt(id)).filter(Boolean);
@@ -151,7 +155,7 @@ router.post('/send', requireAuth, async (req, res) => {
       fcmTokens = await db.prepare('SELECT token FROM fcm_tokens WHERE user_id = ?').all(uid);
     }
 
-    // 호출 방 생성 (호출 전송일 때만)
+    // 호출 방 생성 (출근자 없어도 항상 생성)
     let roomId = null;
     if (create_room) {
       const pad = n => String(n).padStart(2, '0');
@@ -214,7 +218,7 @@ router.post('/send', requireAuth, async (req, res) => {
       } catch (e) { console.error('FCM 전송 실패:', e.message); }
     }
 
-    res.json({ ok: true, sent, room_id: roomId });
+    res.json({ ok: true, sent, room_id: roomId, reason: noTargetReason });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

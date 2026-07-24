@@ -90,31 +90,76 @@ const Community = {
     if (!body) return;
     body.innerHTML = `<div style="color:#94a3b8;text-align:center;padding:20px;font-size:13px">불러오는 중...</div>`;
     try {
-      const rooms = await API.get('/api/community/rooms');
-      if (!rooms.length) {
+      const [rooms, legacyMsgs] = await Promise.all([
+        API.get('/api/community/rooms'),
+        API.get('/api/community/messages?channel=call&limit=1'),
+      ]);
+
+      const roomCards = rooms.map(r => {
+        const time = (r.last_msg_at || r.created_at || '').slice(11, 16);
+        const date = (r.last_msg_at || r.created_at || '').slice(5, 10);
+        return `
+        <div onclick="Community.openRoom(${r.id})"
+          style="padding:14px 16px;background:#fff;border:1px solid #e2e8f0;border-radius:12px;cursor:pointer;
+                 display:flex;flex-direction:column;gap:4px"
+          onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='#fff'">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div style="font-size:14px;font-weight:700;color:#1e293b;flex:1;margin-right:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+              📣 ${this._escape(r.title)}
+            </div>
+            <div style="font-size:11px;color:#94a3b8;white-space:nowrap">${date} ${time}</div>
+          </div>
+          <div style="font-size:12px;color:#64748b">호출자: ${this._escape(r.created_by_name)}</div>
+          ${r.last_msg ? `<div style="font-size:12px;color:#94a3b8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${this._escape(r.last_msg)}</div>` : ''}
+        </div>`;
+      }).join('');
+
+      const legacyCard = legacyMsgs.length ? `
+        <div onclick="Community.openLegacy()"
+          style="padding:14px 16px;background:#fafaf9;border:1px solid #e7e5e4;border-radius:12px;cursor:pointer;
+                 display:flex;flex-direction:column;gap:4px"
+          onmouseover="this.style.background='#f5f5f4'" onmouseout="this.style.background='#fafaf9'">
+          <div style="font-size:14px;font-weight:700;color:#78716c">🗂 이전 호출 채팅 기록</div>
+          <div style="font-size:12px;color:#a8a29e">업데이트 이전 호출 대화 내역</div>
+        </div>` : '';
+
+      if (!rooms.length && !legacyMsgs.length) {
         body.innerHTML = `<div style="color:#94a3b8;text-align:center;padding:40px;font-size:13px">📭 참여 중인 호출 채팅방이 없습니다</div>`;
         return;
       }
+
       body.innerHTML = `<div style="display:flex;flex-direction:column;gap:8px;overflow-y:auto;padding:4px 0">
-        ${rooms.map(r => {
-          const time = (r.last_msg_at || r.created_at || '').slice(11, 16);
-          const date = (r.last_msg_at || r.created_at || '').slice(5, 10);
-          return `
-          <div onclick="Community.openRoom(${r.id})"
-            style="padding:14px 16px;background:#fff;border:1px solid #e2e8f0;border-radius:12px;cursor:pointer;
-                   display:flex;flex-direction:column;gap:4px;transition:background .15s"
-            onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='#fff'">
-            <div style="display:flex;justify-content:space-between;align-items:center">
-              <div style="font-size:14px;font-weight:700;color:#1e293b;flex:1;margin-right:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
-                📣 ${this._escape(r.title)}
-              </div>
-              <div style="font-size:11px;color:#94a3b8;white-space:nowrap">${date} ${time}</div>
-            </div>
-            <div style="font-size:12px;color:#64748b">호출자: ${this._escape(r.created_by_name)}</div>
-            ${r.last_msg ? `<div style="font-size:12px;color:#94a3b8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${this._escape(r.last_msg)}</div>` : ''}
-          </div>`;
-        }).join('')}
+        ${roomCards}
+        ${legacyCard}
       </div>`;
+    } catch (e) {
+      body.innerHTML = `<div style="color:#dc2626;text-align:center;padding:20px">${e.message}</div>`;
+    }
+  },
+
+  // ── 이전 호출 채널 (channel='call') ──
+  async openLegacy() {
+    this._roomId = 'legacy';
+    const body = document.getElementById('community-body');
+    if (!body) return;
+    body.innerHTML = `<div style="color:#94a3b8;text-align:center;padding:20px;font-size:13px">불러오는 중...</div>`;
+    try {
+      const msgs = await API.get('/api/community/messages?channel=call&limit=200');
+      body.innerHTML = `
+        <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #e2e8f0;margin-bottom:8px;flex-shrink:0">
+          <button onclick="Community._loadRoomList()"
+            style="padding:6px 10px;border:1px solid #e2e8f0;border-radius:8px;background:#f8fafc;color:#475569;font-size:13px;cursor:pointer">
+            ← 목록
+          </button>
+          <div style="font-size:13px;font-weight:700;color:#78716c">🗂 이전 호출 채팅 기록</div>
+        </div>
+        <div id="chat-messages" style="flex:1;overflow-y:auto;padding:8px 4px;display:flex;flex-direction:column;gap:8px"></div>`;
+      const box = document.getElementById('chat-messages');
+      if (box) {
+        if (!msgs.length) box.innerHTML = `<div style="color:#94a3b8;text-align:center;padding:20px;font-size:13px">내역이 없습니다</div>`;
+        else msgs.forEach(m => this._appendMsg(m, false, box));
+        this._scrollBottom();
+      }
     } catch (e) {
       body.innerHTML = `<div style="color:#dc2626;text-align:center;padding:20px">${e.message}</div>`;
     }
