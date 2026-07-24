@@ -405,25 +405,37 @@ const Checklist = (() => {
     recalcSummary(d, state.timeslot);
     const s = d.summary || {};
 
-    // 요약 한 줄 (가로 스크롤)
-    const sumItems = [
+    // 요약 두 줄
+    const sumItems1 = [
       ['불멍','bulmung_count'],['플레이','play_count'],['아이풀','child_pool'],
       ['성인풀','adult_pool'],['풀합계','total_pool'],['S','tent2'],['M','tent4'],
       ['L','tent8'],['단체20','group20'],['단체30','group30'],['합계','total'],
     ];
+    const sumBox = (label, key, color='#1e40af', bg='#fff', border='#d1d5db') => `
+      <div style="flex:0 0 auto;text-align:center;min-width:34px">
+        <div style="font-size:9px;color:#555;font-weight:600;white-space:nowrap">${label}</div>
+        <div id="cl-sum-${key}" style="padding:2px 3px;background:${bg};border:1px solid ${border};border-radius:3px;font-size:12px;font-weight:700;color:${color}">${s[key]||'-'}</div>
+      </div>`;
     const summaryHtml = `
       <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:6px 4px;margin-bottom:8px">
-        <div style="display:flex;gap:5px;overflow-x:auto;padding-bottom:2px;align-items:flex-end">
-          ${sumItems.map(([label,key])=>`
-            <div style="flex:0 0 auto;text-align:center;min-width:36px">
-              <div style="font-size:9px;color:#555;font-weight:600;white-space:nowrap">${label}</div>
-              <div id="cl-sum-${key}" style="padding:2px 3px;background:#fff;border:1px solid #d1d5db;border-radius:3px;font-size:12px;font-weight:700;color:#1e40af">${s[key]||'-'}</div>
-            </div>`).join('')}
+        <!-- 1줄: 인원/텐트 요약 -->
+        <div style="display:flex;gap:4px;overflow-x:auto;padding-bottom:4px;align-items:flex-end">
+          ${sumItems1.map(([label,key])=>sumBox(label,key)).join('')}
         </div>
-        <div style="font-size:10px;color:#555;margin-top:4px">
-          전타임1시간: <span id="cl-sum-prev_extra_hour_nos" style="font-weight:700;color:#ea580c">${s.prev_extra_hour_nos||'-'}</span>
-          &nbsp;1시간추가: <span id="cl-sum-extra_hour_nos" style="font-weight:700;color:#dc2626">${s.extra_hour_nos||'-'}</span>
-          &nbsp;연장: <span id="cl-sum-extend_nos" style="font-weight:700;color:#2563eb">${s.extend_nos||'-'}</span>
+        <!-- 2줄: 전타임1시간·1시간추가·연장텐트 -->
+        <div style="display:flex;gap:4px;margin-top:4px;border-top:1px solid #bfdbfe;padding-top:4px">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:9px;color:#ea580c;font-weight:600;white-space:nowrap">전타임1시간</div>
+            <div id="cl-sum-prev_extra_hour_nos" style="padding:2px 4px;background:#fff7ed;border:1px solid #fed7aa;border-radius:3px;font-size:11px;font-weight:700;color:#ea580c;word-break:break-all;line-height:1.3">${s.prev_extra_hour_nos||'-'}</div>
+          </div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:9px;color:#dc2626;font-weight:600;white-space:nowrap">1시간추가</div>
+            <div id="cl-sum-extra_hour_nos" style="padding:2px 4px;background:#fef2f2;border:1px solid #fca5a5;border-radius:3px;font-size:11px;font-weight:700;color:#dc2626;word-break:break-all;line-height:1.3">${s.extra_hour_nos||'-'}</div>
+          </div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:9px;color:#2563eb;font-weight:600;white-space:nowrap">연장텐트</div>
+            <div id="cl-sum-extend_nos" style="padding:2px 4px;background:#eff6ff;border:1px solid #93c5fd;border-radius:3px;font-size:11px;font-weight:700;color:#2563eb;word-break:break-all;line-height:1.3">${s.extend_nos||'-'}</div>
+          </div>
         </div>
       </div>`;
 
@@ -486,8 +498,9 @@ const Checklist = (() => {
       const adult = parseInt(row.adult_pool)||0;
       const poolText = (child||adult) ? [child?`아이${child}`:'', adult?`성인${adult}`:''].filter(Boolean).join('') : '';
       const td = (content, extra='') =>
-        `<td style="padding:3px 1px;text-align:center;font-size:10px;border-bottom:1px solid #e5e7eb;overflow:hidden;${divBorder}${extra}">${content}</td>`;
-      const dot = (val, bg) => val ? `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${bg}"></span>` : '';
+        `<td style="padding:2px 1px;text-align:center;font-size:10px;border-bottom:1px solid #e5e7eb;overflow:hidden;${divBorder}${extra}">${content}</td>`;
+      const dot = (val, bg) => val ? `<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${bg}"></span>` : '';
+      const memoText = row.memo ? String(row.memo).slice(0, 5) + (row.memo.length > 5 ? '…' : '') : '';
 
       return `<tr style="background:${rowBg};${divBorder}cursor:pointer" onclick="(function(){
           const r=document.getElementById('${expandId}');
@@ -498,33 +511,34 @@ const Checklist = (() => {
         ${td(row.name||'', `font-size:10px;font-weight:600;text-align:left;padding-left:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;${nameBg?'background:'+nameBg+';':''}`)}
         ${td(row.reserved||'')}
         ${td(row.actual||'')}
-        ${td(row.two_time ? `<span style="background:${two_bg};border-radius:3px;padding:1px 2px;font-size:8px;white-space:nowrap">${row.two_time}</span>` : '')}
-        ${td(row.play||'')}
-        ${td(`<span style="font-size:8px;line-height:1.2;display:block">${poolText}</span>`)}
+        ${td(row.two_time ? `<span style="background:${two_bg};border-radius:3px;padding:0 2px;font-size:8px;white-space:nowrap">${row.two_time}</span>` : '')}
+        ${td(row.play ? `<span style="font-size:9px">${row.play}</span>` : '')}
         ${td(dot(row.bulmung,'#fbbf24'))}
         ${td(dot(row.extra_hour,'#f87171'))}
-        ${td(row.car||'')}
+        ${td(`<span style="font-size:9px;color:#64748b;line-height:1.2">${memoText}</span>`, 'text-align:left;padding-left:1px;')}
       </tr>${detailHtml}`;
     }
 
     function mobileTable(title, rows, section) {
-      const th = (label, align='center') =>
-        `<th style="padding:4px 2px;text-align:${align};white-space:nowrap;font-size:10px">${label}</th>`;
+      const th = (label, align='center', extra='') =>
+        `<th style="padding:3px 1px;text-align:${align};white-space:nowrap;font-size:9px;${extra}">${label}</th>`;
       return `<div style="margin-bottom:12px">
         <div style="font-weight:700;font-size:12px;color:#1e40af;padding:3px 0 4px">${title}</div>
         <table style="width:100%;border-collapse:collapse;table-layout:fixed;font-size:10px;word-break:break-all">
           <colgroup>
-            <col style="width:18px">
-            <col style="width:20px">
-            <col style="width:22px"><col style="width:22px">
-            <col style="width:28px">
-            <col style="width:18px"><col style="width:30px">
-            <col style="width:12px"><col style="width:12px">
-            <col style="width:18px">
+            <col style="width:17px"><!-- 번호 -->
+            <col><!-- 이름: 남은 공간 -->
+            <col style="width:18px"><!-- 예약 -->
+            <col style="width:18px"><!-- 입장 -->
+            <col style="width:24px"><!-- 2타임 -->
+            <col style="width:14px"><!-- 플레이 -->
+            <col style="width:10px"><!-- 불멍 -->
+            <col style="width:10px"><!-- +1h -->
+            <col style="width:30px"><!-- 비고 -->
           </colgroup>
           <thead><tr style="background:#1e40af;color:#fff">
-            ${th('번호')}${th('이름','left')}${th('예약')}${th('입장')}
-            ${th('2타임')}${th('플레이')}${th('풀장')}${th('불멍')}${th('+1h')}${th('차량')}
+            ${th('번')}${th('이름','left')}${th('예')}${th('입')}
+            ${th('2타')}${th('플')}${th('불')}${th('+1')}${th('비고','left')}
           </tr></thead>
           <tbody>${rows.map((row,idx)=>compactRow(row,idx,section)).join('')}</tbody>
         </table>
