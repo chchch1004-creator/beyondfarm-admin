@@ -293,6 +293,18 @@ async function init() {
     created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
   )`);
 
+  tables.push(`CREATE TABLE IF NOT EXISTS corp_credentials (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    category TEXT NOT NULL DEFAULT '기타',
+    site_name TEXT NOT NULL,
+    url TEXT,
+    login_id TEXT,
+    password TEXT,
+    memo TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+  )`);
+
   tables.push(`CREATE TABLE IF NOT EXISTS call_rooms (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     title TEXT NOT NULL,

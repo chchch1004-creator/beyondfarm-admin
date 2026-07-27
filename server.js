@@ -47,6 +47,7 @@ app.use('/api/checklist', require('./routes/checklist'));
 app.use('/api/push', require('./routes/push'));
 app.use('/api/user-settings', require('./routes/settings_user'));
 app.use('/api/community', require('./routes/community'));
+app.use('/api/corp', require('./routes/corp'));
 
 app.get('*', (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
