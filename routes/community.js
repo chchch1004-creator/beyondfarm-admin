@@ -2,6 +2,53 @@ const express = require('express');
 const router = express.Router();
 const { getDb } = require('../db/database');
 
+// FCM / WebPush 발송 (room 메시지 알림용)
+let _fcm = null;
+let _webpush = null;
+function getFcm() {
+  if (_fcm) return _fcm;
+  try { const { getMessaging } = require('firebase-admin/messaging'); _fcm = getMessaging(); } catch {}
+  return _fcm;
+}
+function getWebpush() {
+  if (_webpush) return _webpush;
+  try { _webpush = require('web-push'); } catch {}
+  return _webpush;
+}
+
+async function sendPushToUsers(db, userIds, title, body, url) {
+  if (!userIds.length) return;
+  const ph = userIds.map(() => '?').join(',');
+  const fcmTokens = await db.prepare(`SELECT token FROM fcm_tokens WHERE user_id IN (${ph})`).all(userIds);
+  const webSubs   = await db.prepare(`SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE user_id IN (${ph})`).all(userIds);
+
+  const fcm = getFcm();
+  if (fcm && fcmTokens.length) {
+    for (const { token } of fcmTokens) {
+      try {
+        await fcm.send({
+          token,
+          notification: { title, body },
+          data: { url: url || '/', click_action: 'FLUTTER_NOTIFICATION_CLICK' },
+          android: { priority: 'high' },
+        });
+      } catch {}
+    }
+  }
+
+  const wp = getWebpush();
+  if (wp && process.env.VAPID_PUBLIC_KEY && webSubs.length) {
+    for (const s of webSubs) {
+      try {
+        await wp.sendNotification(
+          { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
+          JSON.stringify({ title, body, url: url || '/' })
+        );
+      } catch {}
+    }
+  }
+}
+
 function requireAuth(req, res, next) {
   if (!req.session?.user) return res.status(401).json({ error: '로그인 필요' });
   next();
@@ -143,6 +190,18 @@ router.post('/rooms/:id/messages', requireAuth, async (req, res) => {
 
     const msg = { id: result.lastInsertRowid, user_id: user.id, user_name: user.name, channel: 'room', room_id: roomId, content: content.trim(), created_at };
     if (global.wsBroadcast) global.wsBroadcast({ type: 'room_message', data: msg });
+
+    // 나를 제외한 나머지 멤버에게 푸시 알림
+    const members = await db.prepare('SELECT user_id FROM call_room_members WHERE room_id=?').all(roomId);
+    const otherIds = members.map(m => m.user_id).filter(id => id !== user.id);
+    if (otherIds.length) {
+      const room = await db.prepare('SELECT title FROM call_rooms WHERE id=?').get(roomId);
+      const notifTitle = `💬 ${room?.title || '호출 채팅'}`;
+      const notifBody  = `${user.name}: ${content.trim().slice(0, 80)}`;
+      const notifUrl   = `/community?room=${roomId}`;
+      sendPushToUsers(db, otherIds, notifTitle, notifBody, notifUrl).catch(() => {});
+    }
+
     res.json(msg);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
