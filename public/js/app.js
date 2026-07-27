@@ -287,18 +287,43 @@ const NavOrder = {
     try { await API.put('/api/user-settings/nav_order', { value: order }); } catch {}
   },
 
+  _GROUPS: {
+    '직원':     ['dashboard','employees','attendance','leaves','salary'],
+    '운영 현황': ['inventory','timesheet','shareholder_timesheet','sales','inflow','checklist'],
+    '소통':     ['announcement','callstaff','community'],
+    '관리':     ['corp','mypage','settings'],
+  },
+
+  _injectSections(nav) {
+    nav.querySelectorAll('.nav-section').forEach(s => s.remove());
+    const pageToGroup = {};
+    Object.entries(this._GROUPS).forEach(([g, pages]) => pages.forEach(p => { pageToGroup[p] = g; }));
+    let lastGroup = null;
+    [...nav.querySelectorAll('a[data-page]')].forEach(a => {
+      const group = pageToGroup[a.dataset.page];
+      if (group && group !== lastGroup) {
+        const div = document.createElement('div');
+        div.className = 'nav-section';
+        div.textContent = group;
+        nav.insertBefore(div, a);
+        lastGroup = group;
+      }
+    });
+  },
+
   apply() {
     const order = this.load();
-    if (!order) return;
     const nav = document.querySelector('#sidebar nav');
     if (!nav) return;
-    nav.querySelectorAll('.nav-section').forEach(s => s.style.display = 'none');
-    const links = Object.fromEntries(
-      [...nav.querySelectorAll('a[data-page]')].map(a => [a.dataset.page, a])
-    );
-    [...nav.querySelectorAll('a[data-page]')].forEach(a => a.remove());
-    order.forEach(page => { if (links[page]) nav.appendChild(links[page]); });
-    Object.entries(links).forEach(([page, a]) => { if (!order.includes(page)) nav.appendChild(a); });
+    if (order) {
+      const links = Object.fromEntries(
+        [...nav.querySelectorAll('a[data-page]')].map(a => [a.dataset.page, a])
+      );
+      [...nav.querySelectorAll('a[data-page]')].forEach(a => a.remove());
+      order.forEach(page => { if (links[page]) nav.appendChild(links[page]); });
+      Object.entries(links).forEach(([page, a]) => { if (!order.includes(page)) nav.appendChild(a); });
+    }
+    this._injectSections(nav);
   },
 
   openModal() {
