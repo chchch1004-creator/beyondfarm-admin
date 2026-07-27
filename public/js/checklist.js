@@ -582,7 +582,7 @@ const Checklist = (() => {
         <table style="width:100%;border-collapse:collapse;table-layout:fixed;font-size:10px;word-break:break-all">
           <colgroup>
             <col style="width:17px"><!-- 번호 -->
-            <col><!-- 이름: 남은 공간 -->
+            <col style="width:52px"><!-- 이름 -->
             <col style="width:18px"><!-- 예약 -->
             <col style="width:18px"><!-- 입장 -->
             <col style="width:24px"><!-- 2타임 -->
