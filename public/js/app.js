@@ -266,7 +266,6 @@ const NavOrder = {
       if (res.value) {
         this._order = res.value;
       } else {
-        // 서버에 없으면 localStorage에서 마이그레이션
         const localKey = `nav_order_${App.user?.id || 'guest'}`;
         const local = localStorage.getItem(localKey);
         if (local) {
@@ -287,91 +286,134 @@ const NavOrder = {
     try { await API.put('/api/user-settings/nav_order', { value: order }); } catch {}
   },
 
-  _GROUPS: {
-    '직원':     ['dashboard','employees','attendance','leaves','salary'],
-    '운영 현황': ['inventory','timesheet','shareholder_timesheet','sales','inflow','checklist'],
-    '소통':     ['announcement','callstaff','community'],
-    '관리':     ['corp','mypage','settings'],
-  },
-
-  _injectSections(nav) {
-    nav.querySelectorAll('.nav-section').forEach(s => s.remove());
-    const pageToGroup = {};
-    Object.entries(this._GROUPS).forEach(([g, pages]) => pages.forEach(p => { pageToGroup[p] = g; }));
-    let lastGroup = null;
-    [...nav.querySelectorAll('a[data-page]')].forEach(a => {
-      const group = pageToGroup[a.dataset.page];
-      if (group && group !== lastGroup) {
-        const div = document.createElement('div');
-        div.className = 'nav-section';
-        div.textContent = group;
-        nav.insertBefore(div, a);
-        lastGroup = group;
-      }
-    });
-  },
-
+  // order 배열 형식: 문자열(페이지키) 또는 {group:'그룹명'} 객체 혼합
   apply() {
     const order = this.load();
     const nav = document.querySelector('#sidebar nav');
     if (!nav) return;
+
+    // 기존 구분선 제거
+    nav.querySelectorAll('.nav-section').forEach(s => s.remove());
+
+    const links = Object.fromEntries(
+      [...nav.querySelectorAll('a[data-page]')].map(a => [a.dataset.page, a])
+    );
+    [...nav.querySelectorAll('a[data-page]')].forEach(a => a.remove());
+
     if (order) {
-      const links = Object.fromEntries(
-        [...nav.querySelectorAll('a[data-page]')].map(a => [a.dataset.page, a])
-      );
-      [...nav.querySelectorAll('a[data-page]')].forEach(a => a.remove());
-      order.forEach(page => { if (links[page]) nav.appendChild(links[page]); });
-      Object.entries(links).forEach(([page, a]) => { if (!order.includes(page)) nav.appendChild(a); });
+      order.forEach(item => {
+        if (typeof item === 'string') {
+          if (links[item]) nav.appendChild(links[item]);
+        } else if (item?.group) {
+          const div = document.createElement('div');
+          div.className = 'nav-section';
+          div.textContent = item.group;
+          nav.appendChild(div);
+        }
+      });
+      // 순서에 없는 페이지는 맨 뒤에 추가
+      Object.entries(links).forEach(([page, a]) => {
+        if (!order.some(item => item === page)) nav.appendChild(a);
+      });
+    } else {
+      // 저장된 순서 없음: 기본 순서로 복원
+      Object.values(links).forEach(a => nav.appendChild(a));
     }
-    this._injectSections(nav);
   },
 
   openModal() {
-    // 현재 nav 링크 목록 수집 (보이는 것만)
-    const navLinks = [...document.querySelectorAll('#sidebar nav a[data-page]')]
-      .filter(a => a.style.display !== 'none')
-      .map(a => ({
-        page: a.dataset.page,
-        icon: a.querySelector('.icon')?.textContent || '',
-        label: a.querySelector('span:last-child')?.textContent || a.dataset.page,
-      }));
+    const nav = document.querySelector('#sidebar nav');
+
+    // 현재 표시 중인 페이지 링크 정보 수집
+    const pageLinks = Object.fromEntries(
+      [...nav.querySelectorAll('a[data-page]')]
+        .filter(a => a.style.display !== 'none')
+        .map(a => [a.dataset.page, {
+          page: a.dataset.page,
+          icon: a.querySelector('.icon')?.textContent || '',
+          label: a.querySelector('span:last-child')?.textContent || a.dataset.page,
+        }])
+    );
+
+    // 현재 저장된 순서(페이지 + 구분선 포함)로 초기 아이템 목록 구성
+    const order = this.load();
+    let initItems = [];
+    if (order) {
+      order.forEach(item => {
+        if (typeof item === 'string' && pageLinks[item]) {
+          initItems.push({ ...pageLinks[item], type: 'page' });
+        } else if (item?.group) {
+          initItems.push({ type: 'group', label: item.group });
+        }
+      });
+      // 순서에 없는 페이지 뒤에 추가
+      Object.values(pageLinks).forEach(p => {
+        if (!initItems.some(i => i.page === p.page)) initItems.push({ ...p, type: 'page' });
+      });
+    } else {
+      initItems = Object.values(pageLinks).map(p => ({ ...p, type: 'page' }));
+    }
 
     let dragSrc = null;
+    let itemCounter = 0;
 
-    const itemHtml = navLinks.map((item, i) => `
-      <div class="nm-item" data-idx="${i}" data-page="${item.page}"
-        draggable="true"
-        style="display:flex;align-items:center;gap:10px;padding:10px 12px;margin-bottom:6px;
-               background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;cursor:grab;user-select:none">
-        <span style="color:#94a3b8;font-size:16px">⠿</span>
-        <span style="font-size:18px">${item.icon}</span>
-        <span style="font-size:14px;font-weight:500">${item.label}</span>
-      </div>`).join('');
+    const makePageEl = (item) => {
+      const div = document.createElement('div');
+      div.className = 'nm-item';
+      div.dataset.page = item.page;
+      div.draggable = true;
+      div.style.cssText = 'display:flex;align-items:center;gap:10px;padding:10px 12px;margin-bottom:6px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;cursor:grab;user-select:none';
+      div.innerHTML = `<span style="color:#94a3b8;font-size:16px;flex-shrink:0">⠿</span>
+        <span style="font-size:18px;flex-shrink:0">${item.icon}</span>
+        <span style="font-size:14px;font-weight:500">${item.label}</span>`;
+      return div;
+    };
+
+    const makeGroupEl = (label = '구분선') => {
+      const id = `grp-${itemCounter++}`;
+      const div = document.createElement('div');
+      div.className = 'nm-item nm-group';
+      div.dataset.group = '1';
+      div.draggable = true;
+      div.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 10px;margin-bottom:6px;background:#1e293b;border-radius:8px;cursor:grab;user-select:none';
+      div.innerHTML = `
+        <span style="color:rgba(255,255,255,0.4);font-size:16px;flex-shrink:0">⠿</span>
+        <input id="${id}" value="${label}"
+          style="flex:1;background:transparent;border:none;border-bottom:1px solid rgba(255,255,255,0.3);
+                 color:#fff;font-size:12px;font-weight:700;outline:none;padding:2px 4px;text-transform:uppercase;letter-spacing:0.05em"
+          onclick="event.stopPropagation()" ondragstart="event.stopPropagation()">
+        <button onclick="this.closest('.nm-item').remove()"
+          style="background:none;border:none;color:rgba(255,255,255,0.5);font-size:16px;cursor:pointer;flex-shrink:0;line-height:1">×</button>`;
+      return div;
+    };
 
     const modal = document.createElement('div');
     modal.id = 'nm-modal';
     modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9999;display:flex;align-items:center;justify-content:center';
     modal.innerHTML = `
-      <div style="background:#fff;border-radius:14px;padding:24px;width:320px;max-width:92vw;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.25)">
-        <div style="font-size:16px;font-weight:700;color:#1e293b;margin-bottom:6px">메뉴 순서 설정</div>
-        <div style="font-size:12px;color:#94a3b8;margin-bottom:14px">⠿ 핸들을 드래그해서 순서를 변경하세요</div>
-        <div id="nm-list" style="flex:1;overflow-y:auto">${itemHtml}</div>
-        <div style="display:flex;gap:8px;margin-top:16px">
-          <button id="nm-reset"
-            style="flex:1;padding:9px;border:1px solid #cbd5e1;border-radius:7px;background:#f8fafc;
-                   font-size:13px;font-weight:600;cursor:pointer;color:#64748b">초기화</button>
-          <button id="nm-cancel"
-            style="flex:1;padding:9px;border:1px solid #cbd5e1;border-radius:7px;background:#f8fafc;
-                   font-size:13px;font-weight:600;cursor:pointer;color:#374151">취소</button>
-          <button id="nm-save"
-            style="flex:2;padding:9px;border:none;border-radius:7px;background:#2563eb;
-                   font-size:13px;font-weight:700;cursor:pointer;color:#fff">저장</button>
+      <div style="background:#fff;border-radius:14px;padding:24px;width:340px;max-width:94vw;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.25)">
+        <div style="font-size:16px;font-weight:700;color:#1e293b;margin-bottom:4px">메뉴 순서 설정</div>
+        <div style="font-size:12px;color:#94a3b8;margin-bottom:10px">⠿ 드래그로 순서 변경 · 구분선 추가로 그룹 직접 설정</div>
+        <button id="nm-add-group"
+          style="padding:7px 12px;border:1px dashed #94a3b8;border-radius:8px;background:#f8fafc;
+                 color:#475569;font-size:12px;font-weight:600;cursor:pointer;margin-bottom:10px;text-align:left">
+          + 구분선 추가
+        </button>
+        <div id="nm-list" style="flex:1;overflow-y:auto;min-height:0"></div>
+        <div style="display:flex;gap:8px;margin-top:14px">
+          <button id="nm-reset" style="flex:1;padding:9px;border:1px solid #cbd5e1;border-radius:7px;background:#f8fafc;font-size:13px;font-weight:600;cursor:pointer;color:#64748b">초기화</button>
+          <button id="nm-cancel" style="flex:1;padding:9px;border:1px solid #cbd5e1;border-radius:7px;background:#f8fafc;font-size:13px;font-weight:600;cursor:pointer;color:#374151">취소</button>
+          <button id="nm-save" style="flex:2;padding:9px;border:none;border-radius:7px;background:#2563eb;font-size:13px;font-weight:700;cursor:pointer;color:#fff">저장</button>
         </div>
       </div>`;
     document.body.appendChild(modal);
 
-    // 드래그 로직
     const list = modal.querySelector('#nm-list');
+    initItems.forEach(item => {
+      list.appendChild(item.type === 'group' ? makeGroupEl(item.label) : makePageEl(item));
+    });
+
+    // 드래그 로직
     list.addEventListener('dragstart', e => {
       dragSrc = e.target.closest('.nm-item');
       if (dragSrc) { e.dataTransfer.effectAllowed = 'move'; setTimeout(() => dragSrc.style.opacity = '0.4', 0); }
@@ -379,24 +421,28 @@ const NavOrder = {
     list.addEventListener('dragend', e => {
       const item = e.target.closest('.nm-item');
       if (item) item.style.opacity = '';
-      list.querySelectorAll('.nm-item').forEach(el => el.style.outline = '');
       dragSrc = null;
     });
     list.addEventListener('dragover', e => {
       e.preventDefault();
       const target = e.target.closest('.nm-item');
       if (!target || !dragSrc || target === dragSrc) return;
-      list.querySelectorAll('.nm-item').forEach(el => el.style.outline = '');
       const rect = target.getBoundingClientRect();
       const after = e.clientY > rect.top + rect.height / 2;
-      target.style.outline = after ? '2px solid transparent' : '2px solid transparent';
       if (after) list.insertBefore(dragSrc, target.nextSibling);
       else list.insertBefore(dragSrc, target);
     });
 
-    // 버튼
+    modal.querySelector('#nm-add-group').onclick = () => {
+      list.prepend(makeGroupEl('구분선'));
+      list.querySelector('input')?.focus();
+    };
+
     modal.querySelector('#nm-save').onclick = async () => {
-      const order = [...list.querySelectorAll('.nm-item')].map(el => el.dataset.page);
+      const order = [...list.querySelectorAll('.nm-item')].map(el => {
+        if (el.dataset.group) return { group: el.querySelector('input')?.value || '구분선' };
+        return el.dataset.page;
+      }).filter(Boolean);
       await NavOrder._saveOrder(order);
       NavOrder.apply();
       modal.remove();
@@ -404,7 +450,8 @@ const NavOrder = {
     modal.querySelector('#nm-cancel').onclick = () => modal.remove();
     modal.querySelector('#nm-reset').onclick = async () => {
       await NavOrder._saveOrder(null);
-      location.reload();
+      NavOrder.apply();
+      modal.remove();
     };
     modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
   },
