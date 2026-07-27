@@ -154,7 +154,9 @@ const Checklist = (() => {
     const extendNos = [];
     const extendTarget = timeslot === '11' ? '15' : timeslot === '15' ? '19' : null;
 
-    let ticket = 0;
+    // 티켓: extra 섹션 행들의 예약인원 합산
+    const ticket = (d.extra||[]).reduce((s, r) => s + (parseInt(r.reserved)||0), 0);
+
     allRows.forEach(r => {
       bulmung += r.bulmung ? 1 : 0;
       play    += num(r.play);
@@ -166,7 +168,6 @@ const Checklist = (() => {
       else if (p === 'l') cntL++;
       else if (p === '단체20' || p === '단체 20') cnt20++;
       else if (p === '단체30' || p === '단체 30') cnt30++;
-      else if (p === 't') ticket += num(r.reserved);
       if (r.extra_hour) extraHourNos.push(r.tent_no);
       if (r.prev_extra_hour) prevExtraHourNos.push(r.tent_no);
       if (extendTarget && r.two_time && String(r.two_time).includes(extendTarget))
@@ -604,7 +605,7 @@ const Checklist = (() => {
             <col style="width:12px"><!-- 플레이 -->
             <col style="width:9px"><!-- 불멍 -->
             <col style="width:9px"><!-- +1h -->
-            <col style="width:30px"><!-- 차량 -->
+            <col style="width:50px"><!-- 차량 -->
             <col style="width:30px"><!-- 비고 -->
           </colgroup>
           <thead><tr style="background:#1e40af;color:#fff">
