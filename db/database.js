@@ -319,6 +319,17 @@ async function init() {
     PRIMARY KEY (room_id, user_id)
   )`);
 
+  tables.push(`CREATE TABLE IF NOT EXISTS payhere_products (
+    sku TEXT PRIMARY KEY,
+    product_name TEXT NOT NULL,
+    category TEXT,
+    barcode TEXT,
+    price INTEGER DEFAULT 0,
+    stock_qty REAL DEFAULT 0,
+    threshold INTEGER,
+    updated_at TEXT
+  )`);
+
   tables.push(`CREATE TABLE IF NOT EXISTS push_subscriptions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
