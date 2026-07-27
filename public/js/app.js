@@ -49,7 +49,7 @@ const App = {
     document.getElementById('sidebar-name').textContent = App.user.name;
     const roleLabel = { superadmin: '총괄관리자', user: '사용자' };
     document.getElementById('sidebar-role').textContent = roleLabel[App.user.role] || '사용자';
-    const allPages = ['dashboard','employees','attendance','leaves','salary','finance','inventory','timesheet','shareholder_timesheet','sales','inflow','checklist'];
+    const allPages = ['dashboard','employees','attendance','leaves','salary','inventory','timesheet','shareholder_timesheet','sales','inflow','checklist'];
     // 서버에서 설정 불러온 후 메뉴/페이지 적용
     Announcement.syncPresets();
     NavOrder.fetchOrder().then(() => {
@@ -131,7 +131,7 @@ const App = {
 
     const titles = {
       dashboard: '대시보드', employees: '직원 관리', attendance: '출퇴근 관리',
-      leaves: '휴가 관리', salary: '급여 관리', finance: '수입/지출', inventory: '재고 현황',
+      leaves: '휴가 관리', salary: '급여 관리', inventory: '재고 현황',
       settings: '시스템 설정',
       mypage: '마이페이지',
       timesheet: '근무표',
@@ -151,7 +151,7 @@ const App = {
     const isSuperAdmin = App.user.role === 'superadmin';
 
     // 메뉴 표시/숨김: 권한 기반
-    const navPages = ['dashboard','employees','attendance','leaves','salary','finance','inventory','timesheet','shareholder_timesheet','sales','inflow','checklist','announcement','corp'];
+    const navPages = ['dashboard','employees','attendance','leaves','salary','inventory','timesheet','shareholder_timesheet','sales','inflow','checklist','announcement','corp'];
     navPages.forEach(p => {
       const el = document.querySelector(`#sidebar [data-page="${p}"]`);
       if (el) el.style.display = App.canView(p) ? '' : 'none';

@@ -8,14 +8,14 @@ const PAGES = [
   { key: 'attendance',            label: '출퇴근 관리' },
   { key: 'leaves',                label: '휴가 관리' },
   { key: 'salary',                label: '급여 관리' },
-  { key: 'finance',               label: '수입/지출' },
   { key: 'inventory',             label: '재고 현황' },
   { key: 'timesheet',             label: '근무표' },
   { key: 'shareholder_timesheet', label: '주주근무표' },
   { key: 'sales',                 label: '매출현황' },
   { key: 'inflow',                label: '유입량' },
-  { key: 'checklist',            label: '인원체크리스트' },
-  { key: 'announcement',         label: '안내방송' },
+  { key: 'checklist',             label: '인원체크리스트' },
+  { key: 'announcement',          label: '안내방송' },
+  { key: 'corp',                  label: '법인 계정 정보' },
 ];
 
 function requireSuperAdmin(req, res, next) {
