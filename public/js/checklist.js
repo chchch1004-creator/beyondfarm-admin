@@ -569,6 +569,7 @@ const Checklist = (() => {
         `<td style="padding:2px 1px;text-align:center;font-size:10px;border-bottom:1px solid #e5e7eb;overflow:hidden;${divBorder}${extra}">${content}</td>`;
       const dot = (val, bg) => val ? `<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${bg}"></span>` : '';
       const memoText = row.memo ? String(row.memo).slice(0, 5) + (row.memo.length > 5 ? '…' : '') : '';
+      const carText = row.car ? String(row.car).slice(0, 6) + (row.car.length > 6 ? '…' : '') : '';
 
       return `<tr style="background:${rowBg};${divBorder}cursor:pointer" onclick="(function(){
           const r=document.getElementById('${expandId}');
@@ -583,6 +584,7 @@ const Checklist = (() => {
         ${td(row.play ? `<span style="font-size:9px">${row.play}</span>` : '')}
         ${td(dot(row.bulmung,'#fbbf24'))}
         ${td(dot(row.extra_hour,'#f87171'))}
+        ${td(`<span style="font-size:9px;color:#374151;line-height:1.2">${carText}</span>`, 'text-align:left;padding-left:1px;')}
         ${td(`<span style="font-size:9px;color:#64748b;line-height:1.2">${memoText}</span>`, 'text-align:left;padding-left:1px;')}
       </tr>${detailHtml}`;
     }
@@ -595,18 +597,19 @@ const Checklist = (() => {
         <table style="width:100%;border-collapse:collapse;table-layout:fixed;font-size:10px;word-break:break-all">
           <colgroup>
             <col style="width:17px"><!-- 번호 -->
-            <col style="width:36px"><!-- 이름 -->
-            <col style="width:18px"><!-- 예약 -->
-            <col style="width:18px"><!-- 입장 -->
-            <col style="width:24px"><!-- 2타임 -->
-            <col style="width:14px"><!-- 플레이 -->
-            <col style="width:10px"><!-- 불멍 -->
-            <col style="width:10px"><!-- +1h -->
+            <col style="width:24px"><!-- 이름 -->
+            <col style="width:9px"><!-- 예약 -->
+            <col style="width:9px"><!-- 입장 -->
+            <col style="width:12px"><!-- 2타임 -->
+            <col style="width:12px"><!-- 플레이 -->
+            <col style="width:9px"><!-- 불멍 -->
+            <col style="width:9px"><!-- +1h -->
+            <col style="width:30px"><!-- 차량 -->
             <col style="width:30px"><!-- 비고 -->
           </colgroup>
           <thead><tr style="background:#1e40af;color:#fff">
             ${th('번')}${th('이름','left')}${th('예')}${th('입')}
-            ${th('2타')}${th('플')}${th('불')}${th('+1')}${th('비고','left')}
+            ${th('2타')}${th('플')}${th('불')}${th('+1')}${th('차량','left')}${th('비고','left')}
           </tr></thead>
           <tbody>${rows.map((row,idx)=>compactRow(row,idx,section)).join('')}</tbody>
         </table>
@@ -649,6 +652,7 @@ const Checklist = (() => {
             </td>
           </tr>` : '';
         const memoText = row.memo ? String(row.memo).slice(0,5)+(row.memo.length>5?'…':'') : '';
+        const carText = row.car ? String(row.car).slice(0,6)+(row.car.length>6?'…':'') : '';
         const rowBg = idx%2===0?'#fff':'#faf5ff';
         return `<tr style="background:${rowBg};cursor:pointer" onclick="(function(){
             const r=document.getElementById('${expandId}');if(!r)return;
@@ -662,6 +666,7 @@ const Checklist = (() => {
           ${td(row.play||'')}
           ${td(row.bulmung?'●':'')}
           ${td(row.extra_hour?'●':'')}
+          ${td(`<span style="font-size:9px;color:#374151">${carText}</span>`,'text-align:left;padding-left:1px;')}
           ${td(`<span style="font-size:9px;color:#64748b">${memoText}</span>`,'text-align:left;padding-left:1px;')}
         </tr>${detailHtml}`;
       };
@@ -675,15 +680,15 @@ const Checklist = (() => {
         ${rows.length ? `
         <table style="width:100%;border-collapse:collapse;table-layout:fixed;font-size:10px;word-break:break-all">
           <colgroup>
-            <col style="width:17px"><col style="width:36px">
-            <col style="width:18px"><col style="width:18px">
-            <col style="width:24px"><col style="width:14px">
-            <col style="width:10px"><col style="width:10px">
-            <col style="width:30px">
+            <col style="width:17px"><col style="width:24px">
+            <col style="width:9px"><col style="width:9px">
+            <col style="width:12px"><col style="width:12px">
+            <col style="width:9px"><col style="width:9px">
+            <col style="width:30px"><col style="width:30px">
           </colgroup>
           <thead><tr style="background:#6d28d9;color:#fff">
             ${th('#')}${th('이름','left')}${th('예')}${th('입')}
-            ${th('2타')}${th('플')}${th('불')}${th('+1')}${th('비고','left')}
+            ${th('2타')}${th('플')}${th('불')}${th('+1')}${th('차량','left')}${th('비고','left')}
           </tr></thead>
           <tbody>${rows.map((row,idx)=>rowHtml(row,idx)).join('')}</tbody>
         </table>` : (E ? '' : '<div style="color:#aaa;font-size:11px">없음</div>')}
