@@ -76,6 +76,23 @@ router.get('/rooms', requireAuth, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── 방 상세 (멤버만) ──
+router.get('/rooms/:id', requireAuth, async (req, res) => {
+  try {
+    const db = getDb();
+    const roomId = parseInt(req.params.id);
+    const userId = req.session.user.id;
+    if (!await isMember(db, roomId, userId)) return res.status(403).json({ error: '접근 권한 없음' });
+    const room = await db.prepare('SELECT * FROM call_rooms WHERE id=?').get(roomId);
+    if (!room) return res.status(404).json({ error: '방 없음' });
+    const members = await db.prepare(`
+      SELECT u.id, u.name FROM call_room_members m
+      JOIN users u ON u.id = m.user_id WHERE m.room_id=?
+    `).all(roomId);
+    res.json({ ...room, members });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── 방 멤버 목록 ──
 router.get('/rooms/:id/members', requireAuth, async (req, res) => {
   try {

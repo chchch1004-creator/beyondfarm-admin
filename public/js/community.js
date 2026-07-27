@@ -96,20 +96,23 @@ const Community = {
       ]);
 
       const roomCards = rooms.map(r => {
-        const time = (r.last_msg_at || r.created_at || '').slice(11, 16);
-        const date = (r.last_msg_at || r.created_at || '').slice(5, 10);
+        const callDate = this._fmtDate(r.created_at || '');
+        const callTime = (r.created_at || '').slice(11, 16);
+        const lastTime = r.last_msg_at ? r.last_msg_at.slice(11, 16) : '';
         return `
         <div onclick="Community.openRoom(${r.id})"
           style="padding:14px 16px;background:#fff;border:1px solid #e2e8f0;border-radius:12px;cursor:pointer;
-                 display:flex;flex-direction:column;gap:4px"
+                 display:flex;flex-direction:column;gap:5px"
           onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='#fff'">
           <div style="display:flex;justify-content:space-between;align-items:center">
             <div style="font-size:14px;font-weight:700;color:#1e293b;flex:1;margin-right:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
               📣 ${this._escape(r.title)}
             </div>
-            <div style="font-size:11px;color:#94a3b8;white-space:nowrap">${date} ${time}</div>
+            ${lastTime ? `<div style="font-size:11px;color:#94a3b8;white-space:nowrap">최근 ${lastTime}</div>` : ''}
           </div>
-          <div style="font-size:12px;color:#64748b">호출자: ${this._escape(r.created_by_name)}</div>
+          <div style="font-size:11px;color:#b45309;background:#fef9c3;border-radius:5px;padding:3px 8px;display:inline-block;align-self:flex-start">
+            🔔 ${callDate} ${callTime} · ${this._escape(r.created_by_name)} 호출
+          </div>
           ${r.last_msg ? `<div style="font-size:12px;color:#94a3b8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${this._escape(r.last_msg)}</div>` : ''}
         </div>`;
       }).join('');
@@ -170,7 +173,6 @@ const Community = {
     this._roomId = roomId;
     this._channel = 'rooms';
 
-    // 탭 활성화
     ['free','rooms'].forEach(t => {
       const btn = document.getElementById(`ctab-${t}`);
       if (!btn) return;
@@ -183,23 +185,35 @@ const Community = {
     body.innerHTML = `<div style="color:#94a3b8;text-align:center;padding:20px;font-size:13px">불러오는 중...</div>`;
 
     try {
-      const [msgs, members] = await Promise.all([
+      const [room, msgs] = await Promise.all([
+        API.get(`/api/community/rooms/${roomId}`),
         API.get(`/api/community/rooms/${roomId}/messages`),
-        API.get(`/api/community/rooms/${roomId}/members`),
       ]);
 
-      const memberNames = members.map(m => m.name).join(', ');
+      const memberNames = (room.members || []).map(m => m.name).join(', ');
+
+      // 호출 일시 포맷
+      const callAt = room.created_at || '';
+      const callDate = this._fmtDate(callAt);
+      const callTime = callAt.slice(11, 16);
+
       body.innerHTML = `
         <!-- 방 헤더 -->
-        <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #e2e8f0;margin-bottom:8px;flex-shrink:0">
+        <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #e2e8f0;margin-bottom:4px;flex-shrink:0">
           <button onclick="Community._loadRoomList()"
             style="padding:6px 10px;border:1px solid #e2e8f0;border-radius:8px;background:#f8fafc;color:#475569;font-size:13px;cursor:pointer">
             ← 목록
           </button>
           <div style="flex:1;min-width:0">
-            <div style="font-size:13px;font-weight:700;color:#1e293b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">호출 응답 채팅</div>
-            <div style="font-size:11px;color:#94a3b8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${this._escape(memberNames)}</div>
+            <div style="font-size:13px;font-weight:700;color:#1e293b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+              📣 ${this._escape(room.title || '호출 응답 채팅')}
+            </div>
+            <div style="font-size:11px;color:#94a3b8">참여자: ${this._escape(memberNames)}</div>
           </div>
+        </div>
+        <!-- 호출 일시 배너 -->
+        <div style="flex-shrink:0;background:#fef9c3;border:1px solid #fde68a;border-radius:8px;padding:8px 12px;margin-bottom:8px;font-size:12px;color:#92400e;display:flex;align-items:center;gap:6px">
+          🔔 <span><strong>${this._escape(room.created_by_name)}</strong>이(가) ${callDate} ${callTime}에 호출한 채팅방입니다</span>
         </div>
         <!-- 메시지 -->
         <div id="chat-messages" style="flex:1;overflow-y:auto;padding:8px 4px;display:flex;flex-direction:column;gap:8px"></div>
@@ -265,6 +279,14 @@ const Community = {
                   font-size:14px;line-height:1.5;word-break:break-word;white-space:pre-wrap">${this._escape(msg.content)}</div>`;
     box.appendChild(el);
     if (scroll) this._scrollBottom();
+  },
+
+  _fmtDate(dt) {
+    if (!dt) return '';
+    // "2026-07-27 14:30:00" → "7월 27일"
+    const m = dt.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!m) return dt.slice(0, 10);
+    return `${parseInt(m[2])}월 ${parseInt(m[3])}일`;
   },
 
   _escape(str) {
