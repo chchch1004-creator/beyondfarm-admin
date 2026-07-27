@@ -518,6 +518,11 @@ const Checklist = (() => {
 
       const expandId = `mob-exp-${section}-${idx}`;
 
+      // 번호 이동용 전체 텐트 번호 목록
+      const allNos = section === 'tent8'
+        ? TENT8_NOS
+        : [...TENT4_NOS, ...TENT2_NOS];
+
       // 펼침 상세 편집 행
       const DETAIL_FIELDS = [
         ['예약상품','product'],['방문횟수','visit_count'],['예약인원','reserved'],
@@ -527,7 +532,7 @@ const Checklist = (() => {
       ];
       const detailHtml = E ? `
         <tr id="${expandId}" style="display:none;background:#f0f9ff">
-          <td colspan="6" style="padding:8px 6px;border-bottom:2px solid #bfdbfe">
+          <td colspan="9" style="padding:8px 6px;border-bottom:2px solid #bfdbfe">
             <div style="display:flex;flex-wrap:wrap;gap:6px 10px">
               ${DETAIL_FIELDS.map(([label,key])=>{
                 const val = row[key]??'';
@@ -542,6 +547,14 @@ const Checklist = (() => {
                            padding:5px 7px;font-size:13px;background:${bg}">
                 </div>`;
               }).join('')}
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
+              <div style="font-size:10px;color:#64748b;white-space:nowrap">번호 이동</div>
+              <select onchange="Checklist.mobSwapTent('${section}',${idx},this.value);this.value=''"
+                style="flex:1;border:1px solid #bfdbfe;border-radius:4px;padding:4px 6px;font-size:13px;background:#fff">
+                <option value="">-- 이동할 번호 선택 --</option>
+                ${allNos.filter(n=>String(n)!==String(row.tent_no)).map(n=>`<option value="${n}">${n}번</option>`).join('')}
+              </select>
             </div>
             <button onclick="Checklist.clearRow('${section}',${idx})"
               style="margin-top:8px;border:1px solid #e5e7eb;background:#fff;color:#e53e3e;
@@ -582,7 +595,7 @@ const Checklist = (() => {
         <table style="width:100%;border-collapse:collapse;table-layout:fixed;font-size:10px;word-break:break-all">
           <colgroup>
             <col style="width:17px"><!-- 번호 -->
-            <col style="width:52px"><!-- 이름 -->
+            <col style="width:36px"><!-- 이름 -->
             <col style="width:18px"><!-- 예약 -->
             <col style="width:18px"><!-- 입장 -->
             <col style="width:24px"><!-- 2타임 -->
@@ -600,10 +613,88 @@ const Checklist = (() => {
       </div>`;
     }
 
+    function mobileTicketSection(rows) {
+      const th = (label, align='center') =>
+        `<th style="padding:3px 1px;text-align:${align};white-space:nowrap;font-size:9px">${label}</th>`;
+      const rowHtml = (row, idx) => {
+        const expandId = `mob-exp-extra-${idx}`;
+        const td = (content, extra='') =>
+          `<td style="padding:2px 1px;text-align:center;font-size:10px;border-bottom:1px solid #e5e7eb;overflow:hidden;${extra}">${content}</td>`;
+        const TICKET_FIELDS = [
+          ['예약상품','product'],['방문횟수','visit_count'],['예약인원','reserved'],
+          ['입장시인원','actual'],['2타임','two_time'],['플레이','play'],
+          ['아이풀','child_pool'],['성인풀','adult_pool'],['불멍','bulmung'],
+          ['성인만','adult_only'],['1시간추가','extra_hour'],['차량','car'],['비고','memo'],
+        ];
+        const detailHtml = E ? `
+          <tr id="${expandId}" style="display:none;background:#faf5ff">
+            <td colspan="9" style="padding:8px 6px;border-bottom:2px solid #c4b5fd">
+              <div style="display:flex;flex-wrap:wrap;gap:6px 10px">
+                ${TICKET_FIELDS.map(([label,key])=>{
+                  const val = row[key]??'';
+                  return `<div style="flex:1 1 42%;min-width:100px">
+                    <div style="font-size:10px;color:#64748b;margin-bottom:2px">${label}</div>
+                    <input type="text" value="${String(val).replace(/"/g,'&quot;')}"
+                      data-section="extra" data-idx="${idx}" data-field="${key}"
+                      onfocus="Checklist.onRowFocus(this)"
+                      oninput="Checklist.onRowInput(this)"
+                      style="width:100%;box-sizing:border-box;border:1px solid #c4b5fd;border-radius:4px;
+                             padding:5px 7px;font-size:13px;background:#fff">
+                  </div>`;
+                }).join('')}
+              </div>
+              <button onclick="Checklist.removeExtraRow(${idx})"
+                style="margin-top:8px;border:1px solid #e5e7eb;background:#fff;color:#e53e3e;
+                       padding:4px 12px;border-radius:4px;font-size:12px;cursor:pointer">× 삭제</button>
+            </td>
+          </tr>` : '';
+        const memoText = row.memo ? String(row.memo).slice(0,5)+(row.memo.length>5?'…':'') : '';
+        const rowBg = idx%2===0?'#fff':'#faf5ff';
+        return `<tr style="background:${rowBg};cursor:pointer" onclick="(function(){
+            const r=document.getElementById('${expandId}');if(!r)return;
+            r.style.display=r.style.display==='none'?'table-row':'none';
+          })()">
+          ${td(idx+1,'font-weight:700;color:#6d28d9;white-space:nowrap;')}
+          ${td(row.name||'','font-size:10px;font-weight:600;text-align:left;padding-left:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;')}
+          ${td(row.reserved||'')}
+          ${td(row.actual||'')}
+          ${td(row.two_time||'')}
+          ${td(row.play||'')}
+          ${td(row.bulmung?'●':'')}
+          ${td(row.extra_hour?'●':'')}
+          ${td(`<span style="font-size:9px;color:#64748b">${memoText}</span>`,'text-align:left;padding-left:1px;')}
+        </tr>${detailHtml}`;
+      };
+      return `<div style="margin-bottom:12px">
+        <div style="display:flex;align-items:center;gap:8px;padding:3px 0 4px">
+          <div style="font-weight:700;font-size:12px;color:#6d28d9">티켓</div>
+          ${E ? `<button onclick="Checklist.addExtraRow()"
+            style="padding:2px 10px;border:1px solid #6d28d9;border-radius:4px;background:#f5f3ff;
+                   color:#6d28d9;font-size:11px;font-weight:600;cursor:pointer">+ 추가</button>` : ''}
+        </div>
+        ${rows.length ? `
+        <table style="width:100%;border-collapse:collapse;table-layout:fixed;font-size:10px;word-break:break-all">
+          <colgroup>
+            <col style="width:17px"><col style="width:36px">
+            <col style="width:18px"><col style="width:18px">
+            <col style="width:24px"><col style="width:14px">
+            <col style="width:10px"><col style="width:10px">
+            <col style="width:30px">
+          </colgroup>
+          <thead><tr style="background:#6d28d9;color:#fff">
+            ${th('#')}${th('이름','left')}${th('예')}${th('입')}
+            ${th('2타')}${th('플')}${th('불')}${th('+1')}${th('비고','left')}
+          </tr></thead>
+          <tbody>${rows.map((row,idx)=>rowHtml(row,idx)).join('')}</tbody>
+        </table>` : (E ? '' : '<div style="color:#aaa;font-size:11px">없음</div>')}
+      </div>`;
+    }
+
     const mRows = [...(d.tent4||[]), ...(d.tent2||[])];
     return summaryHtml
       + mobileTable('M텐트 (0~11)', mRows, 'mtent')
-      + mobileTable('L텐트 (A~S)', d.tent8||[], 'tent8');
+      + mobileTable('L텐트 (A~S)', d.tent8||[], 'tent8')
+      + mobileTicketSection(d.extra||[]);
   }
 
   /* ── 타임슬롯 렌더링 ── */
@@ -931,6 +1022,38 @@ const Checklist = (() => {
     const tr = e.currentTarget.closest('tr');
     if (tr) { tr.style.opacity = ''; tr.style.outline = ''; }
     _dragState = null;
+  }
+
+  // 모바일 번호 이동: section(mtent/tent8) + srcIdx → dstTentNo 로 데이터 swap
+  function mobSwapTent(section, srcIdx, dstTentNo) {
+    if (!dstTentNo) return;
+    const d = getCurrentData();
+    function resolveRow(sec, i) {
+      if (sec === 'mtent') return i < 6 ? [d.tent4, i] : [d.tent2, i - 6];
+      return [d[sec], i];
+    }
+    const [sa, si] = resolveRow(section, srcIdx);
+    if (!sa) return;
+
+    // dstTentNo에 해당하는 행 찾기
+    const allRows = section === 'tent8'
+      ? (d.tent8 || [])
+      : [...(d.tent4||[]), ...(d.tent2||[])];
+    const dstIdx = allRows.findIndex(r => String(r.tent_no) === String(dstTentNo));
+    if (dstIdx === -1) return;
+    const [da, di] = resolveRow(section, dstIdx);
+    if (!da) return;
+
+    pushHistory();
+    const srcTentNo = sa[si]?.tent_no ?? '';
+    const srcName = sa[si]?.name || '(빈자리)';
+    const dstName = da[di]?.name || '(빈자리)';
+    const keys = Object.keys(sa[si]).filter(k => k !== 'tent_no');
+    keys.forEach(k => { const t = sa[si][k]; sa[si][k] = da[di][k]; da[di][k] = t; });
+    sendLog({ tent_no: `${srcTentNo}→${dstTentNo}`, field: '', old_value: srcName, new_value: dstName, action: '자리이동' });
+    recalcSummary(d, state.timeslot);
+    _refreshPanel();
+    silentSave();
   }
 
   /* ── 화살표 키 셀 이동 ── */
@@ -1318,6 +1441,7 @@ const Checklist = (() => {
     addExtraRow, removeExtraRow, onRowFocus, onRowInput, onRowKeydown, uploadExcel, deleteDate,
     clearRow, undo, redo, loadLog, onSearch, _jumpTo,
     onDragStart, onDragOver, onDragEnter, onDragLeave, onDrop, onDragEnd,
+    mobSwapTent,
     playAnnouncement,
   };
 })();
