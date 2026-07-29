@@ -162,6 +162,17 @@ async function init() {
     UNIQUE(year, month)
   )`);
 
+  tables.push(`CREATE TABLE IF NOT EXISTS timesheet_confirmations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    year INTEGER NOT NULL,
+    month INTEGER NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    comment TEXT,
+    confirmed_at TEXT,
+    UNIQUE(user_id, year, month)
+  )`);
+
   tables.push(`CREATE TABLE IF NOT EXISTS shareholder_participation (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,

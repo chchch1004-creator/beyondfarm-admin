@@ -177,4 +177,41 @@ router.post('/notes', requireSuperAdmin, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// 급여 확인 상태 조회 (관리자: 전체, 직원: 본인)
+router.get('/confirmations', requireAuth, async (req, res) => {
+  try {
+    const { year, month } = req.query;
+    const user = req.session.user;
+    if (user.role === 'superadmin') {
+      const rows = await db.prepare(
+        `SELECT tc.*, u.name FROM timesheet_confirmations tc
+         JOIN users u ON u.id = tc.user_id
+         WHERE tc.year=? AND tc.month=?`
+      ).all(parseInt(year), parseInt(month));
+      return res.json(rows);
+    }
+    const row = await db.prepare(
+      `SELECT * FROM timesheet_confirmations WHERE user_id=? AND year=? AND month=?`
+    ).get(user.id, parseInt(year), parseInt(month));
+    res.json(row || null);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// 급여 확인/수정요청 저장
+router.post('/confirmations', requireAuth, async (req, res) => {
+  try {
+    const { year, month, status, comment } = req.body;
+    const user = req.session.user;
+    const kst = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
+    const pad = n => String(n).padStart(2,'0');
+    const now = `${kst.getFullYear()}-${pad(kst.getMonth()+1)}-${pad(kst.getDate())} ${pad(kst.getHours())}:${pad(kst.getMinutes())}`;
+    await db.prepare(`
+      INSERT INTO timesheet_confirmations (user_id, year, month, status, comment, confirmed_at)
+      VALUES (?,?,?,?,?,?)
+      ON CONFLICT(user_id, year, month) DO UPDATE SET status=excluded.status, comment=excluded.comment, confirmed_at=excluded.confirmed_at
+    `).run(user.id, parseInt(year), parseInt(month), status, comment || '', now);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 module.exports = router;

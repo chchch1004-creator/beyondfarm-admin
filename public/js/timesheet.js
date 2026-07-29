@@ -59,7 +59,17 @@ const Timesheet = {
     this.selectedIds = new Set();
     this.loadHidden();
     try {
-      this.data = await API.get(`/api/timesheet?year=${year}&month=${month}`);
+      [this.data, this._confirmations] = await Promise.all([
+        API.get(`/api/timesheet?year=${year}&month=${month}`),
+        API.get(`/api/timesheet/confirmations?year=${year}&month=${month}`).catch(() => null),
+      ]);
+      // 관리자: 배열, 직원: 단일 객체 or null → 통일
+      if (this._confirmations && !Array.isArray(this._confirmations)) {
+        this._myConfirmation = this._confirmations;
+        this._confirmations = [];
+      } else {
+        this._myConfirmation = null;
+      }
       this.renderPage();
     } catch (e) {
       document.getElementById('content').innerHTML = `<div class="empty-state"><div class="icon">⚠️</div>${e.message}</div>`;
@@ -154,7 +164,20 @@ const Timesheet = {
       const totalLabel = this.isShareholder(emp) ? '' : (totalHours || '');
 
       const isHidden = this.hiddenIds.has(emp.id);
-      const adminCols = isAdmin ? (() => {
+      const conf = (this._confirmations || []).find(c => c.user_id === emp.id);
+      const confBadge = conf
+        ? (conf.status === 'confirmed'
+            ? `<span style="margin-left:4px;font-size:9px;background:#dcfce7;color:#15803d;border-radius:3px;padding:1px 4px">✓확인</span>`
+            : `<span style="margin-left:4px;font-size:9px;background:#fef2f2;color:#dc2626;border-radius:3px;padding:1px 4px">❗수정요청</span>`)
+        : '';
+
+      const payCols = `
+        <td id="netpay-${emp.id}" style="text-align:right;padding:3px 6px;white-space:nowrap;font-weight:600">${netPay ? Utils.formatNum(netPay) : ''}</td>
+        <td id="tax-${emp.id}" style="text-align:right;padding:3px 4px">${netPay ? Utils.formatNum(tax) : ''}</td>
+        <td id="ltax-${emp.id}" style="text-align:right;padding:3px 4px">${netPay ? Utils.formatNum(localTax) : ''}</td>
+        <td id="transfer-${emp.id}" style="text-align:right;padding:3px 6px;white-space:nowrap;font-weight:600;color:#1b4332">${netPay ? Utils.formatNum(transfer) : ''}</td>`;
+
+      const adminOnlyCols = isAdmin ? (() => {
         let ssnDisplay = '-';
         if (emp.ssn) {
           const s = emp.ssn.replace(/-/g,'');
@@ -165,20 +188,17 @@ const Timesheet = {
             onclick="Timesheet.startEditAdj(this,${emp.id},'adj')">${emp.adj || ''}</td>
           <td id="adj1-${emp.id}" style="text-align:center;cursor:pointer;color:#e67700"
             onclick="Timesheet.startEditAdj(this,${emp.id},'adj1')">${emp.adj1 || ''}</td>
-          <td id="netpay-${emp.id}" style="text-align:right;padding:3px 6px;white-space:nowrap">${netPay ? Utils.formatNum(netPay) : ''}</td>
-          <td id="tax-${emp.id}" style="text-align:right;padding:3px 4px">${netPay ? Utils.formatNum(tax) : ''}</td>
-          <td id="ltax-${emp.id}" style="text-align:right;padding:3px 4px">${netPay ? Utils.formatNum(localTax) : ''}</td>
-          <td id="transfer-${emp.id}" style="text-align:right;padding:3px 6px;white-space:nowrap">${netPay ? Utils.formatNum(transfer) : ''}</td>
+          ${payCols}
           <td style="padding:3px 4px;font-size:10px;white-space:nowrap">${ssnDisplay}</td>
           <td style="padding:3px 4px;font-size:10px;white-space:nowrap">${emp.bank_name ? emp.bank_name+' '+(emp.bank_account||'') : (emp.bank_account||'-')}</td>`;
-      })() : '';
+      })() : payCols;
 
       rowsHtml += `<tr data-uid="${emp.id}" style="border-bottom:1px solid #dee2e6;${isHidden && isAdmin ?'display:none':''}"
         ${isAdmin ? `onmousedown="Timesheet.onRowMouseDown(event,${emp.id})" onmouseover="Timesheet.onRowMouseOver(event,${emp.id})"` : ''}>
-        <td style="padding:3px 8px;font-weight:600;white-space:nowrap">${emp.name}</td>
+        <td style="padding:3px 8px;font-weight:600;white-space:nowrap">${emp.name}${isAdmin ? confBadge : ''}</td>
         <td id="total-${emp.id}" style="text-align:center;font-weight:600">${totalLabel}</td>
         ${dailyCells}
-        ${adminCols}
+        ${adminOnlyCols}
       </tr>`;
     });
 
@@ -193,15 +213,18 @@ const Timesheet = {
       return acc;
     }, { totalHours: 0, netPay: 0, tax: 0, localTax: 0, transfer: 0 });
 
-    const adminHeaderCols = isAdmin ? `
-              <th style="min-width:34px;background:#856404;color:#fff">상여</th>
-              <th style="min-width:34px;background:#856404;color:#fff">조정</th>
+    const payHeaderCols = `
               <th style="min-width:70px">합계금액</th>
               <th style="min-width:52px">국세</th>
               <th style="min-width:52px">지방세</th>
-              <th style="min-width:70px">이체금액</th>
+              <th style="min-width:70px">이체금액</th>`;
+
+    const adminHeaderCols = isAdmin ? `
+              <th style="min-width:34px;background:#856404;color:#fff">상여</th>
+              <th style="min-width:34px;background:#856404;color:#fff">조정</th>
+              ${payHeaderCols}
               <th style="min-width:108px">주민등록번호</th>
-              <th style="min-width:130px">계좌번호</th>` : '';
+              <th style="min-width:130px">계좌번호</th>` : payHeaderCols;
 
     const adminFooterCols = isAdmin ? `
               ${Array.from({length: 2}, () => '<td></td>').join('')}
@@ -209,7 +232,8 @@ const Timesheet = {
               <td>${grandTotals.netPay ? Utils.formatNum(grandTotals.tax) : ''}</td>
               <td>${grandTotals.netPay ? Utils.formatNum(grandTotals.localTax) : ''}</td>
               <td>${grandTotals.netPay ? Utils.formatNum(grandTotals.transfer) : ''}</td>
-              <td colspan="2"></td>` : '';
+              <td colspan="2"></td>` : `
+              <td></td><td></td><td></td><td></td>`;
 
     const content = document.getElementById('content');
     content.innerHTML = `
@@ -266,8 +290,85 @@ const Timesheet = {
         <div class="form-actions">
           <button class="btn btn-primary" onclick="Timesheet.saveNote()">메모 저장</button>
         </div>
-      </div>` : ''}
+      </div>` : `
+      <div class="card" style="margin-top:12px" id="ts-confirm-card">
+        ${this._renderConfirmCard(year, month)}
+      </div>`}
     `;
+  },
+
+  _renderConfirmCard(year, month) {
+    const c = this._myConfirmation;
+    if (c) {
+      const isConfirmed = c.status === 'confirmed';
+      const statusColor = isConfirmed ? '#15803d' : '#dc2626';
+      const statusBg    = isConfirmed ? '#dcfce7' : '#fef2f2';
+      const statusText  = isConfirmed ? '✅ 급여 확인 완료' : '❗ 수정 요청됨';
+      return `
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <span style="padding:6px 14px;background:${statusBg};color:${statusColor};border-radius:8px;font-weight:700;font-size:14px">${statusText}</span>
+          <span style="font-size:12px;color:#64748b">${c.confirmed_at} 제출</span>
+          ${c.comment ? `<span style="font-size:12px;color:#374151;background:#f8fafc;padding:4px 10px;border-radius:6px;border:1px solid #e2e8f0">"${c.comment}"</span>` : ''}
+          <button onclick="Timesheet._resetConfirm()" style="margin-left:auto;padding:5px 12px;border:1px solid #cbd5e1;border-radius:6px;background:#fff;font-size:12px;cursor:pointer;color:#64748b">재제출</button>
+        </div>`;
+    }
+    return `
+      <div class="card-title" style="margin-bottom:12px">💰 ${year}년 ${month}월 급여 확인</div>
+      <p style="font-size:13px;color:#374151;margin-bottom:14px">위 근무표와 급여 내역을 확인하신 후 아래 버튼을 눌러주세요.</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button onclick="Timesheet.submitConfirmation('confirmed')"
+          style="padding:10px 24px;background:#15803d;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">
+          ✅ 확인했습니다
+        </button>
+        <button onclick="Timesheet._openDisputeModal()"
+          style="padding:10px 24px;background:#dc2626;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">
+          ❗ 수정 요청
+        </button>
+      </div>`;
+  },
+
+  _resetConfirm() {
+    this._myConfirmation = null;
+    const card = document.getElementById('ts-confirm-card');
+    if (card) card.innerHTML = this._renderConfirmCard(this.currentYear, this.currentMonth);
+  },
+
+  _openDisputeModal() {
+    const modal = document.createElement('div');
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9999;display:flex;align-items:center;justify-content:center';
+    modal.innerHTML = `
+      <div style="background:#fff;border-radius:12px;padding:24px;width:340px;max-width:92vw;box-shadow:0 20px 60px rgba(0,0,0,0.25)">
+        <div style="font-size:15px;font-weight:700;color:#dc2626;margin-bottom:10px">❗ 수정 요청</div>
+        <p style="font-size:13px;color:#374151;margin-bottom:10px">수정이 필요한 내용을 입력해주세요.</p>
+        <textarea id="dispute-comment" rows="4"
+          style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;resize:vertical"
+          placeholder="예: 7월 15일 근무시간이 8시간인데 6시간으로 기록되어 있습니다."></textarea>
+        <div style="display:flex;gap:8px;margin-top:12px">
+          <button onclick="this.closest('div[style*=fixed]').remove()"
+            style="flex:1;padding:9px;border:1px solid #cbd5e1;border-radius:7px;background:#f8fafc;font-size:13px;cursor:pointer">취소</button>
+          <button onclick="Timesheet.submitConfirmation('disputed', document.getElementById('dispute-comment').value); this.closest('div[style*=fixed]').remove()"
+            style="flex:2;padding:9px;border:none;border-radius:7px;background:#dc2626;color:#fff;font-size:13px;font-weight:700;cursor:pointer">수정 요청 보내기</button>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+    modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+  },
+
+  async submitConfirmation(status, comment = '') {
+    try {
+      await API.post('/api/timesheet/confirmations', {
+        year: this.currentYear, month: this.currentMonth, status, comment,
+      });
+      const kst = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
+      const pad = n => String(n).padStart(2,'0');
+      this._myConfirmation = {
+        status, comment,
+        confirmed_at: `${kst.getFullYear()}-${pad(kst.getMonth()+1)}-${pad(kst.getDate())} ${pad(kst.getHours())}:${pad(kst.getMinutes())}`,
+      };
+      const card = document.getElementById('ts-confirm-card');
+      if (card) card.innerHTML = this._renderConfirmCard(this.currentYear, this.currentMonth);
+      Utils.showToast(status === 'confirmed' ? '급여를 확인했습니다.' : '수정 요청을 보냈습니다.');
+    } catch (e) { Utils.showToast('저장 실패: ' + e.message, 'error'); }
   },
 
   // 날짜 셀 편집
