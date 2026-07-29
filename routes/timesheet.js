@@ -9,8 +9,13 @@ function requireSuperAdmin(req, res, next) {
   next();
 }
 
+function requireAuth(req, res, next) {
+  if (!req.session.user) return res.status(401).json({ error: '로그인 필요' });
+  next();
+}
+
 // 근무표 데이터
-router.get('/', requireSuperAdmin, async (req, res) => {
+router.get('/', requireAuth, async (req, res) => {
   try {
     const y = parseInt(req.query.year) || new Date().getFullYear();
     const m = parseInt(req.query.month) || new Date().getMonth() + 1;
