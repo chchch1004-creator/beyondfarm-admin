@@ -48,10 +48,6 @@ const Timesheet = {
   saveHidden() { localStorage.setItem(this.getStorageKey(), JSON.stringify([...this.hiddenIds])); },
 
   async render() {
-    if (App.user.role !== 'superadmin') {
-      document.getElementById('content').innerHTML = '<div class="empty-state"><div class="icon">🔒</div>총괄관리자만 접근 가능합니다</div>';
-      return;
-    }
     document.getElementById('content').innerHTML = '<div class="empty-state"><div class="icon">⏳</div>로딩 중...</div>';
     await this.load(this.currentYear, this.currentMonth);
   },
@@ -98,6 +94,8 @@ const Timesheet = {
 
   renderPage() {
     const { year, month, days, employees, note } = this.data;
+    const isAdmin = App.user.role === 'superadmin';
+    const myName = App.user.name;
     const now = new Date();
 
     // 월 탭
@@ -119,14 +117,15 @@ const Timesheet = {
       return `<th style="${c}">${d}</th>`;
     }).join('');
 
-    // 직원 행 생성
+    // 직원 행 생성 (일반 직원은 본인 행만)
+    const visibleEmps = isAdmin ? employees : employees.filter(e => e.name === myName);
+
     let rowsHtml = '';
-    employees.forEach(emp => {
+    visibleEmps.forEach(emp => {
       const shDaysSet = this.isShareholder(emp) ? new Set(emp.sh_days || []) : null;
       const shExtraDaysSet = this.isShareholder(emp) ? new Set(emp.sh_extra_days || []) : null;
       const dailyCells = Array.from({length: days}, (_, i) => {
         const d = i + 1;
-        const dow = getDow(d);
         if (shDaysSet) {
           const inMain = shDaysSet.has(d);
           const inExtra = shExtraDaysSet.has(d);
@@ -144,37 +143,42 @@ const Timesheet = {
         const h = dayData?.hours;
         const isManual = dayData?.is_manual;
         const manualColor = isManual ? 'color:#dc3545;font-weight:600' : '';
-        return `<td id="h-${emp.id}-${d}" style="text-align:center;cursor:pointer;${h ? manualColor : ''}"
-          onclick="Timesheet.startEdit(this,${emp.id},${d})">${h || ''}</td>`;
+        if (isAdmin) {
+          return `<td id="h-${emp.id}-${d}" style="text-align:center;cursor:pointer;${h ? manualColor : ''}"
+            onclick="Timesheet.startEdit(this,${emp.id},${d})">${h || ''}</td>`;
+        }
+        return `<td style="text-align:center;${h ? manualColor : ''}">${h || ''}</td>`;
       }).join('');
 
       const { totalHours, netPay, tax, localTax, transfer } = this.calc(emp);
       const totalLabel = this.isShareholder(emp) ? '' : (totalHours || '');
 
-      // 주민번호 포맷
-      let ssnDisplay = '-';
-      if (emp.ssn) {
-        const s = emp.ssn.replace(/-/g,'');
-        ssnDisplay = s.length === 13 ? s.substring(0,6)+'-'+s.substring(6) : emp.ssn;
-      }
-
       const isHidden = this.hiddenIds.has(emp.id);
-      rowsHtml += `<tr data-uid="${emp.id}" style="border-bottom:1px solid #dee2e6;${isHidden?'display:none':''}"
-        onmousedown="Timesheet.onRowMouseDown(event,${emp.id})"
-        onmouseover="Timesheet.onRowMouseOver(event,${emp.id})">
+      const adminCols = isAdmin ? (() => {
+        let ssnDisplay = '-';
+        if (emp.ssn) {
+          const s = emp.ssn.replace(/-/g,'');
+          ssnDisplay = s.length === 13 ? s.substring(0,6)+'-'+s.substring(6) : emp.ssn;
+        }
+        return `
+          <td id="adj-${emp.id}" style="text-align:center;cursor:pointer;color:#e67700"
+            onclick="Timesheet.startEditAdj(this,${emp.id},'adj')">${emp.adj || ''}</td>
+          <td id="adj1-${emp.id}" style="text-align:center;cursor:pointer;color:#e67700"
+            onclick="Timesheet.startEditAdj(this,${emp.id},'adj1')">${emp.adj1 || ''}</td>
+          <td id="netpay-${emp.id}" style="text-align:right;padding:3px 6px;white-space:nowrap">${netPay ? Utils.formatNum(netPay) : ''}</td>
+          <td id="tax-${emp.id}" style="text-align:right;padding:3px 4px">${netPay ? Utils.formatNum(tax) : ''}</td>
+          <td id="ltax-${emp.id}" style="text-align:right;padding:3px 4px">${netPay ? Utils.formatNum(localTax) : ''}</td>
+          <td id="transfer-${emp.id}" style="text-align:right;padding:3px 6px;white-space:nowrap">${netPay ? Utils.formatNum(transfer) : ''}</td>
+          <td style="padding:3px 4px;font-size:10px;white-space:nowrap">${ssnDisplay}</td>
+          <td style="padding:3px 4px;font-size:10px;white-space:nowrap">${emp.bank_name ? emp.bank_name+' '+(emp.bank_account||'') : (emp.bank_account||'-')}</td>`;
+      })() : '';
+
+      rowsHtml += `<tr data-uid="${emp.id}" style="border-bottom:1px solid #dee2e6;${isHidden && isAdmin ?'display:none':''}"
+        ${isAdmin ? `onmousedown="Timesheet.onRowMouseDown(event,${emp.id})" onmouseover="Timesheet.onRowMouseOver(event,${emp.id})"` : ''}>
         <td style="padding:3px 8px;font-weight:600;white-space:nowrap">${emp.name}</td>
         <td id="total-${emp.id}" style="text-align:center;font-weight:600">${totalLabel}</td>
         ${dailyCells}
-        <td id="adj-${emp.id}" style="text-align:center;cursor:pointer;color:#e67700"
-          onclick="Timesheet.startEditAdj(this,${emp.id},'adj')">${emp.adj || ''}</td>
-        <td id="adj1-${emp.id}" style="text-align:center;cursor:pointer;color:#e67700"
-          onclick="Timesheet.startEditAdj(this,${emp.id},'adj1')">${emp.adj1 || ''}</td>
-        <td id="netpay-${emp.id}" style="text-align:right;padding:3px 6px;white-space:nowrap">${netPay ? Utils.formatNum(netPay) : ''}</td>
-        <td id="tax-${emp.id}" style="text-align:right;padding:3px 4px">${netPay ? Utils.formatNum(tax) : ''}</td>
-        <td id="ltax-${emp.id}" style="text-align:right;padding:3px 4px">${netPay ? Utils.formatNum(localTax) : ''}</td>
-        <td id="transfer-${emp.id}" style="text-align:right;padding:3px 6px;white-space:nowrap">${netPay ? Utils.formatNum(transfer) : ''}</td>
-        <td style="padding:3px 4px;font-size:10px;white-space:nowrap">${ssnDisplay}</td>
-        <td style="padding:3px 4px;font-size:10px;white-space:nowrap">${emp.bank_name ? emp.bank_name+' '+(emp.bank_account||'') : (emp.bank_account||'-')}</td>
+        ${adminCols}
       </tr>`;
     });
 
@@ -188,6 +192,24 @@ const Timesheet = {
       acc.transfer += c.transfer;
       return acc;
     }, { totalHours: 0, netPay: 0, tax: 0, localTax: 0, transfer: 0 });
+
+    const adminHeaderCols = isAdmin ? `
+              <th style="min-width:34px;background:#856404;color:#fff">상여</th>
+              <th style="min-width:34px;background:#856404;color:#fff">조정</th>
+              <th style="min-width:70px">합계금액</th>
+              <th style="min-width:52px">국세</th>
+              <th style="min-width:52px">지방세</th>
+              <th style="min-width:70px">이체금액</th>
+              <th style="min-width:108px">주민등록번호</th>
+              <th style="min-width:130px">계좌번호</th>` : '';
+
+    const adminFooterCols = isAdmin ? `
+              ${Array.from({length: 2}, () => '<td></td>').join('')}
+              <td>${grandTotals.netPay ? Utils.formatNum(grandTotals.netPay) : ''}</td>
+              <td>${grandTotals.netPay ? Utils.formatNum(grandTotals.tax) : ''}</td>
+              <td>${grandTotals.netPay ? Utils.formatNum(grandTotals.localTax) : ''}</td>
+              <td>${grandTotals.netPay ? Utils.formatNum(grandTotals.transfer) : ''}</td>
+              <td colspan="2"></td>` : '';
 
     const content = document.getElementById('content');
     content.innerHTML = `
@@ -204,7 +226,7 @@ const Timesheet = {
 
       <div style="margin-bottom:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         <div class="tabs" style="margin:0;flex-wrap:wrap">${tabs.join('')}</div>
-        <div style="margin-left:auto;display:flex;gap:6px;align-items:center">
+        ${isAdmin ? `<div style="margin-left:auto;display:flex;gap:6px;align-items:center">
           <button id="ts-edit-btn" class="btn btn-secondary btn-sm" onclick="Timesheet.toggleEditMode()">✏️ 행 숨김 편집</button>
           <div id="ts-edit-tools" style="display:none;gap:6px">
             <button class="btn btn-danger btn-sm" onclick="Timesheet.hideSelected()">숨기기</button>
@@ -212,7 +234,7 @@ const Timesheet = {
             <span id="ts-sel-count" style="font-size:12px;color:#6c757d"></span>
           </div>
           <button class="btn btn-secondary btn-sm" onclick="Timesheet.downloadExcel()">📥 엑셀 다운로드</button>
-        </div>
+        </div>` : ''}
       </div>
 
       <div class="card" style="padding:10px;overflow-x:auto">
@@ -223,39 +245,28 @@ const Timesheet = {
               <th style="min-width:72px;text-align:left;padding-left:8px">이름</th>
               <th style="min-width:32px">합계</th>
               ${dayHeaders}
-              <th style="min-width:34px;background:#856404;color:#fff">상여</th>
-              <th style="min-width:34px;background:#856404;color:#fff">조정</th>
-              <th style="min-width:70px">합계금액</th>
-              <th style="min-width:52px">국세</th>
-              <th style="min-width:52px">지방세</th>
-              <th style="min-width:70px">이체금액</th>
-              <th style="min-width:108px">주민등록번호</th>
-              <th style="min-width:130px">계좌번호</th>
+              ${adminHeaderCols}
             </tr>
           </thead>
           <tbody id="ts-tbody">${rowsHtml}</tbody>
           <tfoot>
             <tr>
-              <td style="text-align:left;padding-left:8px">전체 합계</td>
-              <td style="text-align:center">${grandTotals.totalHours || ''}</td>
-              ${Array.from({length: days+2}, () => '<td></td>').join('')}
-              <td>${grandTotals.netPay ? Utils.formatNum(grandTotals.netPay) : ''}</td>
-              <td>${grandTotals.netPay ? Utils.formatNum(grandTotals.tax) : ''}</td>
-              <td>${grandTotals.netPay ? Utils.formatNum(grandTotals.localTax) : ''}</td>
-              <td>${grandTotals.netPay ? Utils.formatNum(grandTotals.transfer) : ''}</td>
-              <td colspan="2"></td>
+              <td style="text-align:left;padding-left:8px">${isAdmin ? '전체 합계' : myName}</td>
+              <td style="text-align:center">${isAdmin ? (grandTotals.totalHours || '') : ''}</td>
+              ${Array.from({length: days}, () => '<td></td>').join('')}
+              ${adminFooterCols}
             </tr>
           </tfoot>
         </table>
       </div>
 
-      <div class="card" style="margin-top:0">
+      ${isAdmin ? `<div class="card" style="margin-top:0">
         <div class="card-title">📝 ${year}년 ${month}월 메모</div>
         <textarea id="ts-note" style="width:100%;min-height:72px;padding:10px;border:1px solid #dee2e6;border-radius:6px;font-size:13px;resize:vertical">${note}</textarea>
         <div class="form-actions">
           <button class="btn btn-primary" onclick="Timesheet.saveNote()">메모 저장</button>
         </div>
-      </div>
+      </div>` : ''}
     `;
   },
 

@@ -36,6 +36,7 @@ const App = {
 
   canView(page) {
     if (App.user.role === 'superadmin') return true;
+    if (page === 'timesheet') return true; // 모든 직원이 본인 근무표 열람 가능
     return !!(App.user.permissions?.[page]?.view);
   },
   canEdit(page) {
