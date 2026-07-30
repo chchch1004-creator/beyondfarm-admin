@@ -170,7 +170,20 @@ async function init() {
     status TEXT NOT NULL DEFAULT 'pending',
     comment TEXT,
     confirmed_at TEXT,
+    admin_comment TEXT,
+    admin_replied_at TEXT,
     UNIQUE(user_id, year, month)
+  )`);
+
+  tables.push(`CREATE TABLE IF NOT EXISTS timesheet_confirmation_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    year INTEGER NOT NULL,
+    month INTEGER NOT NULL,
+    actor TEXT NOT NULL,
+    action TEXT NOT NULL,
+    comment TEXT,
+    created_at TEXT NOT NULL
   )`);
 
   tables.push(`CREATE TABLE IF NOT EXISTS shareholder_participation (
@@ -367,6 +380,16 @@ async function init() {
     "ALTER TABLE community_messages ADD COLUMN room_id INTEGER",
     "ALTER TABLE timesheet_confirmations ADD COLUMN admin_comment TEXT",
     "ALTER TABLE timesheet_confirmations ADD COLUMN admin_replied_at TEXT",
+    `CREATE TABLE IF NOT EXISTS timesheet_confirmation_history (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      year INTEGER NOT NULL,
+      month INTEGER NOT NULL,
+      actor TEXT NOT NULL,
+      action TEXT NOT NULL,
+      comment TEXT,
+      created_at TEXT NOT NULL
+    )`,
   ];
   for (const sql of newCols) {
     try { await client.execute({ sql, args: [] }); } catch {}
