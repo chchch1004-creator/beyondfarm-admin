@@ -453,16 +453,13 @@ const Timesheet = {
       await API.post('/api/timesheet/confirmations', {
         year: this.currentYear, month: this.currentMonth, status, comment,
       });
-      const kst = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
-      const pad = n => String(n).padStart(2,'0');
-      const prevAdminComment = this._myConfirmation?.admin_comment || '';
-      const prevAdminRepliedAt = this._myConfirmation?.admin_replied_at || '';
-      this._myConfirmation = {
-        status, comment,
-        confirmed_at: `${kst.getFullYear()}-${pad(kst.getMonth()+1)}-${pad(kst.getDate())} ${pad(kst.getHours())}:${pad(kst.getMinutes())}`,
-        admin_comment: prevAdminComment,
-        admin_replied_at: prevAdminRepliedAt,
-      };
+      // 서버에서 최신 상태 + 이력 다시 불러와 카드 갱신
+      [this._myConfirmation, this._confirmHistory] = await Promise.all([
+        API.get(`/api/timesheet/confirmations?year=${this.currentYear}&month=${this.currentMonth}`).catch(() => null),
+        API.get(`/api/timesheet/confirmations/history?year=${this.currentYear}&month=${this.currentMonth}`).catch(() => []),
+      ]);
+      if (this._myConfirmation && Array.isArray(this._myConfirmation)) this._myConfirmation = null;
+      if (!Array.isArray(this._confirmHistory)) this._confirmHistory = [];
       const card = document.getElementById('ts-confirm-card');
       if (card) card.innerHTML = this._renderConfirmCard(this.currentYear, this.currentMonth);
       Utils.showToast(status === 'confirmed' ? '급여를 확인했습니다.' : '수정 요청을 보냈습니다.');
