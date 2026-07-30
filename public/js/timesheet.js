@@ -360,101 +360,93 @@ const Timesheet = {
     } catch (e) { Utils.showToast('전송 실패: ' + e.message, 'error'); btn.disabled = false; btn.textContent = '답변 전송'; }
   },
 
-  // 직원: 급여 확인 카드
+  // 직원: 급여 확인 카드 (채팅 구조)
   _renderConfirmCard(year, month) {
     const c = this._myConfirmation;
-    const histHtml = this._confirmHistory?.length ? `
-      <div style="margin-top:16px;border-top:1px solid #e2e8f0;padding-top:12px">
-        <div style="font-size:12px;font-weight:600;color:#64748b;margin-bottom:10px">대화 내역</div>
-        <div style="display:flex;flex-direction:column;gap:10px">
-          ${this._confirmHistory.map(h => {
-            const isAdmin = h.action === '📋 관리자 답변';
-            const bg     = isAdmin ? '#eff6ff' : '#f8fafc';
-            const border = isAdmin ? '#93c5fd' : '#e2e8f0';
-            const nameColor = isAdmin ? '#1e40af' : '#374151';
-            return `<div style="background:${bg};border:1px solid ${border};border-radius:8px;padding:10px 13px">
-              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:${h.comment ? '6px' : '0'}">
-                <span style="font-size:12px;font-weight:700;color:${nameColor}">${h.actor}</span>
-                <span style="font-size:11px;color:#94a3b8">${h.created_at}</span>
-              </div>
-              ${h.comment ? `<div style="font-size:13px;color:#374151;white-space:pre-wrap;line-height:1.6">${h.comment}</div>` : `<div style="font-size:13px;color:#94a3b8">${h.action}</div>`}
-            </div>`;
-          }).join('')}
-        </div>
-      </div>` : '';
+    const hist = this._confirmHistory || [];
 
-    const actionBtns = `
-      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px">
-        <button onclick="Timesheet.submitConfirmation('confirmed')"
-          style="padding:8px 20px;background:#15803d;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">
-          ✅ 확인했습니다
-        </button>
-        <button onclick="Timesheet._openDisputeModal()"
-          style="padding:8px 20px;background:#dc2626;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">
-          ❗ 수정 요청
-        </button>
+    // 대화 버블 생성 (이력 우선, 없으면 legacy c.comment/admin_comment)
+    let bubblesHtml = '';
+    if (hist.length) {
+      bubblesHtml = hist.map(h => {
+        const isAdmin = h.action === '📋 관리자 답변';
+        const bg      = isAdmin ? '#eff6ff' : '#f0fdf4';
+        const border  = isAdmin ? '#93c5fd' : '#bbf7d0';
+        const nameClr = isAdmin ? '#1e40af' : '#15803d';
+        const msgHtml = h.comment
+          ? `<div style="font-size:13px;color:#1e293b;white-space:pre-wrap;line-height:1.6;margin-top:5px">${h.comment}</div>`
+          : `<div style="font-size:12px;color:#94a3b8;margin-top:3px">${h.action}</div>`;
+        return `<div style="background:${bg};border:1px solid ${border};border-radius:10px;padding:10px 14px">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:12px;font-weight:700;color:${nameClr}">${h.actor}</span>
+            <span style="font-size:11px;color:#94a3b8">${h.created_at}</span>
+          </div>
+          ${msgHtml}
+        </div>`;
+      }).join('');
+    } else if (c) {
+      // 이력 기능 도입 전 기존 데이터 폴백
+      if (c.comment) bubblesHtml += `
+        <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:10px 14px">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:12px;font-weight:700;color:#15803d">나</span>
+            <span style="font-size:11px;color:#94a3b8">${c.confirmed_at}</span>
+          </div>
+          <div style="font-size:13px;color:#1e293b;white-space:pre-wrap;line-height:1.6;margin-top:5px">${c.comment}</div>
+        </div>`;
+      if (c.admin_comment) bubblesHtml += `
+        <div style="background:#eff6ff;border:1px solid #93c5fd;border-radius:10px;padding:10px 14px">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:12px;font-weight:700;color:#1e40af">관리자</span>
+            <span style="font-size:11px;color:#94a3b8">${c.admin_replied_at || ''}</span>
+          </div>
+          <div style="font-size:13px;color:#1e293b;white-space:pre-wrap;line-height:1.6;margin-top:5px">${c.admin_comment}</div>
+        </div>`;
+    }
+
+    // 인라인 입력칸 (모달 없이 카드 하단에 바로 표시)
+    const replyBox = `
+      <div style="margin-top:12px;border-top:1px solid #e2e8f0;padding-top:12px">
+        <textarea id="confirm-reply-text" rows="3"
+          style="width:100%;box-sizing:border-box;padding:9px 11px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;resize:vertical;font-family:inherit"
+          placeholder="내용을 입력하세요 (수정 요청 시 구체적으로 작성해주세요)"></textarea>
+        <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+          <button onclick="Timesheet._submitInlineConfirm('confirmed')"
+            style="flex:1;min-width:100px;padding:9px 0;background:#15803d;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">
+            ✅ 확인했습니다
+          </button>
+          <button onclick="Timesheet._submitInlineConfirm('disputed')"
+            style="flex:1;min-width:100px;padding:9px 0;background:#dc2626;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">
+            ❗ 수정 요청
+          </button>
+        </div>
       </div>`;
 
     if (c) {
       const isConfirmed = c.status === 'confirmed';
-      const statusColor = isConfirmed ? '#15803d' : '#dc2626';
-      const statusBg    = isConfirmed ? '#dcfce7' : '#fef2f2';
-      const statusText  = isConfirmed ? '✅ 급여 확인 완료' : '❗ 수정 요청됨';
-
-      // 이력이 없는 기존 제출 건 → c.comment / admin_comment 직접 표시
-      const legacyHtml = !this._confirmHistory?.length ? `
-        <div style="margin-top:14px;display:flex;flex-direction:column;gap:10px">
-          ${c.comment ? `
-            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 13px">
-              <div style="font-size:12px;color:#64748b;margin-bottom:4px">${c.confirmed_at}</div>
-              <div style="font-size:13px;color:#374151;white-space:pre-wrap;line-height:1.6">${c.comment}</div>
-            </div>` : ''}
-          ${c.admin_comment ? `
-            <div style="background:#eff6ff;border:1px solid #93c5fd;border-radius:8px;padding:10px 13px">
-              <div style="font-size:12px;font-weight:700;color:#1e40af;margin-bottom:4px">📋 관리자 답변 ${c.admin_replied_at ? `<span style="font-weight:400;color:#64748b">(${c.admin_replied_at})</span>` : ''}</div>
-              <div style="font-size:13px;color:#374151;white-space:pre-wrap;line-height:1.6">${c.admin_comment}</div>
-            </div>` : ''}
-        </div>` : '';
-
+      const statusBg  = isConfirmed ? '#dcfce7' : '#fef2f2';
+      const statusClr = isConfirmed ? '#15803d' : '#dc2626';
+      const statusTxt = isConfirmed ? '✅ 급여 확인 완료' : '❗ 수정 요청됨';
       return `
         <div>
-          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-            <span style="padding:6px 14px;background:${statusBg};color:${statusColor};border-radius:8px;font-weight:700;font-size:14px">${statusText}</span>
-            <span style="font-size:12px;color:#64748b">${c.confirmed_at} 제출</span>
-          </div>
-          ${legacyHtml}
-          ${histHtml}
-          ${actionBtns}
+          <span style="padding:5px 12px;background:${statusBg};color:${statusClr};border-radius:8px;font-weight:700;font-size:13px">${statusTxt}</span>
+          <div style="margin-top:14px;display:flex;flex-direction:column;gap:10px">${bubblesHtml}</div>
+          ${replyBox}
         </div>`;
     }
     return `
-      <div class="card-title" style="margin-bottom:12px">💰 ${year}년 ${month}월 급여 확인</div>
-      <p style="font-size:13px;color:#374151;margin-bottom:14px">위 근무표와 급여 내역을 확인하신 후 아래 버튼을 눌러주세요.</p>
-      ${actionBtns}
-      ${histHtml}`;
+      <div class="card-title" style="margin-bottom:8px">💰 ${year}년 ${month}월 급여 확인</div>
+      <p style="font-size:13px;color:#374151;margin-bottom:12px">위 근무표와 급여 내역을 확인하신 후 아래 버튼을 눌러주세요.</p>
+      ${replyBox}`;
   },
 
-  // 재제출 / 수정: 기존 코멘트 pre-fill
-  _openDisputeModal() {
-    const modal = document.createElement('div');
-    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9999;display:flex;align-items:center;justify-content:center';
-    modal.innerHTML = `
-      <div style="background:#fff;border-radius:12px;padding:24px;width:360px;max-width:92vw;box-shadow:0 20px 60px rgba(0,0,0,0.25)">
-        <div style="font-size:15px;font-weight:700;color:#dc2626;margin-bottom:10px">❗ 수정 요청</div>
-        <p style="font-size:13px;color:#374151;margin-bottom:10px">수정이 필요한 내용을 입력해주세요.</p>
-        <textarea id="dispute-comment" rows="5"
-          style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;resize:vertical"
-          placeholder="예: 7월 15일 근무시간이 8시간인데 6시간으로 기록되어 있습니다."></textarea>
-        <div style="display:flex;gap:8px;margin-top:12px">
-          <button onclick="this.closest('div[style*=fixed]').remove()"
-            style="flex:1;padding:9px;border:1px solid #cbd5e1;border-radius:7px;background:#f8fafc;font-size:13px;cursor:pointer">취소</button>
-          <button onclick="Timesheet.submitConfirmation('disputed', document.getElementById('dispute-comment').value); this.closest('div[style*=fixed]').remove()"
-            style="flex:2;padding:9px;border:none;border-radius:7px;background:#dc2626;color:#fff;font-size:13px;font-weight:700;cursor:pointer">수정 요청 보내기</button>
-        </div>
-      </div>`;
-    document.body.appendChild(modal);
-    modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+  _submitInlineConfirm(status) {
+    const comment = (document.getElementById('confirm-reply-text')?.value || '').trim();
+    if (status === 'disputed' && !comment) { Utils.showToast('수정 요청 내용을 입력해주세요.', 'error'); return; }
+    this.submitConfirmation(status, comment);
   },
+
+  _openDisputeModal() { this._submitInlineConfirm('disputed'); },
 
   async submitConfirmation(status, comment = '') {
     try {
