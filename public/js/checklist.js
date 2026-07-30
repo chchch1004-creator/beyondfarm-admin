@@ -345,6 +345,9 @@ const Checklist = (() => {
             <button onclick="Checklist.deleteDate()"
               style="flex:0 0 auto;padding:5px 8px;border:1px solid #dc2626;border-radius:6px;background:#fef2f2;
                      color:#dc2626;font-size:12px;font-weight:600;cursor:pointer">🗑</button>
+            <button onclick="Checklist.toggleWeekdayMode()" id="cl-weekday-btn"
+              style="flex:0 0 auto;padding:5px 8px;border:1px solid #7c3aed;border-radius:6px;background:#f5f3ff;
+                     color:#7c3aed;font-size:12px;font-weight:600;cursor:pointer">${Checklist._isWeekdayMode() ? '휴일ver.' : '평일ver.'}</button>
           </div>` : `
           <div style="margin-left:auto;display:flex;align-items:center;gap:6px">
             <button onclick="Checklist.undo()" title="되돌리기 (Ctrl+Z)"
@@ -365,6 +368,11 @@ const Checklist = (() => {
                      color:#dc2626;font-size:13px;font-weight:600;cursor:pointer">
               🗑 날짜 삭제
             </button>
+            <button onclick="Checklist.toggleWeekdayMode()" id="cl-weekday-btn"
+              style="padding:6px 14px;border:1px solid #7c3aed;border-radius:6px;background:#f5f3ff;
+                     color:#7c3aed;font-size:13px;font-weight:600;cursor:pointer">
+              ${Checklist._isWeekdayMode() ? '휴일ver.' : '평일ver.'}
+            </button>
           </div>`}` : ''}
         </div>
       </div>
@@ -383,14 +391,17 @@ const Checklist = (() => {
 
       ${renderAnnouncementBar()}
 
+      ${Checklist._isWeekdayMode() ? `
+      <div id="cl-weekday-grid" style="overflow-x:auto;margin-top:8px">
+        ${Checklist._renderWeekdayGrid()}
+      </div>` : `
       <div style="display:flex;gap:0;margin-bottom:0">
         ${tabBtn('11','11시')}${tabBtn('15','15시')}${tabBtn('19','19시')}${tabBtnTwoTime()}${tabBtnLog()}
       </div>
-
       <div id="cl-panel" style="border:1px solid #2563eb;border-top:none;border-radius:0 8px 8px 8px;
            padding:${window.innerWidth<700?'8px 4px':'16px'};background:#fff;overflow-x:auto">
         ${renderPanel()}
-      </div>`;
+      </div>`}`;
   }
 
   function renderAnnouncementBar() {
@@ -1442,6 +1453,68 @@ const Checklist = (() => {
     synth.speak(utter);
   }
 
+  // ── 평일ver. 모드 ──
+  const WEEKDAY_HOURS = ['10','11','12','13','14','15','16','17','18','19','20','21'];
+  const WEEKDAY_NUMBERED = ['0','1','2','3','4','5','6','7','8','9','10','11'];
+  const WEEKDAY_LETTERED = ['A','B','C','D','E','F','G','H','J','K','P','S'];
+
+  function _wdKey() { return `cl_weekday_${state.date}`; }
+  function _wdData() {
+    try { return JSON.parse(localStorage.getItem(_wdKey()) || '{}'); } catch { return {}; }
+  }
+  function _isWeekdayMode() {
+    return localStorage.getItem(`cl_weekday_mode_${state.date}`) === '1';
+  }
+  function toggleWeekdayMode() {
+    const key = `cl_weekday_mode_${state.date}`;
+    localStorage.setItem(key, _isWeekdayMode() ? '0' : '1');
+    render();
+  }
+  function _weekdayToggleCell(tent, hour) {
+    const data = _wdData();
+    if (!data[tent]) data[tent] = {};
+    data[tent][hour] = !data[tent][hour];
+    localStorage.setItem(_wdKey(), JSON.stringify(data));
+    const cell = document.getElementById(`wdc-${tent}-${hour}`);
+    if (cell) {
+      const checked = data[tent][hour];
+      cell.style.background = checked ? '#bfdbfe' : '#fff';
+      cell.textContent = checked ? '✓' : '';
+    }
+  }
+  function _renderWeekdayGrid() {
+    const data = _wdData();
+    const cellStyle = 'width:36px;min-width:36px;height:30px;border:1px solid #e2e8f0;text-align:center;font-size:12px;cursor:pointer;user-select:none;';
+    const hdrStyle  = 'width:36px;min-width:36px;text-align:center;font-size:11px;font-weight:700;color:#64748b;padding:4px 0;';
+    const noStyle   = 'min-width:32px;padding:0 6px;font-size:12px;font-weight:700;text-align:right;';
+
+    const hdrRow = `<tr>
+      <th style="${noStyle}"></th>
+      ${WEEKDAY_HOURS.map(h => `<th style="${hdrStyle}">${h}</th>`).join('')}
+    </tr>`;
+
+    function tentRow(tent, color) {
+      return `<tr>
+        <td style="${noStyle}color:${color}">${tent}</td>
+        ${WEEKDAY_HOURS.map(h => {
+          const checked = data[tent]?.[h];
+          return `<td id="wdc-${tent}-${h}"
+            onclick="Checklist._weekdayToggleCell('${tent}','${h}')"
+            style="${cellStyle}background:${checked ? '#bfdbfe' : '#fff'}">${checked ? '✓' : ''}</td>`;
+        }).join('')}
+      </tr>`;
+    }
+
+    const numberedRows = WEEKDAY_NUMBERED.map(t => tentRow(t, '#1d4ed8')).join('');
+    const separatorRow = `<tr><td colspan="${WEEKDAY_HOURS.length + 1}" style="height:10px;background:#f8fafc"></td></tr>`;
+    const letteredRows = WEEKDAY_LETTERED.map(t => tentRow(t, '#15803d')).join('');
+
+    return `<table style="border-collapse:collapse;white-space:nowrap">
+      <thead>${hdrRow}</thead>
+      <tbody>${numberedRows}${separatorRow}${letteredRows}</tbody>
+    </table>`;
+  }
+
   return {
     render, destroy, switchSlot, switchTab, changeDate, moveDate,
     addExtraRow, removeExtraRow, onRowFocus, onRowInput, onRowKeydown, uploadExcel, deleteDate,
@@ -1449,5 +1522,6 @@ const Checklist = (() => {
     onDragStart, onDragOver, onDragEnter, onDragLeave, onDrop, onDragEnd,
     mobSwapTent,
     playAnnouncement,
+    _isWeekdayMode, toggleWeekdayMode, _renderWeekdayGrid, _weekdayToggleCell,
   };
 })();
