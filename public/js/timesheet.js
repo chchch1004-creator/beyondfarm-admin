@@ -59,9 +59,10 @@ const Timesheet = {
     this.selectedIds = new Set();
     this.loadHidden();
     try {
-      [this.data, this._confirmations] = await Promise.all([
+      [this.data, this._confirmations, this._confirmHistory] = await Promise.all([
         API.get(`/api/timesheet?year=${year}&month=${month}`),
         API.get(`/api/timesheet/confirmations?year=${year}&month=${month}`).catch(() => null),
+        API.get(`/api/timesheet/confirmations/history?year=${year}&month=${month}`).catch(() => []),
       ]);
       // 관리자: 배열, 직원: 단일 객체 or null → 통일
       if (this._confirmations && !Array.isArray(this._confirmations)) {
@@ -70,6 +71,7 @@ const Timesheet = {
       } else {
         this._myConfirmation = null;
       }
+      if (!Array.isArray(this._confirmHistory)) this._confirmHistory = [];
       this.renderPage();
     } catch (e) {
       document.getElementById('content').innerHTML = `<div class="empty-state"><div class="icon">⚠️</div>${e.message}</div>`;
@@ -298,27 +300,44 @@ const Timesheet = {
   },
 
   // 관리자: 수정요청 상세 + 답변 입력
-  showDisputeDetail(empId) {
+  async showDisputeDetail(empId) {
     const conf = (this._disputeData || {})[empId];
     if (!conf) return;
+    const year = conf.year || this.currentYear;
+    const month = conf.month || this.currentMonth;
+    let history = [];
+    try { history = await API.get(`/api/timesheet/confirmations/history?year=${year}&month=${month}&user_id=${empId}`); } catch {}
+    const histHtml = history.length ? `
+      <details style="margin-top:14px;margin-bottom:4px" open>
+        <summary style="font-size:12px;font-weight:600;color:#64748b;cursor:pointer;user-select:none">🕓 변경 이력 (${history.length}건)</summary>
+        <div style="margin-top:8px;display:flex;flex-direction:column;gap:5px">
+          ${history.map(h => `
+            <div style="display:flex;gap:8px;align-items:flex-start;font-size:11px;border-bottom:1px solid #f1f5f9;padding-bottom:4px">
+              <span style="color:#94a3b8;white-space:nowrap;flex-shrink:0">${h.created_at}</span>
+              <span style="font-weight:600;white-space:nowrap;flex-shrink:0">${h.action}</span>
+              ${h.comment ? `<span style="color:#374151;word-break:break-all">${h.comment}</span>` : ''}
+            </div>`).join('')}
+        </div>
+      </details>` : '';
     const modal = document.createElement('div');
     modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9999;display:flex;align-items:center;justify-content:center';
     modal.innerHTML = `
-      <div style="background:#fff;border-radius:12px;padding:24px;width:380px;max-width:94vw;box-shadow:0 20px 60px rgba(0,0,0,0.25)">
+      <div style="background:#fff;border-radius:12px;padding:24px;width:400px;max-width:94vw;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.25)">
         <div style="font-size:15px;font-weight:700;color:#dc2626;margin-bottom:6px">❗ 수정 요청 내용</div>
         <div style="font-size:12px;color:#64748b;margin-bottom:10px">${conf.name} · ${conf.confirmed_at} 제출</div>
         <div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:12px 14px;font-size:13px;color:#374151;line-height:1.6;white-space:pre-wrap;margin-bottom:14px">${conf.comment || '(코멘트 없음)'}</div>
         ${conf.admin_comment ? `
         <div style="font-size:12px;font-weight:600;color:#1e40af;margin-bottom:6px">📋 이전 답변 <span style="font-weight:400;color:#64748b">(${conf.admin_replied_at})</span></div>
         <div style="background:#eff6ff;border:1px solid #93c5fd;border-radius:8px;padding:10px 14px;font-size:13px;color:#374151;white-space:pre-wrap;margin-bottom:14px">${conf.admin_comment}</div>` : ''}
-        <div style="font-size:12px;font-weight:600;color:#374151;margin-bottom:6px">답변 작성</div>
+        ${histHtml}
+        <div style="font-size:12px;font-weight:600;color:#374151;margin-bottom:6px;margin-top:10px">답변 작성</div>
         <textarea id="admin-reply-text" rows="4"
           style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;resize:vertical"
           placeholder="수정 처리 결과나 안내 내용을 입력하세요.">${conf.admin_comment || ''}</textarea>
         <div style="display:flex;gap:8px;margin-top:12px">
           <button onclick="this.closest('div[style*=fixed]').remove()"
             style="flex:1;padding:9px;border:1px solid #cbd5e1;border-radius:7px;background:#f8fafc;font-size:13px;cursor:pointer">닫기</button>
-          <button onclick="Timesheet.sendAdminReply(${conf.user_id},${conf.year||this.currentYear},${conf.month||this.currentMonth},document.getElementById('admin-reply-text').value,this)"
+          <button onclick="Timesheet.sendAdminReply(${conf.user_id},${year},${month},document.getElementById('admin-reply-text').value,this)"
             style="flex:2;padding:9px;border:none;border-radius:7px;background:#1e40af;color:#fff;font-size:13px;font-weight:700;cursor:pointer">답변 전송</button>
         </div>
       </div>`;
@@ -342,6 +361,31 @@ const Timesheet = {
   // 직원: 급여 확인 카드
   _renderConfirmCard(year, month) {
     const c = this._myConfirmation;
+    const histHtml = this._confirmHistory?.length ? `
+      <details style="margin-top:14px">
+        <summary style="font-size:12px;font-weight:600;color:#64748b;cursor:pointer;user-select:none">🕓 변경 이력 (${this._confirmHistory.length}건)</summary>
+        <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px">
+          ${this._confirmHistory.map(h => `
+            <div style="display:flex;gap:10px;align-items:flex-start;font-size:12px">
+              <span style="color:#94a3b8;white-space:nowrap;flex-shrink:0">${h.created_at}</span>
+              <span style="font-weight:600;white-space:nowrap;flex-shrink:0">${h.action}</span>
+              ${h.comment ? `<span style="color:#374151;word-break:break-all">${h.comment}</span>` : ''}
+            </div>`).join('')}
+        </div>
+      </details>` : '';
+
+    const actionBtns = `
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px">
+        <button onclick="Timesheet.submitConfirmation('confirmed')"
+          style="padding:8px 20px;background:#15803d;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">
+          ✅ 확인했습니다
+        </button>
+        <button onclick="Timesheet._openDisputeModal()"
+          style="padding:8px 20px;background:#dc2626;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">
+          ❗ 수정 요청
+        </button>
+      </div>`;
+
     if (c) {
       const isConfirmed = c.status === 'confirmed';
       const statusColor = isConfirmed ? '#15803d' : '#dc2626';
@@ -354,28 +398,21 @@ const Timesheet = {
         </div>` : '';
       return `
         <div>
-          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
             <span style="padding:6px 14px;background:${statusBg};color:${statusColor};border-radius:8px;font-weight:700;font-size:14px">${statusText}</span>
             <span style="font-size:12px;color:#64748b">${c.confirmed_at} 제출</span>
-            <button onclick="Timesheet._openDisputeModal()" style="margin-left:auto;padding:5px 12px;border:1px solid #cbd5e1;border-radius:6px;background:#fff;font-size:12px;cursor:pointer;color:#64748b">재제출 / 수정</button>
           </div>
           ${c.comment ? `<div style="margin-top:10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 14px;font-size:13px;color:#374151;white-space:pre-wrap">${c.comment}</div>` : ''}
           ${adminReplyHtml}
+          ${actionBtns}
+          ${histHtml}
         </div>`;
     }
     return `
       <div class="card-title" style="margin-bottom:12px">💰 ${year}년 ${month}월 급여 확인</div>
       <p style="font-size:13px;color:#374151;margin-bottom:14px">위 근무표와 급여 내역을 확인하신 후 아래 버튼을 눌러주세요.</p>
-      <div style="display:flex;gap:10px;flex-wrap:wrap">
-        <button onclick="Timesheet.submitConfirmation('confirmed')"
-          style="padding:10px 24px;background:#15803d;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">
-          ✅ 확인했습니다
-        </button>
-        <button onclick="Timesheet._openDisputeModal()"
-          style="padding:10px 24px;background:#dc2626;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">
-          ❗ 수정 요청
-        </button>
-      </div>`;
+      ${actionBtns}
+      ${histHtml}`;
   },
 
   // 재제출 / 수정: 기존 코멘트 pre-fill
