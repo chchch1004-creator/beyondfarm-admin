@@ -1557,6 +1557,20 @@ const Checklist = (() => {
     _wdMove(ft, fh, tent, hour);
   }
 
+  // 덮인 칸(pos 1-3)에 드롭: 같은 블록이면 해당 hour로 이동, 외부 블록이면 blockStart와 교환
+  function _wdDropOnCovered(e, tent, actualHour, blockStartHour) {
+    e.preventDefault();
+    e.currentTarget.style.outline = '';
+    if (!_wdDrag) return;
+    const { tent: ft, hour: fh } = _wdDrag;
+    _wdDrag = null;
+    if (ft === tent && fh === blockStartHour) {
+      _wdMove(ft, fh, tent, actualHour); // 같은 블록 → 오른쪽 이동
+    } else {
+      _wdMove(ft, fh, tent, blockStartHour); // 외부 블록 → 교환
+    }
+  }
+
   function toggleWeekdayMode() {
     localStorage.setItem(`cl_weekday_mode_${state.date}`, _isWeekdayMode() ? '0' : '1');
     render();
@@ -1652,45 +1666,53 @@ const Checklist = (() => {
     </tr>`;
 
     function tentRow(tent, nameColor) {
-      let cells = '';
-      let hi = 0;
-      while (hi < WEEKDAY_HOURS.length) {
-        const hour = WEEKDAY_HOURS[hi];
-        const entry = data[tent]?.[hour];
+      // 커버리지 맵: hi → 해당 블록의 startHour
+      const blockOf = {};
+      for (let hi = 0; hi < WEEKDAY_HOURS.length; hi++) {
+        const entry = data[tent]?.[WEEKDAY_HOURS[hi]];
         if (entry?.content) {
           const span = Math.min(4, WEEKDAY_HOURS.length - hi);
-          const bg = _wdGetColor(entry.content);
-          const ec = entry.content.replace(/'/g, "\\'").replace(/"/g, '&quot;');
-          const canLeft  = hi > 0;
-          const canRight = hi + span < WEEKDAY_HOURS.length;
-          cells += `<td colspan="${span}" draggable="true"
-            ondragstart="Checklist._wdDragStart(event,'${tent}','${hour}','${ec}')"
-            ondragover="Checklist._wdDragOver(event)"
-            ondragleave="Checklist._wdDragLeave(event)"
-            ondrop="Checklist._wdDrop(event,'${tent}','${hour}')"
-            onclick="Checklist._wdClickCell('${tent}','${hour}')"
-            style="border:1px solid #d1d5db;cursor:grab;background:${bg};
-                   font-size:11px;font-weight:600;color:#1e293b;
-                   overflow:hidden;max-width:0;padding:0 2px;
-                   vertical-align:middle;height:32px;position:relative">
-            <div style="display:flex;align-items:center;height:100%;gap:2px;overflow:hidden">
-              <span onclick="Checklist._wdNudge(event,'${tent}','${hour}',-1)"
-                style="flex-shrink:0;cursor:pointer;padding:0 3px;font-size:13px;color:#475569;opacity:${canLeft?1:0.2};line-height:1">◀</span>
-              <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px"
-                title="${entry.content}">${entry.content}</span>
-              <span onclick="Checklist._wdNudge(event,'${tent}','${hour}',1)"
-                style="flex-shrink:0;cursor:pointer;padding:0 3px;font-size:13px;color:#475569;opacity:${canRight?1:0.2};line-height:1">▶</span>
-            </div>
-          </td>`;
-          hi += span;
+          for (let s = 0; s < span; s++) blockOf[hi + s] = WEEKDAY_HOURS[hi];
+        }
+      }
+
+      let cells = '';
+      for (let hi = 0; hi < WEEKDAY_HOURS.length; hi++) {
+        const hour = WEEKDAY_HOURS[hi];
+        const blockStart = blockOf[hi];
+        if (blockStart !== undefined) {
+          const content = data[tent][blockStart].content;
+          const bg = _wdGetColor(content);
+          const isStart = blockStart === hour;
+          if (isStart) {
+            const ec = content.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+            cells += `<td draggable="true"
+              ondragstart="Checklist._wdDragStart(event,'${tent}','${hour}','${ec}')"
+              ondragover="Checklist._wdDragOver(event)"
+              ondragleave="Checklist._wdDragLeave(event)"
+              ondrop="Checklist._wdDrop(event,'${tent}','${hour}')"
+              onclick="Checklist._wdClickCell('${tent}','${hour}')"
+              style="border:1px solid #d1d5db;cursor:grab;background:${bg};
+                     font-size:11px;font-weight:600;color:#1e293b;white-space:nowrap;
+                     overflow:hidden;text-overflow:ellipsis;padding:2px 4px;
+                     vertical-align:middle;height:32px"
+              title="${content}">${content}</td>`;
+          } else {
+            // 덮인 칸: 드롭 시 _wdDropOnCovered로 처리
+            cells += `<td
+              ondragover="Checklist._wdDragOver(event)"
+              ondragleave="Checklist._wdDragLeave(event)"
+              ondrop="Checklist._wdDropOnCovered(event,'${tent}','${hour}','${blockStart}')"
+              onclick="Checklist._wdClickCell('${tent}','${blockStart}')"
+              style="border:1px solid #d1d5db;background:${bg};height:32px;cursor:grab"></td>`;
+          }
         } else {
           cells += `<td
             ondragover="Checklist._wdDragOver(event)"
             ondragleave="Checklist._wdDragLeave(event)"
             ondrop="Checklist._wdDrop(event,'${tent}','${hour}')"
             onclick="Checklist._wdClickCell('${tent}','${hour}')"
-            style="border:1px solid #e2e8f0;cursor:pointer;background:#fff;height:32px;min-width:0"></td>`;
-          hi++;
+            style="border:1px solid #e2e8f0;cursor:pointer;background:#fff;height:32px"></td>`;
         }
       }
       return `<tr><td style="${noStyle}color:${nameColor}">${tent}</td>${cells}</tr>`;
@@ -1742,6 +1764,6 @@ const Checklist = (() => {
     mobSwapTent,
     playAnnouncement,
     _isWeekdayMode, toggleWeekdayMode, _renderWeekdayGrid, _wdClickCell, _wdSaveCell,
-    _wdDragStart, _wdDragOver, _wdDragLeave, _wdDrop, _wdNudge,
+    _wdDragStart, _wdDragOver, _wdDragLeave, _wdDrop, _wdDropOnCovered,
   };
 })();
