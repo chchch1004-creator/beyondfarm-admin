@@ -1458,23 +1458,32 @@ const Checklist = (() => {
   const WEEKDAY_NUMBERED = ['0','1','2','3','4','5','6','7','8','9','10','11'];
   const WEEKDAY_LETTERED = ['A','B','C','D','E','F','G','H','J','K','P','S'];
 
-  function _wdKey() { return `cl_weekday_${state.date}`; }
-  function _wdData() {
-    try { return JSON.parse(localStorage.getItem(_wdKey()) || '{}'); } catch { return {}; }
-  }
-  function _isWeekdayMode() {
-    return localStorage.getItem(`cl_weekday_mode_${state.date}`) === '1';
-  }
+  function _wdKey()     { return `cl_weekday_${state.date}`; }
+  function _wdLogKey()  { return `cl_weekday_log_${state.date}`; }
+  function _wdData()    { try { return JSON.parse(localStorage.getItem(_wdKey()) || '{}'); } catch { return {}; } }
+  function _wdLog()     { try { return JSON.parse(localStorage.getItem(_wdLogKey()) || '[]'); } catch { return []; } }
+
+  function _isWeekdayMode() { return localStorage.getItem(`cl_weekday_mode_${state.date}`) === '1'; }
+
   function toggleWeekdayMode() {
-    const key = `cl_weekday_mode_${state.date}`;
-    localStorage.setItem(key, _isWeekdayMode() ? '0' : '1');
+    localStorage.setItem(`cl_weekday_mode_${state.date}`, _isWeekdayMode() ? '0' : '1');
     render();
   }
+
   function _weekdayToggleCell(tent, hour) {
     const data = _wdData();
     if (!data[tent]) data[tent] = {};
     data[tent][hour] = !data[tent][hour];
     localStorage.setItem(_wdKey(), JSON.stringify(data));
+
+    // 변경 로그 추가
+    const kst = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
+    const pad = n => String(n).padStart(2,'0');
+    const now = `${kst.getFullYear()}-${pad(kst.getMonth()+1)}-${pad(kst.getDate())} ${pad(kst.getHours())}:${pad(kst.getMinutes())}`;
+    const log = _wdLog();
+    log.push({ tent, hour, checked: data[tent][hour], who: App.user?.name || '알 수 없음', at: now });
+    localStorage.setItem(_wdLogKey(), JSON.stringify(log));
+
     const cell = document.getElementById(`wdc-${tent}-${hour}`);
     if (cell) {
       const checked = data[tent][hour];
@@ -1482,14 +1491,16 @@ const Checklist = (() => {
       cell.textContent = checked ? '✓' : '';
     }
   }
+
   function _renderWeekdayGrid() {
     const data = _wdData();
-    const cellStyle = 'width:36px;min-width:36px;height:30px;border:1px solid #e2e8f0;text-align:center;font-size:12px;cursor:pointer;user-select:none;';
-    const hdrStyle  = 'width:36px;min-width:36px;text-align:center;font-size:11px;font-weight:700;color:#64748b;padding:4px 0;';
-    const noStyle   = 'min-width:32px;padding:0 6px;font-size:12px;font-weight:700;text-align:right;';
+    // 텐트번호 열: 글자만큼, 시간 열: 균등하게 table-layout fixed + width 100%
+    const noStyle  = 'width:28px;min-width:28px;padding:0 4px;font-size:12px;font-weight:700;text-align:center;white-space:nowrap;';
+    const hdrStyle = 'font-size:11px;font-weight:700;color:#64748b;text-align:center;padding:4px 0;border-bottom:2px solid #e2e8f0;';
+    const cellBase = 'height:32px;border:1px solid #e2e8f0;text-align:center;font-size:12px;cursor:pointer;user-select:none;vertical-align:middle;';
 
     const hdrRow = `<tr>
-      <th style="${noStyle}"></th>
+      <th style="${noStyle}border-bottom:2px solid #e2e8f0"></th>
       ${WEEKDAY_HOURS.map(h => `<th style="${hdrStyle}">${h}</th>`).join('')}
     </tr>`;
 
@@ -1498,21 +1509,45 @@ const Checklist = (() => {
         <td style="${noStyle}color:${color}">${tent}</td>
         ${WEEKDAY_HOURS.map(h => {
           const checked = data[tent]?.[h];
-          return `<td id="wdc-${tent}-${h}"
-            onclick="Checklist._weekdayToggleCell('${tent}','${h}')"
-            style="${cellStyle}background:${checked ? '#bfdbfe' : '#fff'}">${checked ? '✓' : ''}</td>`;
+          return `<td id="wdc-${tent}-${h}" onclick="Checklist._weekdayToggleCell('${tent}','${h}')"
+            style="${cellBase}background:${checked ? '#bfdbfe' : '#fff'};color:#1d4ed8;font-weight:700">${checked ? '✓' : ''}</td>`;
         }).join('')}
       </tr>`;
     }
 
     const numberedRows = WEEKDAY_NUMBERED.map(t => tentRow(t, '#1d4ed8')).join('');
-    const separatorRow = `<tr><td colspan="${WEEKDAY_HOURS.length + 1}" style="height:10px;background:#f8fafc"></td></tr>`;
+    const separatorRow = `<tr><td colspan="${WEEKDAY_HOURS.length + 1}" style="height:8px;background:#f8fafc;border:none"></td></tr>`;
     const letteredRows = WEEKDAY_LETTERED.map(t => tentRow(t, '#15803d')).join('');
 
-    return `<table style="border-collapse:collapse;white-space:nowrap">
-      <thead>${hdrRow}</thead>
-      <tbody>${numberedRows}${separatorRow}${letteredRows}</tbody>
-    </table>`;
+    // 로그 탭
+    const log = _wdLog();
+    const logHtml = log.length ? log.slice().reverse().map(l =>
+      `<div style="font-size:12px;padding:4px 0;border-bottom:1px solid #f1f5f9;display:flex;gap:8px;align-items:center">
+        <span style="color:#94a3b8;white-space:nowrap">${l.at}</span>
+        <span style="font-weight:600">${l.who}</span>
+        <span>텐트 <b>${l.tent}</b> ${l.hour}시 ${l.checked ? '✓ 체크' : '해제'}</span>
+      </div>`).join('')
+      : '<div style="color:#94a3b8;font-size:12px">변경 내역 없음</div>';
+
+    return `
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div style="overflow-x:auto">
+          <table style="border-collapse:collapse;table-layout:fixed;width:100%">
+            <colgroup>
+              <col style="width:28px">
+              ${WEEKDAY_HOURS.map(() => '<col>').join('')}
+            </colgroup>
+            <thead>${hdrRow}</thead>
+            <tbody>${numberedRows}${separatorRow}${letteredRows}</tbody>
+          </table>
+        </div>
+        <details style="margin-top:4px">
+          <summary style="font-size:12px;font-weight:600;color:#64748b;cursor:pointer;user-select:none;padding:4px 0">
+            🕓 변경 로그 (${log.length}건)
+          </summary>
+          <div style="margin-top:8px;max-height:200px;overflow-y:auto;padding:4px 0">${logHtml}</div>
+        </details>
+      </div>`;
   }
 
   return {
