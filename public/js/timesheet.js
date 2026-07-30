@@ -297,25 +297,49 @@ const Timesheet = {
     `;
   },
 
+  // 관리자: 수정요청 상세 + 답변 입력
   showDisputeDetail(empId) {
     const conf = (this._disputeData || {})[empId];
     if (!conf) return;
     const modal = document.createElement('div');
     modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9999;display:flex;align-items:center;justify-content:center';
     modal.innerHTML = `
-      <div style="background:#fff;border-radius:12px;padding:24px;width:360px;max-width:92vw;box-shadow:0 20px 60px rgba(0,0,0,0.25)">
+      <div style="background:#fff;border-radius:12px;padding:24px;width:380px;max-width:94vw;box-shadow:0 20px 60px rgba(0,0,0,0.25)">
         <div style="font-size:15px;font-weight:700;color:#dc2626;margin-bottom:6px">❗ 수정 요청 내용</div>
-        <div style="font-size:12px;color:#64748b;margin-bottom:12px">${conf.name} · ${conf.confirmed_at}</div>
-        <div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:12px 14px;font-size:13px;color:#374151;line-height:1.6;white-space:pre-wrap">${conf.comment || '(코멘트 없음)'}</div>
-        <div style="margin-top:14px;text-align:right">
+        <div style="font-size:12px;color:#64748b;margin-bottom:10px">${conf.name} · ${conf.confirmed_at} 제출</div>
+        <div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:12px 14px;font-size:13px;color:#374151;line-height:1.6;white-space:pre-wrap;margin-bottom:14px">${conf.comment || '(코멘트 없음)'}</div>
+        ${conf.admin_comment ? `
+        <div style="font-size:12px;font-weight:600;color:#1e40af;margin-bottom:6px">📋 이전 답변 <span style="font-weight:400;color:#64748b">(${conf.admin_replied_at})</span></div>
+        <div style="background:#eff6ff;border:1px solid #93c5fd;border-radius:8px;padding:10px 14px;font-size:13px;color:#374151;white-space:pre-wrap;margin-bottom:14px">${conf.admin_comment}</div>` : ''}
+        <div style="font-size:12px;font-weight:600;color:#374151;margin-bottom:6px">답변 작성</div>
+        <textarea id="admin-reply-text" rows="4"
+          style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;resize:vertical"
+          placeholder="수정 처리 결과나 안내 내용을 입력하세요.">${conf.admin_comment || ''}</textarea>
+        <div style="display:flex;gap:8px;margin-top:12px">
           <button onclick="this.closest('div[style*=fixed]').remove()"
-            style="padding:8px 20px;border:1px solid #cbd5e1;border-radius:7px;background:#f8fafc;font-size:13px;cursor:pointer">닫기</button>
+            style="flex:1;padding:9px;border:1px solid #cbd5e1;border-radius:7px;background:#f8fafc;font-size:13px;cursor:pointer">닫기</button>
+          <button onclick="Timesheet.sendAdminReply(${conf.user_id},${conf.year||this.currentYear},${conf.month||this.currentMonth},document.getElementById('admin-reply-text').value,this)"
+            style="flex:2;padding:9px;border:none;border-radius:7px;background:#1e40af;color:#fff;font-size:13px;font-weight:700;cursor:pointer">답변 전송</button>
         </div>
       </div>`;
     document.body.appendChild(modal);
     modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
   },
 
+  async sendAdminReply(userId, year, month, comment, btn) {
+    if (!comment.trim()) { Utils.showToast('답변 내용을 입력하세요.', 'error'); return; }
+    btn.disabled = true; btn.textContent = '전송 중...';
+    try {
+      await API.post('/api/timesheet/confirmations/reply', { user_id: userId, year, month, admin_comment: comment.trim() });
+      // 로컬 캐시 업데이트
+      const conf = (this._disputeData || {})[userId];
+      if (conf) { conf.admin_comment = comment.trim(); conf.admin_replied_at = '방금'; }
+      Utils.showToast('답변을 전송했습니다.');
+      btn.closest('div[style*=fixed]').remove();
+    } catch (e) { Utils.showToast('전송 실패: ' + e.message, 'error'); btn.disabled = false; btn.textContent = '답변 전송'; }
+  },
+
+  // 직원: 급여 확인 카드
   _renderConfirmCard(year, month) {
     const c = this._myConfirmation;
     if (c) {
@@ -323,12 +347,20 @@ const Timesheet = {
       const statusColor = isConfirmed ? '#15803d' : '#dc2626';
       const statusBg    = isConfirmed ? '#dcfce7' : '#fef2f2';
       const statusText  = isConfirmed ? '✅ 급여 확인 완료' : '❗ 수정 요청됨';
+      const adminReplyHtml = c.admin_comment ? `
+        <div style="margin-top:12px;background:#eff6ff;border:1px solid #93c5fd;border-radius:8px;padding:12px 14px">
+          <div style="font-size:11px;font-weight:700;color:#1e40af;margin-bottom:4px">📋 관리자 답변 ${c.admin_replied_at ? `<span style="font-weight:400;color:#64748b">(${c.admin_replied_at})</span>` : ''}</div>
+          <div style="font-size:13px;color:#374151;white-space:pre-wrap;line-height:1.6">${c.admin_comment}</div>
+        </div>` : '';
       return `
-        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-          <span style="padding:6px 14px;background:${statusBg};color:${statusColor};border-radius:8px;font-weight:700;font-size:14px">${statusText}</span>
-          <span style="font-size:12px;color:#64748b">${c.confirmed_at} 제출</span>
-          ${c.comment ? `<span style="font-size:12px;color:#374151;background:#f8fafc;padding:4px 10px;border-radius:6px;border:1px solid #e2e8f0">"${c.comment}"</span>` : ''}
-          <button onclick="Timesheet._resetConfirm()" style="margin-left:auto;padding:5px 12px;border:1px solid #cbd5e1;border-radius:6px;background:#fff;font-size:12px;cursor:pointer;color:#64748b">재제출</button>
+        <div>
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+            <span style="padding:6px 14px;background:${statusBg};color:${statusColor};border-radius:8px;font-weight:700;font-size:14px">${statusText}</span>
+            <span style="font-size:12px;color:#64748b">${c.confirmed_at} 제출</span>
+            <button onclick="Timesheet._openDisputeModal()" style="margin-left:auto;padding:5px 12px;border:1px solid #cbd5e1;border-radius:6px;background:#fff;font-size:12px;cursor:pointer;color:#64748b">재제출 / 수정</button>
+          </div>
+          ${c.comment ? `<div style="margin-top:10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 14px;font-size:13px;color:#374151;white-space:pre-wrap">${c.comment}</div>` : ''}
+          ${adminReplyHtml}
         </div>`;
     }
     return `
@@ -346,22 +378,18 @@ const Timesheet = {
       </div>`;
   },
 
-  _resetConfirm() {
-    this._myConfirmation = null;
-    const card = document.getElementById('ts-confirm-card');
-    if (card) card.innerHTML = this._renderConfirmCard(this.currentYear, this.currentMonth);
-  },
-
+  // 재제출 / 수정: 기존 코멘트 pre-fill
   _openDisputeModal() {
+    const existing = this._myConfirmation?.comment || '';
     const modal = document.createElement('div');
     modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9999;display:flex;align-items:center;justify-content:center';
     modal.innerHTML = `
-      <div style="background:#fff;border-radius:12px;padding:24px;width:340px;max-width:92vw;box-shadow:0 20px 60px rgba(0,0,0,0.25)">
+      <div style="background:#fff;border-radius:12px;padding:24px;width:360px;max-width:92vw;box-shadow:0 20px 60px rgba(0,0,0,0.25)">
         <div style="font-size:15px;font-weight:700;color:#dc2626;margin-bottom:10px">❗ 수정 요청</div>
         <p style="font-size:13px;color:#374151;margin-bottom:10px">수정이 필요한 내용을 입력해주세요.</p>
-        <textarea id="dispute-comment" rows="4"
+        <textarea id="dispute-comment" rows="5"
           style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;resize:vertical"
-          placeholder="예: 7월 15일 근무시간이 8시간인데 6시간으로 기록되어 있습니다."></textarea>
+          placeholder="예: 7월 15일 근무시간이 8시간인데 6시간으로 기록되어 있습니다.">${existing}</textarea>
         <div style="display:flex;gap:8px;margin-top:12px">
           <button onclick="this.closest('div[style*=fixed]').remove()"
             style="flex:1;padding:9px;border:1px solid #cbd5e1;border-radius:7px;background:#f8fafc;font-size:13px;cursor:pointer">취소</button>
@@ -380,9 +408,13 @@ const Timesheet = {
       });
       const kst = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
       const pad = n => String(n).padStart(2,'0');
+      const prevAdminComment = this._myConfirmation?.admin_comment || '';
+      const prevAdminRepliedAt = this._myConfirmation?.admin_replied_at || '';
       this._myConfirmation = {
         status, comment,
         confirmed_at: `${kst.getFullYear()}-${pad(kst.getMonth()+1)}-${pad(kst.getDate())} ${pad(kst.getHours())}:${pad(kst.getMinutes())}`,
+        admin_comment: prevAdminComment,
+        admin_replied_at: prevAdminRepliedAt,
       };
       const card = document.getElementById('ts-confirm-card');
       if (card) card.innerHTML = this._renderConfirmCard(this.currentYear, this.currentMonth);

@@ -242,4 +242,39 @@ router.post('/confirmations', requireAuth, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// 관리자 답변 저장 + 직원에게 푸시
+router.post('/confirmations/reply', requireSuperAdmin, async (req, res) => {
+  try {
+    const { user_id, year, month, admin_comment } = req.body;
+    const kst = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
+    const pad = n => String(n).padStart(2,'0');
+    const now = `${kst.getFullYear()}-${pad(kst.getMonth()+1)}-${pad(kst.getDate())} ${pad(kst.getHours())}:${pad(kst.getMinutes())}`;
+    await db.prepare(`
+      UPDATE timesheet_confirmations SET admin_comment=?, admin_replied_at=?
+      WHERE user_id=? AND year=? AND month=?
+    `).run(admin_comment, now, parseInt(user_id), parseInt(year), parseInt(month));
+
+    // 직원에게 푸시 알림
+    try {
+      const title = `📋 ${year}년 ${month}월 급여 답변이 도착했습니다`;
+      const body  = admin_comment ? admin_comment.slice(0, 100) : '관리자가 답변을 남겼습니다.';
+      const url   = `/timesheet?year=${year}&month=${month}`;
+      const fcmTokens = await db.prepare(`SELECT token FROM fcm_tokens WHERE user_id=?`).all(parseInt(user_id));
+      const webSubs   = await db.prepare(`SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE user_id=?`).all(parseInt(user_id));
+      let fcm;
+      try { const { getMessaging } = require('firebase-admin/messaging'); fcm = getMessaging(); } catch {}
+      if (fcm) for (const { token } of fcmTokens) {
+        try { await fcm.send({ token, notification: { title, body }, data: { url }, android: { priority: 'high' } }); } catch {}
+      }
+      let wp;
+      try { wp = require('web-push'); } catch {}
+      if (wp && process.env.VAPID_PUBLIC_KEY) for (const s of webSubs) {
+        try { await wp.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, JSON.stringify({ title, body, url })); } catch {}
+      }
+    } catch {}
+
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 module.exports = router;
