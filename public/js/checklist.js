@@ -1454,15 +1454,15 @@ const Checklist = (() => {
   }
 
   // ── 평일ver. 모드 ──
-  const WEEKDAY_HOURS = ['10','11','12','13','14','15','16','17','18','19','20','21'];
+  const WEEKDAY_HOURS   = ['10','11','12','13','14','15','16','17','18','19','20','21'];
   const WEEKDAY_NUMBERED = ['0','1','2','3','4','5','6','7','8','9','10','11'];
   const WEEKDAY_LETTERED = ['A','B','C','D','E','F','G','H','J','K','P','S'];
+  const WD_PALETTE = ['#fde68a','#bbf7d0','#fca5a5','#ddd6fe','#fed7aa','#a5f3fc','#fbcfe8','#d9f99d','#bae6fd','#fef3c7','#e9d5ff','#c7d2fe'];
 
-  function _wdKey()     { return `cl_weekday_${state.date}`; }
-  function _wdLogKey()  { return `cl_weekday_log_${state.date}`; }
-  function _wdData()    { try { return JSON.parse(localStorage.getItem(_wdKey()) || '{}'); } catch { return {}; } }
-  function _wdLog()     { try { return JSON.parse(localStorage.getItem(_wdLogKey()) || '[]'); } catch { return []; } }
-
+  function _wdKey()    { return `cl_weekday_${state.date}`; }
+  function _wdLogKey() { return `cl_weekday_log_${state.date}`; }
+  function _wdData()   { try { return JSON.parse(localStorage.getItem(_wdKey()) || '{}'); } catch { return {}; } }
+  function _wdLog()    { try { return JSON.parse(localStorage.getItem(_wdLogKey()) || '[]'); } catch { return []; } }
   function _isWeekdayMode() { return localStorage.getItem(`cl_weekday_mode_${state.date}`) === '1'; }
 
   function toggleWeekdayMode() {
@@ -1470,67 +1470,140 @@ const Checklist = (() => {
     render();
   }
 
-  function _weekdayToggleCell(tent, hour) {
+  // 내용별 고유 색상 맵 생성
+  function _wdColorMap(data) {
+    const map = new Map();
+    let idx = 0;
+    for (const tent of [...WEEKDAY_NUMBERED, ...WEEKDAY_LETTERED]) {
+      for (const hour of WEEKDAY_HOURS) {
+        const content = data[tent]?.[hour]?.content;
+        if (content && !map.has(content)) {
+          map.set(content, WD_PALETTE[idx % WD_PALETTE.length]);
+          idx++;
+        }
+      }
+    }
+    return map;
+  }
+
+  // 셀 클릭: 입력창 열기
+  function _wdClickCell(tent, startHour) {
+    const data = _wdData();
+    const existing = data[tent]?.[startHour];
+    const currentVal = existing?.content || '';
+
+    // 기존 팝업 제거
+    document.getElementById('wd-cell-popup')?.remove();
+
+    const popup = document.createElement('div');
+    popup.id = 'wd-cell-popup';
+    popup.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.35);z-index:9999;display:flex;align-items:center;justify-content:center';
+    popup.innerHTML = `
+      <div style="background:#fff;border-radius:12px;padding:20px;width:320px;max-width:92vw;box-shadow:0 8px 32px rgba(0,0,0,0.2)">
+        <div style="font-size:14px;font-weight:700;color:#374151;margin-bottom:10px">
+          텐트 <span style="color:#1d4ed8">${tent}</span> · <span style="color:#64748b">${startHour}시</span>
+        </div>
+        <input id="wd-cell-input" type="text" autocomplete="off"
+          value="${currentVal.replace(/"/g,'&quot;')}"
+          placeholder="예: 홍길동(4) 불멍, 플레이3"
+          style="width:100%;box-sizing:border-box;padding:9px 11px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;outline:none">
+        <div style="font-size:11px;color:#94a3b8;margin:6px 0 12px">입력하면 오른쪽 4칸에 색이 칠해집니다. 비우면 삭제됩니다.</div>
+        <div style="display:flex;gap:8px">
+          <button onclick="document.getElementById('wd-cell-popup').remove()"
+            style="flex:1;padding:8px;border:1px solid #e2e8f0;border-radius:7px;background:#f8fafc;font-size:13px;cursor:pointer">취소</button>
+          <button onclick="Checklist._wdSaveCell('${tent}','${startHour}',document.getElementById('wd-cell-input').value)"
+            style="flex:2;padding:8px;border:none;border-radius:7px;background:#1d4ed8;color:#fff;font-size:13px;font-weight:700;cursor:pointer">저장</button>
+        </div>
+      </div>`;
+    document.body.appendChild(popup);
+    popup.addEventListener('click', e => { if (e.target === popup) popup.remove(); });
+    setTimeout(() => document.getElementById('wd-cell-input')?.focus(), 50);
+  }
+
+  function _wdSaveCell(tent, startHour, value) {
+    document.getElementById('wd-cell-popup')?.remove();
     const data = _wdData();
     if (!data[tent]) data[tent] = {};
-    data[tent][hour] = !data[tent][hour];
-    localStorage.setItem(_wdKey(), JSON.stringify(data));
 
-    // 변경 로그 추가
     const kst = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
     const pad = n => String(n).padStart(2,'0');
     const now = `${kst.getFullYear()}-${pad(kst.getMonth()+1)}-${pad(kst.getDate())} ${pad(kst.getHours())}:${pad(kst.getMinutes())}`;
+    const who = App.user?.name || '알 수 없음';
     const log = _wdLog();
-    log.push({ tent, hour, checked: data[tent][hour], who: App.user?.name || '알 수 없음', at: now });
+
+    const trimmed = value.trim();
+    const prev = data[tent][startHour]?.content || '';
+    if (trimmed) {
+      data[tent][startHour] = { content: trimmed };
+      log.push({ tent, hour: startHour, content: trimmed, prev, action: prev ? '수정' : '입력', who, at: now });
+    } else {
+      delete data[tent][startHour];
+      if (prev) log.push({ tent, hour: startHour, content: '', prev, action: '삭제', who, at: now });
+    }
+    localStorage.setItem(_wdKey(), JSON.stringify(data));
     localStorage.setItem(_wdLogKey(), JSON.stringify(log));
 
-    const cell = document.getElementById(`wdc-${tent}-${hour}`);
-    if (cell) {
-      const checked = data[tent][hour];
-      cell.style.background = checked ? '#bfdbfe' : '#fff';
-      cell.textContent = checked ? '✓' : '';
-    }
+    // 그리드만 다시 그리기
+    const grid = document.getElementById('cl-weekday-grid');
+    if (grid) grid.innerHTML = _renderWeekdayGrid();
   }
 
   function _renderWeekdayGrid() {
     const data = _wdData();
-    // 텐트번호 열: 글자만큼, 시간 열: 균등하게 table-layout fixed + width 100%
+    const colorMap = _wdColorMap(data);
     const noStyle  = 'width:28px;min-width:28px;padding:0 4px;font-size:12px;font-weight:700;text-align:center;white-space:nowrap;';
-    const hdrStyle = 'font-size:11px;font-weight:700;color:#64748b;text-align:center;padding:4px 0;border-bottom:2px solid #e2e8f0;';
-    const cellBase = 'height:32px;border:1px solid #e2e8f0;text-align:center;font-size:12px;cursor:pointer;user-select:none;vertical-align:middle;';
+    const hdrStyle = 'font-size:11px;font-weight:700;color:#64748b;text-align:center;padding:5px 0;border-bottom:2px solid #e2e8f0;';
 
     const hdrRow = `<tr>
       <th style="${noStyle}border-bottom:2px solid #e2e8f0"></th>
       ${WEEKDAY_HOURS.map(h => `<th style="${hdrStyle}">${h}</th>`).join('')}
     </tr>`;
 
-    function tentRow(tent, color) {
-      return `<tr>
-        <td style="${noStyle}color:${color}">${tent}</td>
-        ${WEEKDAY_HOURS.map(h => {
-          const checked = data[tent]?.[h];
-          return `<td id="wdc-${tent}-${h}" onclick="Checklist._weekdayToggleCell('${tent}','${h}')"
-            style="${cellBase}background:${checked ? '#bfdbfe' : '#fff'};color:#1d4ed8;font-weight:700">${checked ? '✓' : ''}</td>`;
-        }).join('')}
-      </tr>`;
+    function tentRow(tent, nameColor) {
+      let cells = '';
+      let hi = 0;
+      while (hi < WEEKDAY_HOURS.length) {
+        const hour = WEEKDAY_HOURS[hi];
+        const entry = data[tent]?.[hour];
+        if (entry?.content) {
+          const span = Math.min(4, WEEKDAY_HOURS.length - hi);
+          const bg = colorMap.get(entry.content) || '#fde68a';
+          cells += `<td colspan="${span}"
+            onclick="Checklist._wdClickCell('${tent}','${hour}')"
+            style="border:1px solid #d1d5db;cursor:pointer;background:${bg};
+                   font-size:11px;font-weight:600;color:#1e293b;white-space:nowrap;
+                   overflow:hidden;text-overflow:ellipsis;max-width:0;padding:2px 5px;
+                   vertical-align:middle;height:32px"
+            title="${entry.content}">${entry.content}</td>`;
+          hi += span;
+        } else {
+          cells += `<td onclick="Checklist._wdClickCell('${tent}','${hour}')"
+            style="border:1px solid #e2e8f0;cursor:pointer;background:#fff;height:32px;min-width:0"></td>`;
+          hi++;
+        }
+      }
+      return `<tr><td style="${noStyle}color:${nameColor}">${tent}</td>${cells}</tr>`;
     }
 
     const numberedRows = WEEKDAY_NUMBERED.map(t => tentRow(t, '#1d4ed8')).join('');
-    const separatorRow = `<tr><td colspan="${WEEKDAY_HOURS.length + 1}" style="height:8px;background:#f8fafc;border:none"></td></tr>`;
+    const separator    = `<tr><td colspan="${WEEKDAY_HOURS.length+1}" style="height:8px;background:#f8fafc;border:none"></td></tr>`;
     const letteredRows = WEEKDAY_LETTERED.map(t => tentRow(t, '#15803d')).join('');
 
-    // 로그 탭
+    // 변경 로그
     const log = _wdLog();
-    const logHtml = log.length ? log.slice().reverse().map(l =>
-      `<div style="font-size:12px;padding:4px 0;border-bottom:1px solid #f1f5f9;display:flex;gap:8px;align-items:center">
-        <span style="color:#94a3b8;white-space:nowrap">${l.at}</span>
-        <span style="font-weight:600">${l.who}</span>
-        <span>텐트 <b>${l.tent}</b> ${l.hour}시 ${l.checked ? '✓ 체크' : '해제'}</span>
-      </div>`).join('')
-      : '<div style="color:#94a3b8;font-size:12px">변경 내역 없음</div>';
+    const logRows = log.length
+      ? log.slice().reverse().map(l => `
+        <div style="display:flex;gap:8px;align-items:baseline;font-size:12px;padding:4px 0;border-bottom:1px solid #f1f5f9">
+          <span style="color:#94a3b8;white-space:nowrap;flex-shrink:0">${l.at}</span>
+          <span style="font-weight:600;white-space:nowrap">${l.who}</span>
+          <span style="color:#374151">텐트 <b>${l.tent}</b> ${l.hour}시 ${l.action}
+            ${l.content ? `→ <em>${l.content}</em>` : '(삭제)'}
+          </span>
+        </div>`).join('')
+      : '<div style="color:#94a3b8;font-size:12px;padding:4px 0">변경 내역 없음</div>';
 
     return `
-      <div style="display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;flex-direction:column;gap:10px">
         <div style="overflow-x:auto">
           <table style="border-collapse:collapse;table-layout:fixed;width:100%">
             <colgroup>
@@ -1538,14 +1611,14 @@ const Checklist = (() => {
               ${WEEKDAY_HOURS.map(() => '<col>').join('')}
             </colgroup>
             <thead>${hdrRow}</thead>
-            <tbody>${numberedRows}${separatorRow}${letteredRows}</tbody>
+            <tbody>${numberedRows}${separator}${letteredRows}</tbody>
           </table>
         </div>
-        <details style="margin-top:4px">
-          <summary style="font-size:12px;font-weight:600;color:#64748b;cursor:pointer;user-select:none;padding:4px 0">
-            🕓 변경 로그 (${log.length}건)
+        <details>
+          <summary style="font-size:12px;font-weight:600;color:#64748b;cursor:pointer;user-select:none;padding:4px 0;list-style:none">
+            🕓 변경 로그 (${log.length}건) ▾
           </summary>
-          <div style="margin-top:8px;max-height:200px;overflow-y:auto;padding:4px 0">${logHtml}</div>
+          <div style="margin-top:6px;max-height:220px;overflow-y:auto">${logRows}</div>
         </details>
       </div>`;
   }
@@ -1557,6 +1630,6 @@ const Checklist = (() => {
     onDragStart, onDragOver, onDragEnter, onDragLeave, onDrop, onDragEnd,
     mobSwapTent,
     playAnnouncement,
-    _isWeekdayMode, toggleWeekdayMode, _renderWeekdayGrid, _weekdayToggleCell,
+    _isWeekdayMode, toggleWeekdayMode, _renderWeekdayGrid, _wdClickCell, _wdSaveCell,
   };
 })();
