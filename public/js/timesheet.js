@@ -400,12 +400,29 @@ const Timesheet = {
       const statusColor = isConfirmed ? '#15803d' : '#dc2626';
       const statusBg    = isConfirmed ? '#dcfce7' : '#fef2f2';
       const statusText  = isConfirmed ? '✅ 급여 확인 완료' : '❗ 수정 요청됨';
+
+      // 이력이 없는 기존 제출 건 → c.comment / admin_comment 직접 표시
+      const legacyHtml = !this._confirmHistory?.length ? `
+        <div style="margin-top:14px;display:flex;flex-direction:column;gap:10px">
+          ${c.comment ? `
+            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 13px">
+              <div style="font-size:12px;color:#64748b;margin-bottom:4px">${c.confirmed_at}</div>
+              <div style="font-size:13px;color:#374151;white-space:pre-wrap;line-height:1.6">${c.comment}</div>
+            </div>` : ''}
+          ${c.admin_comment ? `
+            <div style="background:#eff6ff;border:1px solid #93c5fd;border-radius:8px;padding:10px 13px">
+              <div style="font-size:12px;font-weight:700;color:#1e40af;margin-bottom:4px">📋 관리자 답변 ${c.admin_replied_at ? `<span style="font-weight:400;color:#64748b">(${c.admin_replied_at})</span>` : ''}</div>
+              <div style="font-size:13px;color:#374151;white-space:pre-wrap;line-height:1.6">${c.admin_comment}</div>
+            </div>` : ''}
+        </div>` : '';
+
       return `
         <div>
           <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
             <span style="padding:6px 14px;background:${statusBg};color:${statusColor};border-radius:8px;font-weight:700;font-size:14px">${statusText}</span>
             <span style="font-size:12px;color:#64748b">${c.confirmed_at} 제출</span>
           </div>
+          ${legacyHtml}
           ${histHtml}
           ${actionBtns}
         </div>`;
