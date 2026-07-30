@@ -406,7 +406,6 @@ const Timesheet = {
             <span style="padding:6px 14px;background:${statusBg};color:${statusColor};border-radius:8px;font-weight:700;font-size:14px">${statusText}</span>
             <span style="font-size:12px;color:#64748b">${c.confirmed_at} 제출</span>
           </div>
-          ${c.comment ? `<div style="margin-top:10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 14px;font-size:13px;color:#374151;white-space:pre-wrap">${c.comment}</div>` : ''}
           ${adminReplyHtml}
           ${actionBtns}
           ${histHtml}
