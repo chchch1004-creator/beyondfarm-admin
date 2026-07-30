@@ -168,9 +168,14 @@ const Timesheet = {
       const isHidden = this.hiddenIds.has(emp.id);
       const conf = (this._confirmations || []).find(c => c.user_id === emp.id);
       const confBadge = conf
-        ? (conf.status === 'confirmed'
-            ? `<span style="margin-left:4px;font-size:9px;background:#dcfce7;color:#15803d;border-radius:3px;padding:1px 4px;cursor:default" title="${conf.confirmed_at} 확인">✓확인</span>`
-            : (() => { const uid = `disp-${emp.id}`; this._disputeData = this._disputeData || {}; this._disputeData[emp.id] = conf; return `<span id="${uid}" style="margin-left:4px;font-size:9px;background:#fef2f2;color:#dc2626;border-radius:3px;padding:1px 4px;cursor:pointer" onclick="Timesheet.showDisputeDetail(${emp.id})">❗수정요청</span>`; })())
+        ? (() => {
+            this._disputeData = this._disputeData || {};
+            this._disputeData[emp.id] = conf;
+            if (conf.status === 'confirmed') {
+              return `<span style="margin-left:4px;font-size:9px;background:#dcfce7;color:#15803d;border-radius:3px;padding:1px 4px;cursor:pointer" onclick="Timesheet.showDisputeDetail(${emp.id})">✓확인</span>`;
+            }
+            return `<span style="margin-left:4px;font-size:9px;background:#fef2f2;color:#dc2626;border-radius:3px;padding:1px 4px;cursor:pointer" onclick="Timesheet.showDisputeDetail(${emp.id})">❗수정요청</span>`;
+          })()
         : '';
 
       const payCols = `
