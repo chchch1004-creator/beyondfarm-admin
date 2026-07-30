@@ -340,7 +340,7 @@ const Timesheet = {
         <div style="font-size:12px;font-weight:600;color:#374151;margin-bottom:6px;margin-top:10px">답변 작성</div>
         <textarea id="admin-reply-text" rows="4"
           style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;resize:vertical"
-          placeholder="수정 처리 결과나 안내 내용을 입력하세요.">${conf.admin_comment || ''}</textarea>
+          placeholder="수정 처리 결과나 안내 내용을 입력하세요."></textarea>
         <div style="display:flex;gap:8px;margin-top:12px">
           <button onclick="this.closest('div[style*=fixed]').remove()"
             style="flex:1;padding:9px;border:1px solid #cbd5e1;border-radius:7px;background:#f8fafc;font-size:13px;cursor:pointer">닫기</button>
