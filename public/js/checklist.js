@@ -1612,6 +1612,7 @@ const Checklist = (() => {
         <input id="wd-cell-input" type="text" autocomplete="off"
           value="${currentVal.replace(/"/g,'&quot;')}"
           placeholder="예: 홍길동(4) 불멍, 플레이3"
+          onkeydown="if(event.key==='Enter'&&!event.isComposing){Checklist._wdSaveCell('${tent}','${startHour}',this.value)}"
           style="width:100%;box-sizing:border-box;padding:9px 11px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;outline:none">
         <div style="font-size:11px;color:#94a3b8;margin:6px 0 12px">입력하면 오른쪽 4칸에 색이 칠해집니다. 비우면 삭제됩니다.</div>
         <div style="display:flex;gap:8px">
