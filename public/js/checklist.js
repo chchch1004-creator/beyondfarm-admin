@@ -1459,13 +1459,78 @@ const Checklist = (() => {
   const WEEKDAY_LETTERED = ['A','B','C','D','E','F','G','H','J','K','P','S'];
   const WD_PALETTE = ['#fde68a','#bbf7d0','#fca5a5','#ddd6fe','#fed7aa','#a5f3fc','#fbcfe8','#d9f99d','#bae6fd','#fef3c7','#e9d5ff','#c7d2fe'];
 
-  function _wdKey()    { return `cl_weekday_${state.date}`; }
-  function _wdLogKey() { return `cl_weekday_log_${state.date}`; }
-  function _wdData()   { try { return JSON.parse(localStorage.getItem(_wdKey()) || '{}'); } catch { return {}; } }
-  function _wdLog()    { try { return JSON.parse(localStorage.getItem(_wdLogKey()) || '[]'); } catch { return []; } }
+  function _wdKey()       { return `cl_weekday_${state.date}`; }
+  function _wdLogKey()    { return `cl_weekday_log_${state.date}`; }
+  function _wdColorKey()  { return `cl_weekday_colors_${state.date}`; }
+  function _wdData()      { try { return JSON.parse(localStorage.getItem(_wdKey()) || '{}'); } catch { return {}; } }
+  function _wdLog()       { try { return JSON.parse(localStorage.getItem(_wdLogKey()) || '[]'); } catch { return []; } }
+  function _wdColors()    { try { return JSON.parse(localStorage.getItem(_wdColorKey()) || '{}'); } catch { return {}; } }
   function _isWeekdayMode() { return localStorage.getItem(`cl_weekday_mode_${state.date}`) === '1'; }
 
-  let _wdDrag = null; // { tent, hour, content }
+  // 내용에 대한 색상 확정 (한 번 정해지면 고정)
+  function _wdEnsureColor(content) {
+    const colors = _wdColors();
+    if (!colors[content]) {
+      colors[content] = WD_PALETTE[Object.keys(colors).length % WD_PALETTE.length];
+      localStorage.setItem(_wdColorKey(), JSON.stringify(colors));
+    }
+    return colors[content];
+  }
+
+  function _wdGetColor(content) {
+    return _wdColors()[content] || _wdEnsureColor(content);
+  }
+
+  // KST 현재 시간 문자열
+  function _wdNow() {
+    const kst = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
+    const pad = n => String(n).padStart(2,'0');
+    return `${kst.getFullYear()}-${pad(kst.getMonth()+1)}-${pad(kst.getDate())} ${pad(kst.getHours())}:${pad(kst.getMinutes())}`;
+  }
+
+  // 두 위치 간 이동/교환 공통 함수
+  function _wdMove(fromTent, fromHour, toTent, toHour) {
+    if (fromTent === toTent && fromHour === toHour) return;
+    const data = _wdData();
+    const log  = _wdLog();
+    const fromContent = data[fromTent]?.[fromHour]?.content;
+    if (!fromContent) return;
+    const toContent = data[toTent]?.[toHour]?.content;
+
+    if (!data[fromTent]) data[fromTent] = {};
+    if (!data[toTent])   data[toTent]   = {};
+
+    if (toContent) {
+      // 교환
+      data[fromTent][fromHour] = { content: toContent };
+      data[toTent][toHour]     = { content: fromContent };
+      log.push({ tent: toTent, hour: toHour, content: fromContent, prev: toContent,
+        action: `교환(텐트${fromTent} ${fromHour}시↔텐트${toTent} ${toHour}시)`,
+        who: App.user?.name || '알 수 없음', at: _wdNow() });
+    } else {
+      // 이동
+      delete data[fromTent][fromHour];
+      data[toTent][toHour] = { content: fromContent };
+      log.push({ tent: toTent, hour: toHour, content: fromContent, prev: '',
+        action: `이동(텐트${fromTent} ${fromHour}시→텐트${toTent} ${toHour}시)`,
+        who: App.user?.name || '알 수 없음', at: _wdNow() });
+    }
+    localStorage.setItem(_wdKey(), JSON.stringify(data));
+    localStorage.setItem(_wdLogKey(), JSON.stringify(log));
+    const grid = document.getElementById('cl-weekday-grid');
+    if (grid) grid.innerHTML = _renderWeekdayGrid();
+  }
+
+  // ◀ ▶ 한 칸씩 이동
+  function _wdNudge(e, tent, hour, dir) {
+    e.stopPropagation();
+    const hi = WEEKDAY_HOURS.indexOf(hour);
+    const ni = hi + dir;
+    if (ni < 0 || ni >= WEEKDAY_HOURS.length) return;
+    _wdMove(tent, hour, tent, WEEKDAY_HOURS[ni]);
+  }
+
+  let _wdDrag = null;
 
   function _wdDragStart(e, tent, hour, content) {
     _wdDrag = { tent, hour, content };
@@ -1487,28 +1552,9 @@ const Checklist = (() => {
     e.preventDefault();
     e.currentTarget.style.outline = '';
     if (!_wdDrag) return;
-    if (_wdDrag.tent === tent && _wdDrag.hour === hour) { _wdDrag = null; return; }
-
-    const data = _wdData();
-    // 대상 칸에 이미 내용이 있으면 이동 거부
-    if (data[tent]?.[hour]?.content) { _wdDrag = null; return; }
-
-    // 이동
-    if (data[_wdDrag.tent]) delete data[_wdDrag.tent][_wdDrag.hour];
-    if (!data[tent]) data[tent] = {};
-    data[tent][hour] = { content: _wdDrag.content };
-
-    const kst = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
-    const pad = n => String(n).padStart(2,'0');
-    const now = `${kst.getFullYear()}-${pad(kst.getMonth()+1)}-${pad(kst.getDate())} ${pad(kst.getHours())}:${pad(kst.getMinutes())}`;
-    const log = _wdLog();
-    log.push({ tent, hour, content: _wdDrag.content, prev: '', action: `이동(텐트${_wdDrag.tent} ${_wdDrag.hour}시→텐트${tent} ${hour}시)`, who: App.user?.name || '알 수 없음', at: now });
-    localStorage.setItem(_wdKey(), JSON.stringify(data));
-    localStorage.setItem(_wdLogKey(), JSON.stringify(log));
-
+    const { tent: ft, hour: fh } = _wdDrag;
     _wdDrag = null;
-    const grid = document.getElementById('cl-weekday-grid');
-    if (grid) grid.innerHTML = _renderWeekdayGrid();
+    _wdMove(ft, fh, tent, hour);
   }
 
   function toggleWeekdayMode() {
@@ -1580,6 +1626,7 @@ const Checklist = (() => {
     const trimmed = value.trim();
     const prev = data[tent][startHour]?.content || '';
     if (trimmed) {
+      _wdEnsureColor(trimmed); // 색상 먼저 확정
       data[tent][startHour] = { content: trimmed };
       log.push({ tent, hour: startHour, content: trimmed, prev, action: prev ? '수정' : '입력', who, at: now });
     } else {
@@ -1596,7 +1643,6 @@ const Checklist = (() => {
 
   function _renderWeekdayGrid() {
     const data = _wdData();
-    const colorMap = _wdColorMap(data);
     const noStyle  = 'width:28px;min-width:28px;padding:0 4px;font-size:12px;font-weight:700;text-align:center;white-space:nowrap;';
     const hdrStyle = 'font-size:11px;font-weight:700;color:#64748b;text-align:center;padding:5px 0;border-bottom:2px solid #e2e8f0;';
 
@@ -1613,8 +1659,10 @@ const Checklist = (() => {
         const entry = data[tent]?.[hour];
         if (entry?.content) {
           const span = Math.min(4, WEEKDAY_HOURS.length - hi);
-          const bg = colorMap.get(entry.content) || '#fde68a';
+          const bg = _wdGetColor(entry.content);
           const ec = entry.content.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+          const canLeft  = hi > 0;
+          const canRight = hi + span < WEEKDAY_HOURS.length;
           cells += `<td colspan="${span}" draggable="true"
             ondragstart="Checklist._wdDragStart(event,'${tent}','${hour}','${ec}')"
             ondragover="Checklist._wdDragOver(event)"
@@ -1622,10 +1670,18 @@ const Checklist = (() => {
             ondrop="Checklist._wdDrop(event,'${tent}','${hour}')"
             onclick="Checklist._wdClickCell('${tent}','${hour}')"
             style="border:1px solid #d1d5db;cursor:grab;background:${bg};
-                   font-size:11px;font-weight:600;color:#1e293b;white-space:nowrap;
-                   overflow:hidden;text-overflow:ellipsis;max-width:0;padding:2px 5px;
-                   vertical-align:middle;height:32px"
-            title="${entry.content}">${entry.content}</td>`;
+                   font-size:11px;font-weight:600;color:#1e293b;
+                   overflow:hidden;max-width:0;padding:0 2px;
+                   vertical-align:middle;height:32px;position:relative">
+            <div style="display:flex;align-items:center;height:100%;gap:2px;overflow:hidden">
+              <span onclick="Checklist._wdNudge(event,'${tent}','${hour}',-1)"
+                style="flex-shrink:0;cursor:pointer;padding:0 3px;font-size:13px;color:#475569;opacity:${canLeft?1:0.2};line-height:1">◀</span>
+              <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px"
+                title="${entry.content}">${entry.content}</span>
+              <span onclick="Checklist._wdNudge(event,'${tent}','${hour}',1)"
+                style="flex-shrink:0;cursor:pointer;padding:0 3px;font-size:13px;color:#475569;opacity:${canRight?1:0.2};line-height:1">▶</span>
+            </div>
+          </td>`;
           hi += span;
         } else {
           cells += `<td
@@ -1686,6 +1742,6 @@ const Checklist = (() => {
     mobSwapTent,
     playAnnouncement,
     _isWeekdayMode, toggleWeekdayMode, _renderWeekdayGrid, _wdClickCell, _wdSaveCell,
-    _wdDragStart, _wdDragOver, _wdDragLeave, _wdDrop,
+    _wdDragStart, _wdDragOver, _wdDragLeave, _wdDrop, _wdNudge,
   };
 })();
