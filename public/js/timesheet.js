@@ -429,14 +429,15 @@ const Timesheet = {
       const statusTxt = isConfirmed ? '✅ 급여 확인 완료' : '❗ 수정 요청됨';
       return `
         <div>
-          <span style="padding:5px 12px;background:${statusBg};color:${statusClr};border-radius:8px;font-weight:700;font-size:13px">${statusTxt}</span>
-          <div style="margin-top:14px;display:flex;flex-direction:column;gap:10px">${bubblesHtml}</div>
+          <span id="ts-status-badge" style="padding:5px 12px;background:${statusBg};color:${statusClr};border-radius:8px;font-weight:700;font-size:13px">${statusTxt}</span>
+          <div id="ts-bubbles-container" style="margin-top:14px;display:flex;flex-direction:column;gap:10px">${bubblesHtml}</div>
           ${replyBox}
         </div>`;
     }
     return `
       <div class="card-title" style="margin-bottom:8px">💰 ${year}년 ${month}월 급여 확인</div>
       <p style="font-size:13px;color:#374151;margin-bottom:12px">위 근무표와 급여 내역을 확인하신 후 아래 버튼을 눌러주세요.</p>
+      <div id="ts-bubbles-container" style="display:flex;flex-direction:column;gap:10px;margin-bottom:12px"></div>
       ${replyBox}`;
   },
 
@@ -453,15 +454,48 @@ const Timesheet = {
       await API.post('/api/timesheet/confirmations', {
         year: this.currentYear, month: this.currentMonth, status, comment,
       });
-      // 서버에서 최신 상태 + 이력 다시 불러와 카드 갱신
-      [this._myConfirmation, this._confirmHistory] = await Promise.all([
-        API.get(`/api/timesheet/confirmations?year=${this.currentYear}&month=${this.currentMonth}`).catch(() => null),
-        API.get(`/api/timesheet/confirmations/history?year=${this.currentYear}&month=${this.currentMonth}`).catch(() => []),
-      ]);
-      if (this._myConfirmation && Array.isArray(this._myConfirmation)) this._myConfirmation = null;
-      if (!Array.isArray(this._confirmHistory)) this._confirmHistory = [];
-      const card = document.getElementById('ts-confirm-card');
-      if (card) card.innerHTML = this._renderConfirmCard(this.currentYear, this.currentMonth);
+
+      const kst = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
+      const pad = n => String(n).padStart(2, '0');
+      const now = `${kst.getFullYear()}-${pad(kst.getMonth()+1)}-${pad(kst.getDate())} ${pad(kst.getHours())}:${pad(kst.getMinutes())}`;
+      const myName = App.user?.name || '나';
+      const actionLabel = status === 'confirmed' ? '✅ 급여 확인' : '❗ 수정 요청';
+      const msgHtml = comment
+        ? `<div style="font-size:13px;color:#1e293b;white-space:pre-wrap;line-height:1.6;margin-top:5px">${comment}</div>`
+        : `<div style="font-size:12px;color:#94a3b8;margin-top:3px">${actionLabel}</div>`;
+      const newBubble = `<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:10px 14px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="font-size:12px;font-weight:700;color:#15803d">${myName}</span>
+          <span style="font-size:11px;color:#94a3b8">${now}</span>
+        </div>
+        ${msgHtml}
+      </div>`;
+
+      // 첫 제출이면 카드 전체를 새로 그리고, 이후엔 버블만 추가
+      const bubblesContainer = document.getElementById('ts-bubbles-container');
+      if (bubblesContainer) {
+        bubblesContainer.insertAdjacentHTML('beforeend', newBubble);
+      } else {
+        // 첫 제출: 카드 없던 상태 → 전체 초기화
+        this._myConfirmation = { status, comment, confirmed_at: now };
+        this._confirmHistory = [{ actor: myName, action: actionLabel, comment, created_at: now }];
+        const card = document.getElementById('ts-confirm-card');
+        if (card) card.innerHTML = this._renderConfirmCard(this.currentYear, this.currentMonth);
+      }
+
+      // 상태 배지 업데이트
+      const badge = document.getElementById('ts-status-badge');
+      if (badge) {
+        const isConfirmed = status === 'confirmed';
+        badge.style.background = isConfirmed ? '#dcfce7' : '#fef2f2';
+        badge.style.color = isConfirmed ? '#15803d' : '#dc2626';
+        badge.textContent = isConfirmed ? '✅ 급여 확인 완료' : '❗ 수정 요청됨';
+      }
+
+      // textarea 초기화
+      const ta = document.getElementById('confirm-reply-text');
+      if (ta) ta.value = '';
+
       Utils.showToast(status === 'confirmed' ? '급여를 확인했습니다.' : '수정 요청을 보냈습니다.');
     } catch (e) { Utils.showToast('저장 실패: ' + e.message, 'error'); }
   },
