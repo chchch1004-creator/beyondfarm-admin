@@ -1687,17 +1687,23 @@ const Checklist = (() => {
           const isStart = blockStart === hour;
           if (isStart) {
             const ec = content.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+            const span = Math.min(4, WEEKDAY_HOURS.length - hi);
             cells += `<td draggable="true"
               ondragstart="Checklist._wdDragStart(event,'${tent}','${hour}','${ec}')"
               ondragover="Checklist._wdDragOver(event)"
               ondragleave="Checklist._wdDragLeave(event)"
               ondrop="Checklist._wdDrop(event,'${tent}','${hour}')"
               onclick="Checklist._wdClickCell('${tent}','${hour}')"
-              style="border:1px solid #d1d5db;cursor:grab;background:${bg};
-                     font-size:11px;font-weight:600;color:#1e293b;white-space:nowrap;
-                     overflow:hidden;text-overflow:ellipsis;padding:2px 4px;
-                     vertical-align:middle;height:32px"
-              title="${content}">${content}</td>`;
+              style="position:relative;border:1px solid #d1d5db;cursor:grab;background:${bg};height:32px;padding:0;overflow:visible">
+              <div style="position:absolute;top:0;left:0;height:100%;
+                          width:calc(${span} * 100%);
+                          display:flex;align-items:center;
+                          padding:2px 5px;box-sizing:border-box;
+                          font-size:11px;font-weight:600;color:#1e293b;
+                          white-space:nowrap;overflow:hidden;
+                          pointer-events:none;z-index:10"
+                   title="${content}">${content}</div>
+            </td>`;
           } else {
             // 덮인 칸: 드롭 시 _wdDropOnCovered로 처리
             cells += `<td
