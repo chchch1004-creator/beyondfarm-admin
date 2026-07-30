@@ -338,7 +338,7 @@ const Timesheet = {
         <div style="background:#eff6ff;border:1px solid #93c5fd;border-radius:8px;padding:10px 14px;font-size:13px;color:#374151;white-space:pre-wrap;margin-bottom:14px">${conf.admin_comment}</div>` : ''}
         ${histHtml}
         <div style="font-size:12px;font-weight:600;color:#374151;margin-bottom:6px;margin-top:10px">답변 작성</div>
-        <textarea id="admin-reply-text" rows="4"
+        <textarea id="admin-reply-text" rows="4" autocomplete="off"
           style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;resize:vertical"
           placeholder="수정 처리 결과나 안내 내용을 입력하세요."></textarea>
         <div style="display:flex;gap:8px;margin-top:12px">
