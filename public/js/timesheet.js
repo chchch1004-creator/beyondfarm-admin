@@ -167,8 +167,8 @@ const Timesheet = {
       const conf = (this._confirmations || []).find(c => c.user_id === emp.id);
       const confBadge = conf
         ? (conf.status === 'confirmed'
-            ? `<span style="margin-left:4px;font-size:9px;background:#dcfce7;color:#15803d;border-radius:3px;padding:1px 4px">✓확인</span>`
-            : `<span style="margin-left:4px;font-size:9px;background:#fef2f2;color:#dc2626;border-radius:3px;padding:1px 4px">❗수정요청</span>`)
+            ? `<span style="margin-left:4px;font-size:9px;background:#dcfce7;color:#15803d;border-radius:3px;padding:1px 4px;cursor:default" title="${conf.confirmed_at} 확인">✓확인</span>`
+            : (() => { const uid = `disp-${emp.id}`; this._disputeData = this._disputeData || {}; this._disputeData[emp.id] = conf; return `<span id="${uid}" style="margin-left:4px;font-size:9px;background:#fef2f2;color:#dc2626;border-radius:3px;padding:1px 4px;cursor:pointer" onclick="Timesheet.showDisputeDetail(${emp.id})">❗수정요청</span>`; })())
         : '';
 
       const payCols = `
@@ -295,6 +295,25 @@ const Timesheet = {
         ${this._renderConfirmCard(year, month)}
       </div>`}
     `;
+  },
+
+  showDisputeDetail(empId) {
+    const conf = (this._disputeData || {})[empId];
+    if (!conf) return;
+    const modal = document.createElement('div');
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9999;display:flex;align-items:center;justify-content:center';
+    modal.innerHTML = `
+      <div style="background:#fff;border-radius:12px;padding:24px;width:360px;max-width:92vw;box-shadow:0 20px 60px rgba(0,0,0,0.25)">
+        <div style="font-size:15px;font-weight:700;color:#dc2626;margin-bottom:6px">❗ 수정 요청 내용</div>
+        <div style="font-size:12px;color:#64748b;margin-bottom:12px">${conf.name} · ${conf.confirmed_at}</div>
+        <div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:12px 14px;font-size:13px;color:#374151;line-height:1.6;white-space:pre-wrap">${conf.comment || '(코멘트 없음)'}</div>
+        <div style="margin-top:14px;text-align:right">
+          <button onclick="this.closest('div[style*=fixed]').remove()"
+            style="padding:8px 20px;border:1px solid #cbd5e1;border-radius:7px;background:#f8fafc;font-size:13px;cursor:pointer">닫기</button>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+    modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
   },
 
   _renderConfirmCard(year, month) {

@@ -210,6 +210,34 @@ router.post('/confirmations', requireAuth, async (req, res) => {
       VALUES (?,?,?,?,?,?)
       ON CONFLICT(user_id, year, month) DO UPDATE SET status=excluded.status, comment=excluded.comment, confirmed_at=excluded.confirmed_at
     `).run(user.id, parseInt(year), parseInt(month), status, comment || '', now);
+
+    // 수정요청인 경우 총괄관리자에게 푸시 알림
+    if (status === 'disputed') {
+      const admins = await db.prepare(`SELECT id FROM users WHERE role='superadmin'`).all();
+      const adminIds = admins.map(a => a.id);
+      if (adminIds.length) {
+        const title = `❗ 급여 수정요청 — ${user.name}`;
+        const body  = comment ? comment.slice(0, 100) : `${year}년 ${month}월 급여 수정을 요청했습니다.`;
+        const url   = `/timesheet?year=${year}&month=${month}`;
+        // lazy-load FCM / WebPush (community.js와 동일 패턴)
+        try {
+          const ph = adminIds.map(() => '?').join(',');
+          const fcmTokens = await db.prepare(`SELECT token FROM fcm_tokens WHERE user_id IN (${ph})`).all(adminIds);
+          const webSubs   = await db.prepare(`SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE user_id IN (${ph})`).all(adminIds);
+          let fcm;
+          try { const { getMessaging } = require('firebase-admin/messaging'); fcm = getMessaging(); } catch {}
+          if (fcm) for (const { token } of fcmTokens) {
+            try { await fcm.send({ token, notification: { title, body }, data: { url }, android: { priority: 'high' } }); } catch {}
+          }
+          let wp;
+          try { wp = require('web-push'); } catch {}
+          if (wp && process.env.VAPID_PUBLIC_KEY) for (const s of webSubs) {
+            try { await wp.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, JSON.stringify({ title, body, url })); } catch {}
+          }
+        } catch {}
+      }
+    }
+
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
