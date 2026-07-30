@@ -365,16 +365,21 @@ const Timesheet = {
     const c = this._myConfirmation;
     const histHtml = this._confirmHistory?.length ? `
       <div style="margin-top:16px;border-top:1px solid #e2e8f0;padding-top:12px">
-        <div style="font-size:12px;font-weight:600;color:#64748b;margin-bottom:8px">🕓 변경 이력</div>
-        <div style="display:flex;flex-direction:column;gap:8px">
-          ${this._confirmHistory.map(h => `
-            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:7px;padding:9px 12px">
-              <div style="display:flex;gap:8px;align-items:center;margin-bottom:${h.comment ? '5px' : '0'}">
-                <span style="font-size:12px;font-weight:700">${h.action}</span>
-                <span style="font-size:11px;color:#94a3b8">${h.actor} · ${h.created_at}</span>
+        <div style="font-size:12px;font-weight:600;color:#64748b;margin-bottom:10px">대화 내역</div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          ${this._confirmHistory.map(h => {
+            const isAdmin = h.action === '📋 관리자 답변';
+            const bg     = isAdmin ? '#eff6ff' : '#f8fafc';
+            const border = isAdmin ? '#93c5fd' : '#e2e8f0';
+            const nameColor = isAdmin ? '#1e40af' : '#374151';
+            return `<div style="background:${bg};border:1px solid ${border};border-radius:8px;padding:10px 13px">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:${h.comment ? '6px' : '0'}">
+                <span style="font-size:12px;font-weight:700;color:${nameColor}">${h.actor}</span>
+                <span style="font-size:11px;color:#94a3b8">${h.created_at}</span>
               </div>
-              ${h.comment ? `<div style="font-size:12px;color:#374151;white-space:pre-wrap;line-height:1.5">${h.comment}</div>` : ''}
-            </div>`).join('')}
+              ${h.comment ? `<div style="font-size:13px;color:#374151;white-space:pre-wrap;line-height:1.6">${h.comment}</div>` : `<div style="font-size:13px;color:#94a3b8">${h.action}</div>`}
+            </div>`;
+          }).join('')}
         </div>
       </div>` : '';
 
@@ -395,20 +400,14 @@ const Timesheet = {
       const statusColor = isConfirmed ? '#15803d' : '#dc2626';
       const statusBg    = isConfirmed ? '#dcfce7' : '#fef2f2';
       const statusText  = isConfirmed ? '✅ 급여 확인 완료' : '❗ 수정 요청됨';
-      const adminReplyHtml = c.admin_comment ? `
-        <div style="margin-top:12px;background:#eff6ff;border:1px solid #93c5fd;border-radius:8px;padding:12px 14px">
-          <div style="font-size:11px;font-weight:700;color:#1e40af;margin-bottom:4px">📋 관리자 답변 ${c.admin_replied_at ? `<span style="font-weight:400;color:#64748b">(${c.admin_replied_at})</span>` : ''}</div>
-          <div style="font-size:13px;color:#374151;white-space:pre-wrap;line-height:1.6">${c.admin_comment}</div>
-        </div>` : '';
       return `
         <div>
           <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
             <span style="padding:6px 14px;background:${statusBg};color:${statusColor};border-radius:8px;font-weight:700;font-size:14px">${statusText}</span>
             <span style="font-size:12px;color:#64748b">${c.confirmed_at} 제출</span>
           </div>
-          ${adminReplyHtml}
-          ${actionBtns}
           ${histHtml}
+          ${actionBtns}
         </div>`;
     }
     return `
@@ -420,7 +419,6 @@ const Timesheet = {
 
   // 재제출 / 수정: 기존 코멘트 pre-fill
   _openDisputeModal() {
-    const existing = this._myConfirmation?.comment || '';
     const modal = document.createElement('div');
     modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9999;display:flex;align-items:center;justify-content:center';
     modal.innerHTML = `
@@ -429,7 +427,7 @@ const Timesheet = {
         <p style="font-size:13px;color:#374151;margin-bottom:10px">수정이 필요한 내용을 입력해주세요.</p>
         <textarea id="dispute-comment" rows="5"
           style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;resize:vertical"
-          placeholder="예: 7월 15일 근무시간이 8시간인데 6시간으로 기록되어 있습니다.">${existing}</textarea>
+          placeholder="예: 7월 15일 근무시간이 8시간인데 6시간으로 기록되어 있습니다."></textarea>
         <div style="display:flex;gap:8px;margin-top:12px">
           <button onclick="this.closest('div[style*=fixed]').remove()"
             style="flex:1;padding:9px;border:1px solid #cbd5e1;border-radius:7px;background:#f8fafc;font-size:13px;cursor:pointer">취소</button>
