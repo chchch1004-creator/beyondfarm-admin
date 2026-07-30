@@ -376,7 +376,7 @@ const Timesheet = {
         const msgHtml = h.comment
           ? `<div style="font-size:13px;color:#1e293b;white-space:pre-wrap;line-height:1.6;margin-top:5px">${h.comment}</div>`
           : `<div style="font-size:12px;color:#94a3b8;margin-top:3px">${h.action}</div>`;
-        return `<div style="background:${bg};border:1px solid ${border};border-radius:10px;padding:10px 14px">
+        return `<div data-mine="${isAdmin ? '0' : '1'}" style="background:${bg};border:1px solid ${border};border-radius:10px;padding:10px 14px">
           <div style="display:flex;justify-content:space-between;align-items:center">
             <span style="font-size:12px;font-weight:700;color:${nameClr}">${h.actor}</span>
             <span style="font-size:11px;color:#94a3b8">${h.created_at}</span>
@@ -463,7 +463,7 @@ const Timesheet = {
       const msgHtml = comment
         ? `<div style="font-size:13px;color:#1e293b;white-space:pre-wrap;line-height:1.6;margin-top:5px">${comment}</div>`
         : `<div style="font-size:12px;color:#94a3b8;margin-top:3px">${actionLabel}</div>`;
-      const newBubble = `<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:10px 14px">
+      const newBubble = `<div data-mine="1" style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:10px 14px">
         <div style="display:flex;justify-content:space-between;align-items:center">
           <span style="font-size:12px;font-weight:700;color:#15803d">${myName}</span>
           <span style="font-size:11px;color:#94a3b8">${now}</span>
@@ -471,12 +471,19 @@ const Timesheet = {
         ${msgHtml}
       </div>`;
 
-      // 첫 제출이면 카드 전체를 새로 그리고, 이후엔 버블만 추가
       const bubblesContainer = document.getElementById('ts-bubbles-container');
       if (bubblesContainer) {
-        bubblesContainer.insertAdjacentHTML('beforeend', newBubble);
+        const lastBubble = bubblesContainer.lastElementChild;
+        const lastIsMine = lastBubble?.dataset.mine === '1';
+        if (lastIsMine) {
+          // 관리자 답변 전 → 마지막 내 버블 내용만 교체
+          lastBubble.outerHTML = newBubble;
+        } else {
+          // 관리자 답변 후 or 첫 제출 → 새 버블 추가
+          bubblesContainer.insertAdjacentHTML('beforeend', newBubble);
+        }
       } else {
-        // 첫 제출: 카드 없던 상태 → 전체 초기화
+        // 카드 자체가 없는 상태(첫 제출) → 전체 초기화
         this._myConfirmation = { status, comment, confirmed_at: now };
         this._confirmHistory = [{ actor: myName, action: actionLabel, comment, created_at: now }];
         const card = document.getElementById('ts-confirm-card');

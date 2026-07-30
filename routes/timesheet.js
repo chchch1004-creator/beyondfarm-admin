@@ -197,6 +197,19 @@ router.get('/confirmations', requireAuth, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// 이력 조회
+router.get('/confirmations/history', requireAuth, async (req, res) => {
+  try {
+    const { year, month, user_id } = req.query;
+    const user = req.session.user;
+    const uid = user.role === 'superadmin' && user_id ? parseInt(user_id) : user.id;
+    const rows = await db.prepare(
+      `SELECT * FROM timesheet_confirmation_history WHERE user_id=? AND year=? AND month=? ORDER BY id ASC`
+    ).all(uid, parseInt(year), parseInt(month));
+    res.json(rows);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // 급여 확인/수정요청 저장
 router.post('/confirmations', requireAuth, async (req, res) => {
   try {
@@ -210,6 +223,20 @@ router.post('/confirmations', requireAuth, async (req, res) => {
       VALUES (?,?,?,?,?,?)
       ON CONFLICT(user_id, year, month) DO UPDATE SET status=excluded.status, comment=excluded.comment, confirmed_at=excluded.confirmed_at
     `).run(user.id, parseInt(year), parseInt(month), status, comment || '', now);
+    // 이력 기록: 마지막 이력이 본인(직원) 것이면 UPDATE, 아니면 INSERT
+    const actionLabel = status === 'confirmed' ? '✅ 급여 확인' : '❗ 수정 요청';
+    const lastHist = await db.prepare(
+      `SELECT id, actor FROM timesheet_confirmation_history WHERE user_id=? AND year=? AND month=? ORDER BY id DESC LIMIT 1`
+    ).get(user.id, parseInt(year), parseInt(month));
+    if (lastHist && lastHist.actor === user.name) {
+      await db.prepare(
+        `UPDATE timesheet_confirmation_history SET action=?, comment=?, created_at=? WHERE id=?`
+      ).run(actionLabel, comment || '', now, lastHist.id);
+    } else {
+      await db.prepare(
+        `INSERT INTO timesheet_confirmation_history (user_id, year, month, actor, action, comment, created_at) VALUES (?,?,?,?,?,?,?)`
+      ).run(user.id, parseInt(year), parseInt(month), user.name, actionLabel, comment || '', now);
+    }
 
     // 수정요청인 경우 총괄관리자에게 푸시 알림
     if (status === 'disputed') {
@@ -253,6 +280,10 @@ router.post('/confirmations/reply', requireSuperAdmin, async (req, res) => {
       UPDATE timesheet_confirmations SET admin_comment=?, admin_replied_at=?
       WHERE user_id=? AND year=? AND month=?
     `).run(admin_comment, now, parseInt(user_id), parseInt(year), parseInt(month));
+    // 이력 기록
+    await db.prepare(
+      `INSERT INTO timesheet_confirmation_history (user_id, year, month, actor, action, comment, created_at) VALUES (?,?,?,?,?,?,?)`
+    ).run(parseInt(user_id), parseInt(year), parseInt(month), req.session.user.name, '📋 관리자 답변', admin_comment, now);
 
     // 직원에게 푸시 알림
     try {
