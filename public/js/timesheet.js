@@ -308,17 +308,19 @@ const Timesheet = {
     let history = [];
     try { history = await API.get(`/api/timesheet/confirmations/history?year=${year}&month=${month}&user_id=${empId}`); } catch {}
     const histHtml = history.length ? `
-      <details style="margin-top:14px;margin-bottom:4px" open>
-        <summary style="font-size:12px;font-weight:600;color:#64748b;cursor:pointer;user-select:none">🕓 변경 이력 (${history.length}건)</summary>
-        <div style="margin-top:8px;display:flex;flex-direction:column;gap:5px">
+      <div style="margin-top:14px;border-top:1px solid #e2e8f0;padding-top:12px;margin-bottom:4px">
+        <div style="font-size:12px;font-weight:600;color:#64748b;margin-bottom:8px">🕓 변경 이력</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
           ${history.map(h => `
-            <div style="display:flex;gap:8px;align-items:flex-start;font-size:11px;border-bottom:1px solid #f1f5f9;padding-bottom:4px">
-              <span style="color:#94a3b8;white-space:nowrap;flex-shrink:0">${h.created_at}</span>
-              <span style="font-weight:600;white-space:nowrap;flex-shrink:0">${h.action}</span>
-              ${h.comment ? `<span style="color:#374151;word-break:break-all">${h.comment}</span>` : ''}
+            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:7px;padding:9px 12px">
+              <div style="display:flex;gap:8px;align-items:center;margin-bottom:${h.comment ? '5px' : '0'}">
+                <span style="font-size:12px;font-weight:700">${h.action}</span>
+                <span style="font-size:11px;color:#94a3b8">${h.actor} · ${h.created_at}</span>
+              </div>
+              ${h.comment ? `<div style="font-size:12px;color:#374151;white-space:pre-wrap;line-height:1.5">${h.comment}</div>` : ''}
             </div>`).join('')}
         </div>
-      </details>` : '';
+      </div>` : '';
     const modal = document.createElement('div');
     modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9999;display:flex;align-items:center;justify-content:center';
     modal.innerHTML = `
@@ -362,17 +364,19 @@ const Timesheet = {
   _renderConfirmCard(year, month) {
     const c = this._myConfirmation;
     const histHtml = this._confirmHistory?.length ? `
-      <details style="margin-top:14px">
-        <summary style="font-size:12px;font-weight:600;color:#64748b;cursor:pointer;user-select:none">🕓 변경 이력 (${this._confirmHistory.length}건)</summary>
-        <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px">
+      <div style="margin-top:16px;border-top:1px solid #e2e8f0;padding-top:12px">
+        <div style="font-size:12px;font-weight:600;color:#64748b;margin-bottom:8px">🕓 변경 이력</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
           ${this._confirmHistory.map(h => `
-            <div style="display:flex;gap:10px;align-items:flex-start;font-size:12px">
-              <span style="color:#94a3b8;white-space:nowrap;flex-shrink:0">${h.created_at}</span>
-              <span style="font-weight:600;white-space:nowrap;flex-shrink:0">${h.action}</span>
-              ${h.comment ? `<span style="color:#374151;word-break:break-all">${h.comment}</span>` : ''}
+            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:7px;padding:9px 12px">
+              <div style="display:flex;gap:8px;align-items:center;margin-bottom:${h.comment ? '5px' : '0'}">
+                <span style="font-size:12px;font-weight:700">${h.action}</span>
+                <span style="font-size:11px;color:#94a3b8">${h.actor} · ${h.created_at}</span>
+              </div>
+              ${h.comment ? `<div style="font-size:12px;color:#374151;white-space:pre-wrap;line-height:1.5">${h.comment}</div>` : ''}
             </div>`).join('')}
         </div>
-      </details>` : '';
+      </div>` : '';
 
     const actionBtns = `
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px">
