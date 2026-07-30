@@ -1465,6 +1465,52 @@ const Checklist = (() => {
   function _wdLog()    { try { return JSON.parse(localStorage.getItem(_wdLogKey()) || '[]'); } catch { return []; } }
   function _isWeekdayMode() { return localStorage.getItem(`cl_weekday_mode_${state.date}`) === '1'; }
 
+  let _wdDrag = null; // { tent, hour, content }
+
+  function _wdDragStart(e, tent, hour, content) {
+    _wdDrag = { tent, hour, content };
+    e.dataTransfer.effectAllowed = 'move';
+  }
+
+  function _wdDragOver(e) {
+    if (!_wdDrag) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    e.currentTarget.style.outline = '2px dashed #7c3aed';
+  }
+
+  function _wdDragLeave(e) {
+    e.currentTarget.style.outline = '';
+  }
+
+  function _wdDrop(e, tent, hour) {
+    e.preventDefault();
+    e.currentTarget.style.outline = '';
+    if (!_wdDrag) return;
+    if (_wdDrag.tent === tent && _wdDrag.hour === hour) { _wdDrag = null; return; }
+
+    const data = _wdData();
+    // 대상 칸에 이미 내용이 있으면 이동 거부
+    if (data[tent]?.[hour]?.content) { _wdDrag = null; return; }
+
+    // 이동
+    if (data[_wdDrag.tent]) delete data[_wdDrag.tent][_wdDrag.hour];
+    if (!data[tent]) data[tent] = {};
+    data[tent][hour] = { content: _wdDrag.content };
+
+    const kst = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
+    const pad = n => String(n).padStart(2,'0');
+    const now = `${kst.getFullYear()}-${pad(kst.getMonth()+1)}-${pad(kst.getDate())} ${pad(kst.getHours())}:${pad(kst.getMinutes())}`;
+    const log = _wdLog();
+    log.push({ tent, hour, content: _wdDrag.content, prev: '', action: `이동(텐트${_wdDrag.tent} ${_wdDrag.hour}시→텐트${tent} ${hour}시)`, who: App.user?.name || '알 수 없음', at: now });
+    localStorage.setItem(_wdKey(), JSON.stringify(data));
+    localStorage.setItem(_wdLogKey(), JSON.stringify(log));
+
+    _wdDrag = null;
+    const grid = document.getElementById('cl-weekday-grid');
+    if (grid) grid.innerHTML = _renderWeekdayGrid();
+  }
+
   function toggleWeekdayMode() {
     localStorage.setItem(`cl_weekday_mode_${state.date}`, _isWeekdayMode() ? '0' : '1');
     render();
@@ -1568,16 +1614,25 @@ const Checklist = (() => {
         if (entry?.content) {
           const span = Math.min(4, WEEKDAY_HOURS.length - hi);
           const bg = colorMap.get(entry.content) || '#fde68a';
-          cells += `<td colspan="${span}"
+          const ec = entry.content.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+          cells += `<td colspan="${span}" draggable="true"
+            ondragstart="Checklist._wdDragStart(event,'${tent}','${hour}','${ec}')"
+            ondragover="Checklist._wdDragOver(event)"
+            ondragleave="Checklist._wdDragLeave(event)"
+            ondrop="Checklist._wdDrop(event,'${tent}','${hour}')"
             onclick="Checklist._wdClickCell('${tent}','${hour}')"
-            style="border:1px solid #d1d5db;cursor:pointer;background:${bg};
+            style="border:1px solid #d1d5db;cursor:grab;background:${bg};
                    font-size:11px;font-weight:600;color:#1e293b;white-space:nowrap;
                    overflow:hidden;text-overflow:ellipsis;max-width:0;padding:2px 5px;
                    vertical-align:middle;height:32px"
             title="${entry.content}">${entry.content}</td>`;
           hi += span;
         } else {
-          cells += `<td onclick="Checklist._wdClickCell('${tent}','${hour}')"
+          cells += `<td
+            ondragover="Checklist._wdDragOver(event)"
+            ondragleave="Checklist._wdDragLeave(event)"
+            ondrop="Checklist._wdDrop(event,'${tent}','${hour}')"
+            onclick="Checklist._wdClickCell('${tent}','${hour}')"
             style="border:1px solid #e2e8f0;cursor:pointer;background:#fff;height:32px;min-width:0"></td>`;
           hi++;
         }
@@ -1631,5 +1686,6 @@ const Checklist = (() => {
     mobSwapTent,
     playAnnouncement,
     _isWeekdayMode, toggleWeekdayMode, _renderWeekdayGrid, _wdClickCell, _wdSaveCell,
+    _wdDragStart, _wdDragOver, _wdDragLeave, _wdDrop,
   };
 })();
