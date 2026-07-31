@@ -1,7 +1,6 @@
 const Charcoal = (() => {
-  const HOURS    = ['10','11','12','13','14','15','16','17','18','19','20','21'];
-  const NUMBERED = ['0','1','2','3','4','5','6','7','8','9','10','11'];
-  const LETTERED = ['A','B','C','D','E','F','G','H','J','K','P','S'];
+  const TIMESLOTS = ['11', '15', '19'];
+  const TIMESLOT_LABELS = { '11': '11시', '15': '15시', '19': '19시' };
 
   function kstToday() {
     const kst = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
@@ -10,30 +9,35 @@ const Charcoal = (() => {
   }
 
   let date = kstToday();
+  let slotData = {}; // { '11': {...}, '15': {...}, '19': {...} }
+  let activeSlot = '11';
+  let loading = false;
 
-  const wdKey    = d => `cl_weekday_${d}`;
-  const colorKey = d => `cl_weekday_colors_${d}`;
-  const charKey  = d => `charcoal_${d}`;
-  const getWd    = d => { try { return JSON.parse(localStorage.getItem(wdKey(d))    || '{}'); } catch { return {}; } };
-  const getColor = d => { try { return JSON.parse(localStorage.getItem(colorKey(d)) || '{}'); } catch { return {}; } };
-  const getChar  = d => { try { return JSON.parse(localStorage.getItem(charKey(d))  || '{}'); } catch { return {}; } };
+  const charKey = d => `charcoal_${d}`;
+  const getChar = d => { try { return JSON.parse(localStorage.getItem(charKey(d)) || '{}'); } catch { return {}; } };
 
-  // 터치: 없음→주문→나감→초기화
-  function tapCell(tent, hour) {
+  // 숯 탭: 없음→주문→나감→초기화
+  function tapCell(timeslot, tentNo) {
     const data = getChar(date);
-    const key = `${tent}_${hour}`;
-    const cur = data[key];
+    if (!data[timeslot]) data[timeslot] = {};
+    const cur = data[timeslot][tentNo];
     if (!cur) {
-      const maxSeq = Object.values(data).reduce((m, v) => Math.max(m, v.seq || 0), 0);
-      data[key] = { status: 1, seq: maxSeq + 1 };
+      // 전체 순번 계산
+      const allSeqs = Object.values(data).flatMap(ts => Object.values(ts)).map(v => v.seq || 0);
+      const maxSeq = allSeqs.length ? Math.max(...allSeqs) : 0;
+      data[timeslot][tentNo] = { status: 1, seq: maxSeq + 1 };
     } else if (cur.status === 1) {
-      data[key] = { ...cur, status: 2 };
+      data[timeslot][tentNo] = { ...cur, status: 2 };
     } else {
-      delete data[key];
+      delete data[timeslot][tentNo];
     }
     localStorage.setItem(charKey(date), JSON.stringify(data));
-    const grid = document.getElementById('char-grid');
-    if (grid) grid.innerHTML = renderGrid();
+    renderPanel();
+  }
+
+  function switchSlot(ts) {
+    activeSlot = ts;
+    renderPanel();
   }
 
   function moveDate(dir) {
@@ -41,128 +45,130 @@ const Charcoal = (() => {
     d.setDate(d.getDate() + dir);
     const p = n => String(n).padStart(2,'0');
     date = `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
-    render();
+    loadData();
   }
 
   function goToday() {
     date = kstToday();
-    render();
+    loadData();
   }
 
-  function renderGrid() {
-    const wd    = getWd(date);
-    const colors = getColor(date);
-    const char  = getChar(date);
+  async function loadData() {
+    const el = document.getElementById('char-panel');
+    if (el) el.innerHTML = '<div style="padding:24px;color:#94a3b8;text-align:center">불러오는 중...</div>';
+    slotData = {};
+    await Promise.all(TIMESLOTS.map(async ts => {
+      try {
+        const d = await API.get(`/api/checklist/${date}/${ts}`);
+        slotData[ts] = d || {};
+      } catch { slotData[ts] = {}; }
+    }));
+    renderPanel();
+  }
 
-    const noStyle  = 'width:28px;min-width:28px;padding:0 4px;font-size:12px;font-weight:700;text-align:center;white-space:nowrap;';
-    const hdrStyle = 'font-size:11px;font-weight:700;color:#64748b;text-align:center;padding:5px 0;border-bottom:2px solid #e2e8f0;';
+  function renderPanel() {
+    const charAll = getChar(date);
+    const charTs  = charAll[activeSlot] || {};
+    const d       = slotData[activeSlot] || {};
+    const allRows = [
+      ...(d.tent4 || []),
+      ...(d.tent2 || []),
+      ...(d.tent8 || []),
+      ...(d.extra || []),
+    ];
 
-    const hdrRow = `<tr>
-      <th style="${noStyle}border-bottom:2px solid #e2e8f0"></th>
-      ${HOURS.map(h => `<th style="${hdrStyle}">${h}</th>`).join('')}
-    </tr>`;
+    // 불멍 있는 행만 먼저, 없는 행은 뒤에
+    const withBulmung = allRows.filter(r => r.name && r.bulmung);
+    const others      = allRows.filter(r => r.name && !r.bulmung);
+    const empty       = allRows.filter(r => !r.name);
 
-    function tentRow(tent, nameColor) {
-      // 커버리지 맵
-      const blockOf = {};
-      for (let hi = 0; hi < HOURS.length; hi++) {
-        const entry = wd[tent]?.[HOURS[hi]];
-        if (entry?.content) {
-          const span = Math.min(4, HOURS.length - hi);
-          for (let s = 0; s < span; s++) blockOf[hi + s] = HOURS[hi];
-        }
+    // 전체 주문/나감 카운트 (전 타임슬롯 합산)
+    let totalOrdered = 0, totalDelivered = 0;
+    for (const ts of TIMESLOTS) {
+      const ts_char = charAll[ts] || {};
+      totalOrdered   += Object.values(ts_char).filter(v => v.status === 1).length;
+      totalDelivered += Object.values(ts_char).filter(v => v.status === 2).length;
+    }
+
+    function tentRow(r) {
+      const cs = charTs[r.tent_no];
+      const hasBulmung = !!r.bulmung;
+      const rowBg = hasBulmung ? '#fff7ed' : '#fff';
+      const border = hasBulmung ? '2px solid #f97316' : '1px solid #e2e8f0';
+
+      let charBadge = '';
+      if (cs) {
+        const color = cs.status === 1 ? '#2563eb' : '#16a34a';
+        const label = cs.status === 1 ? '주문' : '나감';
+        charBadge = `<span style="margin-left:6px;background:${color};color:#fff;border-radius:4px;
+                       font-size:10px;font-weight:700;padding:1px 6px">${cs.seq} ${label}</span>`;
       }
 
-      let cells = '';
-      for (let hi = 0; hi < HOURS.length; hi++) {
-        const hour = HOURS[hi];
-        const blockStart = blockOf[hi];
-        const isStart    = blockStart === hour;
-        const charState  = char[`${tent}_${hour}`];
-
-        if (blockStart !== undefined) {
-          const content    = wd[tent][blockStart].content;
-          const bg         = colors[content] || '#fde68a';
-          const hasBulmung = content.includes('불멍');
-          const border     = hasBulmung ? '2px solid #f97316' : '1px solid #d1d5db';
-
-          if (isStart) {
-            const span = Math.min(4, HOURS.length - hi);
-            cells += `<td onclick="Charcoal.tapCell('${tent}','${hour}')"
-              style="position:relative;border:${border};cursor:pointer;background:${bg};height:32px;padding:0;overflow:visible">
-              ${hasBulmung ? '<span style="position:absolute;top:1px;left:2px;font-size:10px;z-index:15;line-height:1;pointer-events:none">🔥</span>' : ''}
-              <div style="position:absolute;top:0;left:0;height:100%;width:calc(${span}*100%);
-                          display:flex;align-items:center;padding:2px ${hasBulmung?'4px 2px 16px':'5px'};box-sizing:border-box;
-                          font-size:11px;font-weight:600;color:#1e293b;white-space:nowrap;overflow:hidden;
-                          pointer-events:none;z-index:10">${content}</div>
-              ${charState ? charBadge(charState) : ''}
-            </td>`;
-          } else {
-            // 덮인 칸: 탭은 blockStart 기준
-            cells += `<td onclick="Charcoal.tapCell('${tent}','${blockStart}')"
-              style="border:${border};cursor:pointer;background:${bg};height:32px"></td>`;
-          }
-        } else {
-          // 빈 칸
-          cells += `<td onclick="Charcoal.tapCell('${tent}','${hour}')"
-            style="position:relative;border:1px solid #e2e8f0;cursor:pointer;background:#fff;height:32px">
-            ${charState ? emptyBadge(charState) : ''}
-          </td>`;
-        }
-      }
-      return `<tr><td style="${noStyle}color:${nameColor}">${tent}</td>${cells}</tr>`;
+      return `<tr onclick="Charcoal.tapCell('${activeSlot}','${r.tent_no}')"
+        style="cursor:pointer;background:${rowBg};border-bottom:${border}">
+        <td style="padding:8px 6px;font-size:12px;font-weight:700;color:#1d4ed8;text-align:center;width:32px">${r.tent_no}</td>
+        <td style="padding:8px 6px;font-size:13px;font-weight:600;color:#1e293b">
+          ${r.name || ''}
+          ${hasBulmung ? '<span style="margin-left:4px;font-size:11px">🔥</span>' : ''}
+          ${charBadge}
+        </td>
+        <td style="padding:8px 6px;font-size:12px;color:#64748b">${r.bulmung || ''}</td>
+        <td style="padding:8px 6px;font-size:12px;color:#64748b">${r.play || ''}</td>
+        <td style="padding:8px 6px;font-size:12px;color:#64748b">${r.memo || ''}</td>
+      </tr>`;
     }
 
-    function charBadge(cs) {
-      const color = cs.status === 1 ? '#2563eb' : '#16a34a';
-      const label = cs.status === 1 ? '주문' : '나감';
-      return `<div style="position:absolute;top:2px;right:2px;background:${color};color:#fff;
-                border-radius:4px;font-size:9px;font-weight:700;padding:0 4px;line-height:16px;z-index:20;
-                pointer-events:none">${cs.seq} ${label}</div>`;
-    }
+    const hasAny = allRows.some(r => r.name);
 
-    function emptyBadge(cs) {
-      const color = cs.status === 1 ? '#2563eb' : '#16a34a';
-      const label = cs.status === 1 ? '주문' : '나감';
-      return `<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
-               background:${color}22;font-size:10px;font-weight:700;color:${color};pointer-events:none">
-               ${cs.seq} ${label}</div>`;
-    }
+    const tableHTML = hasAny ? `
+      <table style="width:100%;border-collapse:collapse">
+        <thead>
+          <tr style="background:#f8fafc;border-bottom:2px solid #e2e8f0">
+            <th style="padding:6px;font-size:11px;color:#64748b;text-align:center;width:32px">번호</th>
+            <th style="padding:6px;font-size:11px;color:#64748b;text-align:left">이름</th>
+            <th style="padding:6px;font-size:11px;color:#64748b;text-align:left">불멍</th>
+            <th style="padding:6px;font-size:11px;color:#64748b;text-align:left">놀이</th>
+            <th style="padding:6px;font-size:11px;color:#64748b;text-align:left">메모</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${withBulmung.map(tentRow).join('')}
+          ${withBulmung.length && others.length ? '<tr><td colspan="5" style="height:6px;background:#f8fafc"></td></tr>' : ''}
+          ${others.map(tentRow).join('')}
+        </tbody>
+      </table>` : '<div style="color:#94a3b8;font-size:14px;padding:24px;text-align:center">이 타임에 데이터가 없습니다</div>';
 
-    const numberedRows = NUMBERED.map(t => tentRow(t, '#1d4ed8')).join('');
-    const sep          = `<tr><td colspan="${HOURS.length+1}" style="height:8px;background:#f8fafc;border:none"></td></tr>`;
-    const letteredRows = LETTERED.map(t => tentRow(t, '#15803d')).join('');
+    const el = document.getElementById('char-panel');
+    if (!el) return;
 
-    const ordered   = Object.values(char).filter(v => v.status === 1).length;
-    const delivered = Object.values(char).filter(v => v.status === 2).length;
-
-    return `
-      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+    el.innerHTML = `
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
         <span style="font-size:12px;color:#f97316;font-weight:600">🔥 불멍</span>
-        <span style="font-size:12px;padding:2px 8px;background:#dbeafe;color:#1d4ed8;border-radius:4px;font-weight:600">주문 ${ordered}건</span>
-        <span style="font-size:12px;padding:2px 8px;background:#dcfce7;color:#16a34a;border-radius:4px;font-weight:600">나감 ${delivered}건</span>
+        <span style="font-size:12px;padding:2px 8px;background:#dbeafe;color:#1d4ed8;border-radius:4px;font-weight:600">주문 ${totalOrdered}건</span>
+        <span style="font-size:12px;padding:2px 8px;background:#dcfce7;color:#16a34a;border-radius:4px;font-weight:600">나감 ${totalDelivered}건</span>
         <span style="font-size:12px;color:#94a3b8">1탭=주문 · 2탭=나감 · 3탭=초기화</span>
       </div>
-      <div style="overflow-x:auto">
-        <table style="border-collapse:collapse;table-layout:fixed;width:100%">
-          <colgroup>
-            <col style="width:28px">
-            ${HOURS.map(() => '<col>').join('')}
-          </colgroup>
-          <thead>${hdrRow}</thead>
-          <tbody>${numberedRows}${sep}${letteredRows}</tbody>
-        </table>
-      </div>`;
+      <div style="display:flex;gap:0;margin-bottom:12px;border-bottom:2px solid #e2e8f0">
+        ${TIMESLOTS.map(ts => {
+          const tsChar = charAll[ts] || {};
+          const cnt = Object.keys(tsChar).length;
+          const isActive = ts === activeSlot;
+          return `<button onclick="Charcoal.switchSlot('${ts}')"
+            style="padding:8px 16px;border:none;border-bottom:3px solid ${isActive?'#1d4ed8':'transparent'};
+                   background:transparent;font-size:13px;font-weight:${isActive?700:500};
+                   color:${isActive?'#1d4ed8':'#64748b'};cursor:pointer">
+            ${TIMESLOT_LABELS[ts]}${cnt ? ` <span style="font-size:10px;background:#f1f5f9;border-radius:8px;padding:1px 5px">${cnt}</span>` : ''}
+          </button>`;
+        }).join('')}
+      </div>
+      ${tableHTML}`;
   }
 
-  function render() {
+  async function render() {
     const today = kstToday();
     const [y, m, d] = date.split('-');
     const dayName = ['일','월','화','수','목','금','토'][new Date(date).getDay()];
     const isToday = date === today;
-
-    // 인원체크리스트와 같은 날짜 데이터 표시
-    const hasData = Object.keys(getWd(date)).length > 0;
 
     document.getElementById('content').innerHTML = `
       <div style="padding:16px;max-width:100%">
@@ -178,11 +184,11 @@ const Charcoal = (() => {
           ${!isToday ? `<button onclick="Charcoal.goToday()"
             style="padding:6px 10px;border:1px solid #22c55e;border-radius:6px;background:#f0fdf4;color:#16a34a;font-size:12px;font-weight:600;cursor:pointer">오늘</button>` : ''}
         </div>
-        <div id="char-grid">
-          ${hasData ? renderGrid() : '<div style="color:#94a3b8;font-size:14px;padding:24px 0;text-align:center">이 날짜의 인원체크리스트 데이터가 없습니다.<br>인원체크리스트 메뉴에서 평일ver.로 입력해주세요.</div>'}
-        </div>
+        <div id="char-panel"><div style="padding:24px;color:#94a3b8;text-align:center">불러오는 중...</div></div>
       </div>`;
+
+    await loadData();
   }
 
-  return { render, tapCell, moveDate, goToday };
+  return { render, tapCell, switchSlot, moveDate, goToday };
 })();
