@@ -53,7 +53,22 @@ const Charcoal = (() => {
     loadData();
   }
 
+  function renderDateHeader() {
+    const today = kstToday();
+    const [y, m, d] = date.split('-');
+    const dayName = ['일','월','화','수','목','금','토'][new Date(date).getDay()];
+    const isToday = date === today;
+    const el = document.getElementById('char-date-header');
+    if (!el) return;
+    el.innerHTML = `
+      <div style="font-size:16px;font-weight:700;color:#1e293b">${y}년 ${parseInt(m)}월 ${parseInt(d)}일 (${dayName})</div>
+      ${isToday ? '<div style="font-size:11px;color:#16a34a;font-weight:600">오늘</div>' : ''}`;
+    const todayBtn = document.getElementById('char-today-btn');
+    if (todayBtn) todayBtn.style.display = isToday ? 'none' : '';
+  }
+
   async function loadData() {
+    renderDateHeader();
     const el = document.getElementById('char-panel');
     if (el) el.innerHTML = '<div style="padding:24px;color:#94a3b8;text-align:center">불러오는 중...</div>';
     slotData = {};
@@ -165,24 +180,17 @@ const Charcoal = (() => {
   }
 
   async function render() {
-    const today = kstToday();
-    const [y, m, d] = date.split('-');
-    const dayName = ['일','월','화','수','목','금','토'][new Date(date).getDay()];
-    const isToday = date === today;
 
     document.getElementById('content').innerHTML = `
       <div style="padding:16px;max-width:100%">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap">
           <button onclick="Charcoal.moveDate(-1)"
             style="padding:6px 12px;border:1px solid #e2e8f0;border-radius:6px;background:#fff;cursor:pointer;font-size:14px">◀</button>
-          <div style="text-align:center;min-width:150px">
-            <div style="font-size:16px;font-weight:700;color:#1e293b">${y}년 ${parseInt(m)}월 ${parseInt(d)}일 (${dayName})</div>
-            ${isToday ? '<div style="font-size:11px;color:#16a34a;font-weight:600">오늘</div>' : ''}
-          </div>
+          <div id="char-date-header" style="text-align:center;min-width:150px"></div>
           <button onclick="Charcoal.moveDate(1)"
             style="padding:6px 12px;border:1px solid #e2e8f0;border-radius:6px;background:#fff;cursor:pointer;font-size:14px">▶</button>
-          ${!isToday ? `<button onclick="Charcoal.goToday()"
-            style="padding:6px 10px;border:1px solid #22c55e;border-radius:6px;background:#f0fdf4;color:#16a34a;font-size:12px;font-weight:600;cursor:pointer">오늘</button>` : ''}
+          <button id="char-today-btn" onclick="Charcoal.goToday()"
+            style="padding:6px 10px;border:1px solid #22c55e;border-radius:6px;background:#f0fdf4;color:#16a34a;font-size:12px;font-weight:600;cursor:pointer;display:none">오늘</button>
         </div>
         <div id="char-panel"><div style="padding:24px;color:#94a3b8;text-align:center">불러오는 중...</div></div>
       </div>`;
