@@ -1,11 +1,6 @@
 const Charcoal = (() => {
   const TIMESLOTS = ['11', '15', '19'];
   const TS_LABEL  = { '11': '11시', '15': '15시', '19': '19시' };
-  const TS_NEXT   = { '11': '15', '15': '19' };
-
-  const TENT4_NOS = ['0','1','2','3','4','5'];
-  const TENT2_NOS = ['6','7','8','9','10','11'];
-  const TENT8_NOS = ['A','B','C','D','E','F','G','H','J','K','L','P','S'];
 
   function kstToday() {
     const kst = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
@@ -13,14 +8,13 @@ const Charcoal = (() => {
     return `${kst.getFullYear()}-${p(kst.getMonth()+1)}-${p(kst.getDate())}`;
   }
 
-  let date      = kstToday();
-  let slotData  = {};
+  let date       = kstToday();
+  let slotData   = {};
   let activeSlot = '11';
 
   const charKey = d => `charcoal_${d}`;
   const getChar = d => { try { return JSON.parse(localStorage.getItem(charKey(d)) || '{}'); } catch { return {}; } };
 
-  // 단체 상품에서 숯 개수 계산
   function charcoalCount(row) {
     const p = (row.product || '').replace(/\s/g, '');
     if (p.includes('단체30')) return 3;
@@ -29,7 +23,7 @@ const Charcoal = (() => {
     return 0;
   }
 
-  // 탭: 없음→주문→나감→초기화. 2타임이면 다음 타임도 자동 나감
+  // 탭: 없음→주문→나감→초기화 (타임슬롯 독립)
   function tapCell(timeslot, tentNo) {
     const data = getChar(date);
     if (!data[timeslot]) data[timeslot] = {};
@@ -39,23 +33,8 @@ const Charcoal = (() => {
       data[timeslot][tentNo] = { status: 1, seq: maxSeq + 1 };
     } else if (cur.status === 1) {
       data[timeslot][tentNo] = { ...cur, status: 2 };
-      // 2타임이면 다음 타임도 자동 나감
-      const row = allRowsOf(timeslot).find(r => r.tent_no === tentNo);
-      const next = TS_NEXT[timeslot];
-      if (next && row?.two_time && String(row.two_time).includes(next)) {
-        if (!data[next]) data[next] = {};
-        if (!data[next][tentNo]) {
-          const maxSeq2 = Object.values(data).flatMap(ts => Object.values(ts)).reduce((m,v) => Math.max(m, v.seq||0), 0);
-          data[next][tentNo] = { status: 2, seq: maxSeq2 + 1, auto: true };
-        } else if (data[next][tentNo].status === 1) {
-          data[next][tentNo] = { ...data[next][tentNo], status: 2, auto: true };
-        }
-      }
     } else {
       delete data[timeslot][tentNo];
-      // 자동 표시된 다음 타임도 함께 초기화
-      const next = TS_NEXT[timeslot];
-      if (next && data[next]?.[tentNo]?.auto) delete data[next][tentNo];
     }
     localStorage.setItem(charKey(date), JSON.stringify(data));
     renderPanel();
@@ -63,13 +42,10 @@ const Charcoal = (() => {
 
   function allRowsOf(ts) {
     const d = slotData[ts] || {};
-    return [...(d.tent4||[]), ...(d.tent2||[]), ...(d.tent8||[]), ...(d.extra||[])];
+    return [...(d.tent4||[]), ...(d.tent2||[]), ...(d.tent8||[])];
   }
 
-  function switchSlot(ts) {
-    activeSlot = ts;
-    renderPanel();
-  }
+  function switchSlot(ts) { activeSlot = ts; renderPanel(); }
 
   function moveDate(dir) {
     const d = new Date(date);
@@ -79,9 +55,15 @@ const Charcoal = (() => {
     loadData();
   }
 
-  function goToday() {
-    date = kstToday();
-    loadData();
+  function goToday() { date = kstToday(); loadData(); }
+
+  function openDatePicker() {
+    const inp = document.getElementById('char-date-input');
+    if (inp) { inp.value = date; inp.showPicker ? inp.showPicker() : inp.click(); }
+  }
+
+  function setDate(val) {
+    if (val) { date = val; loadData(); }
   }
 
   function renderDateHeader() {
@@ -90,7 +72,10 @@ const Charcoal = (() => {
     const isToday = date === kstToday();
     const el = document.getElementById('char-date-header');
     if (el) el.innerHTML = `
-      <div style="font-size:16px;font-weight:700;color:#1e293b">${y}년 ${parseInt(m)}월 ${parseInt(d)}일 (${dayName})</div>
+      <div onclick="Charcoal.openDatePicker()"
+        style="font-size:16px;font-weight:700;color:#1e293b;cursor:pointer;text-decoration:underline dotted #94a3b8;user-select:none">
+        ${y}년 ${parseInt(m)}월 ${parseInt(d)}일 (${dayName})
+      </div>
       ${isToday ? '<div style="font-size:11px;color:#16a34a;font-weight:600">오늘</div>' : ''}`;
     const btn = document.getElementById('char-today-btn');
     if (btn) btn.style.display = isToday ? 'none' : '';
@@ -102,184 +87,158 @@ const Charcoal = (() => {
     if (el) el.innerHTML = '<div style="padding:24px;color:#94a3b8;text-align:center">불러오는 중...</div>';
     slotData = {};
     await Promise.all(TIMESLOTS.map(async ts => {
-      try {
-        const d = await API.get(`/api/checklist/${date}/${ts}`);
-        slotData[ts] = d || {};
-      } catch { slotData[ts] = {}; }
+      try { slotData[ts] = (await API.get(`/api/checklist/${date}/${ts}`)) || {}; }
+      catch { slotData[ts] = {}; }
     }));
     renderPanel();
   }
 
   function renderPanel() {
-    const charAll  = getChar(date);
-    const charTs   = charAll[activeSlot] || {};
-    const d        = slotData[activeSlot] || {};
+    const charAll = getChar(date);
+    const charTs  = charAll[activeSlot] || {};
+    const d       = slotData[activeSlot] || {};
 
-    // 전타임1시간 맵 (이전 타임의 extra_hour → 현재 타임 row.prev_extra_hour 대신 직접 계산)
-    const prevTsIdx = TIMESLOTS.indexOf(activeSlot) - 1;
-    const prevTs    = prevTsIdx >= 0 ? TIMESLOTS[prevTsIdx] : null;
-    const prevData  = prevTs ? (slotData[prevTs] || {}) : null;
+    // 전타임1시간 맵
+    const prevTs = TIMESLOTS[TIMESLOTS.indexOf(activeSlot) - 1];
     const prevExtraMap = {};
-    if (prevData) {
-      [...(prevData.tent4||[]), ...(prevData.tent2||[]), ...(prevData.tent8||[])].forEach(r => {
+    if (prevTs) {
+      [...(slotData[prevTs]?.tent4||[]), ...(slotData[prevTs]?.tent2||[]), ...(slotData[prevTs]?.tent8||[])].forEach(r => {
         if (r.extra_hour) prevExtraMap[r.tent_no] = r.extra_hour;
       });
     }
 
-    // 요약값 계산
-    const allRows = allRowsOf(activeSlot);
-    const extraHourNos     = allRows.filter(r => r.extra_hour).map(r => r.tent_no);
-    const prevExtraHourNos = allRows.filter(r => prevExtraMap[r.tent_no]).map(r => r.tent_no);
-    const extendTarget     = activeSlot === '11' ? '15' : activeSlot === '15' ? '19' : null;
-    const extendNos        = extendTarget
-      ? allRows.filter(r => r.two_time && String(r.two_time).includes(extendTarget)).map(r => r.tent_no)
+    // 요약 계산
+    const allRows      = allRowsOf(activeSlot);
+    const extraNos     = allRows.filter(r => r.name && r.extra_hour).map(r => r.tent_no);
+    const prevExtraNos = allRows.filter(r => r.name && prevExtraMap[r.tent_no]).map(r => r.tent_no);
+    const extendTarget = activeSlot === '11' ? '15' : activeSlot === '15' ? '19' : null;
+    const extendNos    = extendTarget
+      ? allRows.filter(r => r.name && r.two_time && String(r.two_time).includes(extendTarget)).map(r => r.tent_no)
       : [];
 
-    // 전체 주문/나감 합산
-    let totalOrdered = 0, totalDelivered = 0;
-    for (const ts of TIMESLOTS) {
-      const tc = charAll[ts] || {};
-      totalOrdered   += Object.values(tc).filter(v => v.status === 1).length;
-      totalDelivered += Object.values(tc).filter(v => v.status === 2).length;
-    }
+    // 주문/나감 통계 (현재 탭만)
+    const ordered   = Object.values(charTs).filter(v => v.status === 1).length;
+    const delivered = Object.values(charTs).filter(v => v.status === 2).length;
 
-    function row(r, sectionBg) {
+    // 테이블 행 생성
+    function tentRow(r) {
       const cs  = charTs[r.tent_no];
       const cnt = charcoalCount(r);
-      const hasBulmung = !!r.bulmung || cnt > 0;
-      const bg  = hasBulmung ? '#fff7ed' : (sectionBg || '#fff');
+      const hasBulmung = cnt > 0;
+      const bg     = hasBulmung ? '#fff7ed' : '#fff';
       const border = hasBulmung ? '2px solid #f97316' : '1px solid #e2e8f0';
+      const prevExtra = prevExtraMap[r.tent_no] || '';
 
       let badge = '';
       if (cs) {
         const color = cs.status === 1 ? '#2563eb' : '#16a34a';
         const label = cs.status === 1 ? '주문' : '나감';
-        const auto  = cs.auto ? ' <span style="font-size:8px;opacity:.7">자동</span>' : '';
-        // 단체는 개수 표시
-        const cntTxt = cnt > 1 ? ` ×${cnt}` : '';
-        badge = `<span style="margin-left:6px;background:${color};color:#fff;border-radius:4px;
-                   font-size:10px;font-weight:700;padding:1px 6px;white-space:nowrap">${cs.seq} ${label}${cntTxt}${auto}</span>`;
+        const cntTxt = cnt > 1 ? `×${cnt}` : '';
+        badge = `<span style="display:inline-block;background:${color};color:#fff;border-radius:4px;
+                   font-size:10px;font-weight:700;padding:1px 5px;margin-left:4px;white-space:nowrap">${cs.seq} ${label}${cntTxt}</span>`;
       }
-
-      // 숯 개수 힌트 (단체 상품)
-      let charcoalHint = '';
-      if (cnt > 1) {
-        charcoalHint = `<span style="font-size:10px;color:#dc2626;font-weight:700;margin-left:4px">(숯${cnt}개)</span>`;
-      }
-
-      const prevExtra = prevExtraMap[r.tent_no];
+      const charcoalHint = cnt > 1
+        ? `<span style="font-size:9px;color:#dc2626;font-weight:700;margin-left:3px">(숯${cnt})</span>` : '';
 
       return `<tr onclick="Charcoal.tapCell('${activeSlot}','${r.tent_no}')"
         style="cursor:pointer;background:${bg};border-bottom:${border}">
-        <td style="padding:6px 5px;font-size:12px;font-weight:700;color:#1d4ed8;text-align:center;white-space:nowrap">${r.tent_no}</td>
-        <td style="padding:6px 5px;font-size:13px;font-weight:600;color:#1e293b;max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
-          ${r.name || ''}
-          ${hasBulmung ? '<span style="font-size:10px">🔥</span>' : ''}
-          ${charcoalHint}
-          ${badge}
+        <td style="padding:6px 4px;font-size:12px;font-weight:700;color:#1d4ed8;text-align:center">${r.tent_no}</td>
+        <td style="padding:6px 4px;font-size:12px;font-weight:600;color:#1e293b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+          ${r.name || ''}${hasBulmung?'🔥':''}${charcoalHint}${badge}
         </td>
-        <td style="padding:6px 4px;font-size:11px;color:#374151;text-align:center;white-space:nowrap">${r.reserved||''}</td>
-        <td style="padding:6px 4px;font-size:11px;color:#374151;text-align:center;white-space:nowrap">${r.two_time||''}</td>
-        <td style="padding:6px 4px;font-size:11px;color:#374151;text-align:center;white-space:nowrap">${r.extra_hour||''}</td>
-        <td style="padding:6px 4px;font-size:11px;color:#374151;text-align:center;white-space:nowrap">${prevExtra||''}</td>
-        <td style="padding:6px 4px;font-size:11px;color:#374151;text-align:center;white-space:nowrap">${r.car||''}</td>
-        <td style="padding:6px 4px;font-size:11px;color:#64748b;max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.memo||''}</td>
+        <td style="padding:6px 4px;font-size:11px;color:#374151;text-align:center">${r.reserved||''}</td>
+        <td style="padding:6px 4px;font-size:11px;color:#374151;text-align:center">${r.two_time||''}</td>
+        <td style="padding:6px 4px;font-size:11px;color:#374151;text-align:center">${r.extra_hour||''}</td>
+        <td style="padding:6px 4px;font-size:11px;color:#374151;text-align:center">${prevExtra}</td>
+        <td style="padding:6px 4px;font-size:12px;color:#374151;text-align:center;word-break:break-all">${r.car||''}</td>
+        <td style="padding:6px 4px;font-size:11px;color:#64748b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.memo||''}</td>
       </tr>`;
     }
 
-    function sep(label) {
-      return `<tr><td colspan="8" style="padding:2px 4px;font-size:10px;font-weight:700;color:#94a3b8;
-                background:#f8fafc;border-top:1px solid #e2e8f0;border-bottom:1px solid #e2e8f0">${label}</td></tr>`;
+    // 선만 있는 구분행
+    const divRow = `<tr><td colspan="8" style="padding:0;height:3px;background:#e2e8f0;border:none"></td></tr>`;
+
+    // tent8: G와 H 사이 구분
+    function buildT8Rows(tent8) {
+      const named = tent8.filter(r => r.name && r.tent_no !== '티켓');
+      const beforeH = named.filter(r => ['A','B','C','D','E','F','G'].includes(r.tent_no));
+      const afterH  = named.filter(r => !['A','B','C','D','E','F','G'].includes(r.tent_no));
+      const rows = [];
+      if (beforeH.length) rows.push(...beforeH.map(tentRow));
+      if (beforeH.length && afterH.length) rows.push(divRow);
+      if (afterH.length) rows.push(...afterH.map(tentRow));
+      return rows.join('');
     }
 
     const t4 = (d.tent4 || []).filter(r => r.name);
     const t2 = (d.tent2 || []).filter(r => r.name);
-    const t8 = (d.tent8 || []).filter(r => r.name && r.tent_no !== '티켓');
-    const t4NoName = (d.tent4 || []).filter(r => !r.name);
-    const t2NoName = (d.tent2 || []).filter(r => !r.name);
-    const t8NoName = (d.tent8 || []).filter(r => !r.name && r.tent_no !== '티켓');
-
-    // G와 H 사이 구분 (tent8 내 G 다음 H 앞)
-    const t8WithSep = [];
-    for (const r of [...t8, ...t8NoName]) {
-      t8WithSep.push(r);
-    }
-
-    const hasAny = t4.length > 0 || t2.length > 0 || t8.length > 0;
-
-    // 순서: 0~5 / 6~11 / A~G / H~S
-    // 각 섹션 내 이름 있는 것 먼저, 없는 것(빈 행) 생략 or 표시 - 여기선 이름 있는 것만
-    function buildT8Rows() {
-      const beforeH = (d.tent8 || []).filter(r => r.tent_no !== '티켓' && ['A','B','C','D','E','F','G'].includes(r.tent_no) && r.name);
-      const afterH  = (d.tent8 || []).filter(r => r.tent_no !== '티켓' && !['A','B','C','D','E','F','G'].includes(r.tent_no) && r.name);
-      const rows = [];
-      if (beforeH.length) rows.push(...beforeH.map(r => row(r)));
-      if (beforeH.length && afterH.length) rows.push(sep('── H텐트 이후'));
-      if (afterH.length) rows.push(...afterH.map(r => row(r)));
-      return rows.join('');
-    }
+    const t8 = d.tent8 || [];
+    const hasAny = t4.length || t2.length || t8.some(r => r.name && r.tent_no !== '티켓');
 
     const tableHTML = hasAny ? `
-      <table style="width:100%;border-collapse:collapse;table-layout:fixed">
-        <colgroup>
-          <col style="width:32px"><col><col style="width:36px"><col style="width:48px">
-          <col style="width:44px"><col style="width:52px"><col style="width:48px"><col style="width:80px">
-        </colgroup>
-        <thead>
-          <tr style="background:#f8fafc;border-bottom:2px solid #e2e8f0">
-            <th style="padding:5px 4px;font-size:10px;color:#64748b;text-align:center">번호</th>
-            <th style="padding:5px 4px;font-size:10px;color:#64748b;text-align:left">이름</th>
-            <th style="padding:5px 4px;font-size:10px;color:#64748b;text-align:center">예약</th>
-            <th style="padding:5px 4px;font-size:10px;color:#64748b;text-align:center">2타임</th>
-            <th style="padding:5px 4px;font-size:10px;color:#64748b;text-align:center">1시간+</th>
-            <th style="padding:5px 4px;font-size:10px;color:#64748b;text-align:center">전타임1시간</th>
-            <th style="padding:5px 4px;font-size:10px;color:#64748b;text-align:center">차량</th>
-            <th style="padding:5px 4px;font-size:10px;color:#64748b;text-align:left">메모</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${t4.length ? t4.map(r => row(r)).join('') : ''}
-          ${t4.length && (t2.length || t8.length) ? sep('── 6번 텐트 이후') : ''}
-          ${t2.length ? t2.map(r => row(r)).join('') : ''}
-          ${t2.length && t8.length ? sep('── A텐트 이후') : ''}
-          ${buildT8Rows()}
-        </tbody>
-      </table>` : '<div style="color:#94a3b8;font-size:14px;padding:24px;text-align:center">이 타임에 데이터가 없습니다</div>';
-
-    const summaryHTML = `
-      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
-        ${prevExtraHourNos.length ? `<div style="padding:3px 8px;background:#fef9c3;border:1px solid #fde047;border-radius:6px;font-size:11px;font-weight:700;color:#854d0e">
-          전타임1시간: ${prevExtraHourNos.join(' ')}</div>` : ''}
-        ${extraHourNos.length ? `<div style="padding:3px 8px;background:#fef2f2;border:1px solid #fca5a5;border-radius:6px;font-size:11px;font-weight:700;color:#dc2626">
-          1시간추가: ${extraHourNos.join(' ')}</div>` : ''}
-        ${extendNos.length ? `<div style="padding:3px 8px;background:#eff6ff;border:1px solid #93c5fd;border-radius:6px;font-size:11px;font-weight:700;color:#1d4ed8">
-          연장텐트: ${extendNos.join(' ')}</div>` : ''}
-      </div>`;
+      <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;table-layout:fixed">
+          <colgroup>
+            <col style="width:32px">
+            <col style="width:90px">
+            <col style="width:32px">
+            <col style="width:42px">
+            <col style="width:36px">
+            <col style="width:46px">
+            <col style="width:180px">
+            <col>
+          </colgroup>
+          <thead>
+            <tr style="background:#f8fafc;border-bottom:2px solid #e2e8f0">
+              <th style="padding:5px 4px;font-size:10px;color:#64748b;text-align:center">번호</th>
+              <th style="padding:5px 4px;font-size:10px;color:#64748b;text-align:left">이름</th>
+              <th style="padding:5px 4px;font-size:10px;color:#64748b;text-align:center">예약</th>
+              <th style="padding:5px 4px;font-size:10px;color:#64748b;text-align:center">2타임</th>
+              <th style="padding:5px 4px;font-size:10px;color:#64748b;text-align:center">1시간+</th>
+              <th style="padding:5px 4px;font-size:10px;color:#64748b;text-align:center">전타임1시간</th>
+              <th style="padding:5px 4px;font-size:10px;color:#64748b;text-align:center">차량</th>
+              <th style="padding:5px 4px;font-size:10px;color:#64748b;text-align:left">메모</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${t4.length ? t4.map(tentRow).join('') : ''}
+            ${t4.length && (t2.length || t8.some(r=>r.name&&r.tent_no!=='티켓')) ? divRow : ''}
+            ${t2.length ? t2.map(tentRow).join('') : ''}
+            ${t2.length && t8.some(r=>r.name&&r.tent_no!=='티켓') ? divRow : ''}
+            ${buildT8Rows(t8)}
+          </tbody>
+        </table>
+      </div>` : '<div style="color:#94a3b8;font-size:14px;padding:24px;text-align:center">이 타임에 데이터가 없습니다</div>';
 
     const el = document.getElementById('char-panel');
     if (!el) return;
     el.innerHTML = `
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
-        <span style="font-size:12px;color:#f97316;font-weight:600">🔥 불멍</span>
-        <span style="font-size:12px;padding:2px 8px;background:#dbeafe;color:#1d4ed8;border-radius:4px;font-weight:600">주문 ${totalOrdered}건</span>
-        <span style="font-size:12px;padding:2px 8px;background:#dcfce7;color:#16a34a;border-radius:4px;font-weight:600">나감 ${totalDelivered}건</span>
-        <span style="font-size:12px;color:#94a3b8">1탭=주문 · 2탭=나감 · 3탭=초기화</span>
+      <!-- 요약 -->
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
+        ${prevExtraNos.length ? `<div style="padding:4px 10px;background:#fef9c3;border:1px solid #fde047;border-radius:6px;font-size:12px;font-weight:700;color:#854d0e">전타임1시간 ${prevExtraNos.join(' ')}</div>` : ''}
+        ${extraNos.length    ? `<div style="padding:4px 10px;background:#fef2f2;border:1px solid #fca5a5;border-radius:6px;font-size:12px;font-weight:700;color:#dc2626">1시간추가 ${extraNos.join(' ')}</div>` : ''}
+        ${extendNos.length   ? `<div style="padding:4px 10px;background:#eff6ff;border:1px solid #93c5fd;border-radius:6px;font-size:12px;font-weight:700;color:#1d4ed8">연장텐트 ${extendNos.join(' ')}</div>` : ''}
       </div>
-      <div style="display:flex;gap:0;margin-bottom:10px;border-bottom:2px solid #e2e8f0">
+      <!-- 주문/나감 + 타임 탭 -->
+      <div style="display:flex;align-items:center;gap:0;margin-bottom:10px;border-bottom:2px solid #e2e8f0">
         ${TIMESLOTS.map(ts => {
           const tc = charAll[ts] || {};
           const cnt = Object.keys(tc).length;
           const isActive = ts === activeSlot;
           return `<button onclick="Charcoal.switchSlot('${ts}')"
-            style="padding:8px 16px;border:none;border-bottom:3px solid ${isActive?'#1d4ed8':'transparent'};
+            style="padding:8px 14px;border:none;border-bottom:3px solid ${isActive?'#1d4ed8':'transparent'};
                    background:transparent;font-size:13px;font-weight:${isActive?700:500};
                    color:${isActive?'#1d4ed8':'#64748b'};cursor:pointer">
-            ${TS_LABEL[ts]}${cnt ? ` <span style="font-size:10px;background:#f1f5f9;border-radius:8px;padding:1px 5px">${cnt}</span>` : ''}
+            ${TS_LABEL[ts]}${cnt?` <span style="font-size:10px;background:#f1f5f9;border-radius:8px;padding:1px 5px">${cnt}</span>`:''}
           </button>`;
         }).join('')}
+        <div style="margin-left:auto;display:flex;gap:8px;align-items:center;padding-right:4px">
+          <span style="font-size:11px;padding:2px 7px;background:#dbeafe;color:#1d4ed8;border-radius:4px;font-weight:600">주문 ${ordered}</span>
+          <span style="font-size:11px;padding:2px 7px;background:#dcfce7;color:#16a34a;border-radius:4px;font-weight:600">나감 ${delivered}</span>
+          <span style="font-size:11px;color:#94a3b8">1탭=주문 · 2탭=나감 · 3탭=초기화</span>
+        </div>
       </div>
-      ${summaryHTML}
-      <div style="overflow-x:auto">${tableHTML}</div>`;
+      ${tableHTML}`;
   }
 
   async function render() {
@@ -293,11 +252,14 @@ const Charcoal = (() => {
             style="padding:6px 12px;border:1px solid #e2e8f0;border-radius:6px;background:#fff;cursor:pointer;font-size:14px">▶</button>
           <button id="char-today-btn" onclick="Charcoal.goToday()"
             style="padding:6px 10px;border:1px solid #22c55e;border-radius:6px;background:#f0fdf4;color:#16a34a;font-size:12px;font-weight:600;cursor:pointer;display:none">오늘</button>
+          <input type="date" id="char-date-input"
+            style="position:absolute;opacity:0;pointer-events:none;width:0;height:0"
+            onchange="Charcoal.setDate(this.value)">
         </div>
         <div id="char-panel"><div style="padding:24px;color:#94a3b8;text-align:center">불러오는 중...</div></div>
       </div>`;
     await loadData();
   }
 
-  return { render, tapCell, switchSlot, moveDate, goToday };
+  return { render, tapCell, switchSlot, moveDate, goToday, openDatePicker, setDate };
 })();
