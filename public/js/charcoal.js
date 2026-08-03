@@ -182,7 +182,7 @@ const Charcoal = (() => {
         <table style="width:100%;border-collapse:collapse;table-layout:fixed">
           <colgroup>
             <col style="width:24px">
-            <col style="width:110px">
+            <col style="width:130px">
             <col style="width:36px">
             <col style="width:24px">
             <col style="width:40px">
