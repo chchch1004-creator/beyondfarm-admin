@@ -209,6 +209,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function initPullToRefresh() {
   const main = document.getElementById('main');
+  const content = document.getElementById('content');
   const indicator = document.getElementById('pull-indicator');
   const pullIcon = document.getElementById('pull-icon');
   const pullText = document.getElementById('pull-text');
@@ -219,7 +220,7 @@ function initPullToRefresh() {
   const THRESHOLD = 70;
 
   main.addEventListener('touchstart', e => {
-    if (main.scrollTop === 0) {
+    if ((content || main).scrollTop === 0) {
       startY = e.touches[0].clientY;
       pulling = true;
     }
