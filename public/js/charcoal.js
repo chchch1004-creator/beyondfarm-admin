@@ -115,7 +115,7 @@ const Charcoal = (() => {
     const extendNos    = extendTarget
       ? allRows.filter(r => r.name && r.two_time && String(r.two_time).includes(extendTarget)).map(r => r.tent_no)
       : [];
-    const bulmungCount = allRows.filter(r => r.name && charcoalCount(r) > 0).reduce((s, r) => s + charcoalCount(r), 0);
+    const bulmungCount = allRows.filter(r => r.name && r.bulmung).length;
 
     // 주문/나감 통계 (현재 탭만)
     const ordered   = Object.values(charTs).filter(v => v.status === 1).length;
@@ -144,8 +144,10 @@ const Charcoal = (() => {
       return `<tr onclick="Charcoal.tapCell('${activeSlot}','${r.tent_no}')"
         style="cursor:pointer;background:${bg};border-bottom:${border}">
         <td style="padding:4px 3px;font-size:11px;font-weight:700;color:#1d4ed8;text-align:center">${r.tent_no}</td>
-        <td style="padding:4px 3px;font-size:12px;font-weight:600;color:#1e293b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
-          ${r.name || ''}${hasBulmung?'🔥':''}${charcoalHint}${badge}
+        <td style="padding:4px 3px;font-size:12px;font-weight:600;color:#1e293b;word-break:break-word">
+          <div style="display:flex;flex-wrap:wrap;align-items:center;gap:2px">
+            <span>${r.name || ''}${hasBulmung?'🔥':''}</span>${charcoalHint}${badge}
+          </div>
         </td>
         <td style="padding:4px 3px;font-size:11px;color:#374151;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.bulmung||''}</td>
         <td style="padding:4px 3px;font-size:11px;color:#374151;text-align:center">${r.reserved||''}</td>
