@@ -202,7 +202,7 @@ const Charcoal = (() => {
             <col style="width:36px">
             <col style="width:24px">
             <col style="width:40px">
-            <col style="width:28px">
+            <col style="width:36px">
             <col style="width:38px">
             <col style="width:250px">
             <col>
@@ -214,7 +214,7 @@ const Charcoal = (() => {
               <th style="padding:5px 3px;font-size:10px;color:#64748b;text-align:center">불멍</th>
               <th style="padding:5px 3px;font-size:10px;color:#64748b;text-align:center">예약</th>
               <th style="padding:5px 3px;font-size:10px;color:#64748b;text-align:center">2타임</th>
-              <th style="padding:5px 3px;font-size:10px;color:#64748b;text-align:center">1시간+</th>
+              <th style="padding:5px 3px;font-size:10px;color:#64748b;text-align:center">시간연장</th>
               <th style="padding:5px 3px;font-size:10px;color:#64748b;text-align:center">전타임1시간</th>
               <th style="padding:5px 3px;font-size:10px;color:#64748b;text-align:center">차량</th>
               <th style="padding:5px 3px;font-size:10px;color:#64748b;text-align:left">메모</th>
