@@ -215,15 +215,21 @@ function initPullToRefresh() {
   const pullText = document.getElementById('pull-text');
   if (!main || !indicator) return;
 
+  const scroller = content || main;
   let startY = 0;
   let pulling = false;
+  let blocked = false; // 이번 제스처에서 스크롤이 일어난 적 있으면 PTR 차단
   const THRESHOLD = 70;
 
+  // 스크롤 중 scrollTop > 0이 되면 이 제스처에선 PTR 불가
+  scroller.addEventListener('scroll', () => {
+    if (scroller.scrollTop > 0) blocked = true;
+  }, { passive: true });
+
   main.addEventListener('touchstart', e => {
-    if ((content || main).scrollTop === 0) {
-      startY = e.touches[0].clientY;
-      pulling = true;
-    }
+    blocked = scroller.scrollTop > 0; // 이미 내려가 있으면 차단
+    startY = e.touches[0].clientY;
+    pulling = !blocked;
   }, { passive: true });
 
   main.addEventListener('touchmove', e => {
@@ -243,7 +249,7 @@ function initPullToRefresh() {
   }, { passive: true });
 
   main.addEventListener('touchend', e => {
-    if (!pulling) return;
+    if (!pulling) { indicator.style.display = 'none'; return; }
     pulling = false;
     const dist = e.changedTouches[0].clientY - startY;
     if (dist >= THRESHOLD) {
