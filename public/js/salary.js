@@ -13,7 +13,9 @@ const Salary = {
         this.employees = await API.get('/api/employees');
         this.departments = [...new Set(this.employees.filter(e=>e.department).map(e=>e.department))].sort();
       }
-      this.data = await API.get(`/api/salary?year=${now.getFullYear()}`);
+      // 현재 월 자동 동기화
+      try { await API.post('/api/salary/sync-from-timesheet', { year: now.getFullYear(), month: now.getMonth()+1 }); } catch {}
+      this.data = await API.get(`/api/salary?year=${now.getFullYear()}&month=${now.getMonth()+1}`);
 
       content.innerHTML = `
         <div class="card">
@@ -77,10 +79,16 @@ const Salary = {
   },
 
   async reload() {
-    const year = Utils.val('sal-year') || new Date().getFullYear();
+    const year = parseInt(Utils.val('sal-year') || new Date().getFullYear());
     const month = document.getElementById('sal-month')?.value || '';
     const userId = document.getElementById('sal-user')?.value || '';
     const dept = document.getElementById('sal-dept')?.value || '';
+
+    // 특정 월이 선택된 경우 자동으로 근무표와 동기화
+    if (month) {
+      try { await API.post('/api/salary/sync-from-timesheet', { year, month: parseInt(month) }); } catch {}
+    }
+
     let url = `/api/salary?year=${year}`;
     if (month) url += `&month=${month}`;
     if (userId) url += `&user_id=${userId}`;
