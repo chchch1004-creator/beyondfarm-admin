@@ -149,7 +149,8 @@ const Checklist = (() => {
     const allRows = [...(d.tent4||[]), ...(d.tent2||[]), ...(d.tent8||[]), ...(d.extra||[])];
     const num = v => parseInt(v) || 0;
     let bulmung=0, play=0, child=0, adult=0, cntS=0, cntM=0, cntL=0, cnt20=0, cnt30=0;
-    const extraHourNos = [];
+    const extraHourNos1 = [];
+    const extraHourNos2 = [];
     const prevExtraHourNos = [];
     const extendNos = [];
     const extendTarget = timeslot === '11' ? '15' : timeslot === '15' ? '19' : null;
@@ -168,7 +169,8 @@ const Checklist = (() => {
       else if (p === 'l') cntL++;
       else if (p === '단체20' || p === '단체 20') cnt20++;
       else if (p === '단체30' || p === '단체 30') cnt30++;
-      if (r.extra_hour) extraHourNos.push(r.tent_no);
+      if (r.extra_hour === '1') extraHourNos1.push(r.tent_no);
+      else if (r.extra_hour === '2') extraHourNos2.push(r.tent_no);
       if (r.prev_extra_hour) prevExtraHourNos.push(r.tent_no);
       if (extendTarget && r.two_time && String(r.two_time).includes(extendTarget))
         extendNos.push(r.tent_no);
@@ -187,14 +189,15 @@ const Checklist = (() => {
     d.summary.total          = (cntS + cntM + cntL + cnt20 + cnt30) || '';
     d.summary.ticket         = ticket || '';
     d.summary.prev_extra_hour_nos = prevExtraHourNos.join(' ') || '';
-    d.summary.extra_hour_nos      = extraHourNos.join(' ') || '';
+    d.summary.extra_hour_nos_1    = extraHourNos1.join(' ') || '';
+    d.summary.extra_hour_nos_2    = extraHourNos2.join(' ') || '';
     d.summary.extend_nos          = extendNos.join(' ') || '';
   }
 
   function pushSummaryToDOM(s) {
     ['bulmung_count','play_count','child_pool','adult_pool','total_pool',
      'tent2','tent4','tent8','group20','group30','total','ticket',
-     'prev_extra_hour_nos','extra_hour_nos','extend_nos'].forEach(k => {
+     'prev_extra_hour_nos','extra_hour_nos_1','extra_hour_nos_2','extend_nos'].forEach(k => {
       const el = document.getElementById(`cl-sum-${k}`);
       if (el) el.textContent = s[k] || '-';
     });
@@ -497,7 +500,11 @@ const Checklist = (() => {
           </div>
           <div style="flex:1;min-width:0">
             <div style="font-size:9px;color:#dc2626;font-weight:600;white-space:nowrap">1시간추가</div>
-            <div id="cl-sum-extra_hour_nos" style="padding:2px 4px;background:#fef2f2;border:1px solid #fca5a5;border-radius:3px;font-size:11px;font-weight:700;color:#dc2626;word-break:break-all;line-height:1.3">${s.extra_hour_nos||'-'}</div>
+            <div id="cl-sum-extra_hour_nos_1" style="padding:2px 4px;background:#fef2f2;border:1px solid #fca5a5;border-radius:3px;font-size:11px;font-weight:700;color:#dc2626;word-break:break-all;line-height:1.3">${s.extra_hour_nos_1||'-'}</div>
+          </div>
+          <div style="flex:0.5;min-width:0">
+            <div style="font-size:9px;color:#9333ea;font-weight:600;white-space:nowrap">2시간추가</div>
+            <div id="cl-sum-extra_hour_nos_2" style="padding:2px 4px;background:#faf5ff;border:1px solid #d8b4fe;border-radius:3px;font-size:11px;font-weight:700;color:#9333ea;word-break:break-all;line-height:1.3">${s.extra_hour_nos_2||'-'}</div>
           </div>
           <div style="flex:1;min-width:0">
             <div style="font-size:9px;color:#2563eb;font-weight:600;white-space:nowrap">연장텐트</div>
@@ -749,7 +756,8 @@ const Checklist = (() => {
           </div>
           <div style="margin-left:auto;display:flex;gap:6px">
             ${sumItem('전타임1시간','prev_extra_hour_nos', 110)}
-            ${sumItem('1시간추가','extra_hour_nos', 110)}
+            ${sumItem('1시간추가','extra_hour_nos_1', 110)}
+            ${sumItem('2시간추가','extra_hour_nos_2', 55)}
             ${sumItem('연장텐트','extend_nos', 110)}
           </div>
         </div>
@@ -834,6 +842,17 @@ const Checklist = (() => {
         }
         if (!E) return `<td style="text-align:center;padding:4px 3px;${baseStyle}">${val}</td>`;
         if (c.readOnly) return `<td style="text-align:center;padding:4px 3px;${baseStyle}font-size:12px;color:#374151;">${val}</td>`;
+        if (c.key === 'extra_hour') return `<td id="td-${section}-${idx}-extra_hour" style="padding:2px 2px;${baseStyle}">
+          <select data-section="${section}" data-idx="${idx}" data-field="extra_hour"
+            onfocus="Checklist.onRowFocus(this)"
+            onchange="Checklist.onRowInput(this)"
+            style="width:100%;box-sizing:border-box;border:1px solid #e2e8f0;border-radius:3px;
+                   padding:3px 1px;font-size:12px;text-align:center;background:transparent">
+            <option value=""></option>
+            <option value="1"${val==='1'?' selected':''}>1</option>
+            <option value="2"${val==='2'?' selected':''}>2</option>
+          </select>
+        </td>`;
         return `<td id="td-${section}-${idx}-${c.key}" style="padding:2px 2px;${baseStyle}">
           <input type="text" value="${String(val).replace(/"/g,'&quot;')}"
             data-section="${section}" data-idx="${idx}" data-field="${c.key}"
