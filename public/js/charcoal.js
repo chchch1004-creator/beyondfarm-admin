@@ -115,6 +115,7 @@ const Charcoal = (() => {
     const extendNos    = extendTarget
       ? allRows.filter(r => r.name && r.two_time && String(r.two_time).includes(extendTarget)).map(r => r.tent_no)
       : [];
+    const bulmungCount = allRows.filter(r => r.name && charcoalCount(r) > 0).reduce((s, r) => s + charcoalCount(r), 0);
 
     // 주문/나감 통계 (현재 탭만)
     const ordered   = Object.values(charTs).filter(v => v.status === 1).length;
@@ -185,8 +186,8 @@ const Charcoal = (() => {
             <col style="width:42px">
             <col style="width:36px">
             <col style="width:46px">
-            <col style="width:180px">
-            <col>
+            <col style="width:360px">
+            <col style="width:60px">
           </colgroup>
           <thead>
             <tr style="background:#f8fafc;border-bottom:2px solid #e2e8f0">
@@ -213,11 +214,12 @@ const Charcoal = (() => {
     const el = document.getElementById('char-panel');
     if (!el) return;
     el.innerHTML = `
-      <!-- 요약 -->
-      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
-        ${prevExtraNos.length ? `<div style="padding:4px 10px;background:#fef9c3;border:1px solid #fde047;border-radius:6px;font-size:12px;font-weight:700;color:#854d0e">전타임1시간 ${prevExtraNos.join(' ')}</div>` : ''}
-        ${extraNos.length    ? `<div style="padding:4px 10px;background:#fef2f2;border:1px solid #fca5a5;border-radius:6px;font-size:12px;font-weight:700;color:#dc2626">1시간추가 ${extraNos.join(' ')}</div>` : ''}
-        ${extendNos.length   ? `<div style="padding:4px 10px;background:#eff6ff;border:1px solid #93c5fd;border-radius:6px;font-size:12px;font-weight:700;color:#1d4ed8">연장텐트 ${extendNos.join(' ')}</div>` : ''}
+      <!-- 요약 (항상 표시) -->
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;padding:8px 10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px">
+        <div style="padding:4px 10px;background:#fff7ed;border:1px solid #f97316;border-radius:6px;font-size:12px;font-weight:700;color:#c2410c">🔥 불멍 ${bulmungCount || '-'}</div>
+        <div style="padding:4px 10px;background:#fef9c3;border:1px solid #fde047;border-radius:6px;font-size:12px;font-weight:700;color:#854d0e">전타임1시간 ${prevExtraNos.join(' ') || '-'}</div>
+        <div style="padding:4px 10px;background:#fef2f2;border:1px solid #fca5a5;border-radius:6px;font-size:12px;font-weight:700;color:#dc2626">1시간추가 ${extraNos.join(' ') || '-'}</div>
+        <div style="padding:4px 10px;background:#eff6ff;border:1px solid #93c5fd;border-radius:6px;font-size:12px;font-weight:700;color:#1d4ed8">연장텐트 ${extendNos.join(' ') || '-'}</div>
       </div>
       <!-- 주문/나감 + 타임 탭 -->
       <div style="display:flex;align-items:center;gap:0;margin-bottom:10px;border-bottom:2px solid #e2e8f0">
