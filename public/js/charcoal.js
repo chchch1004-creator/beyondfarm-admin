@@ -23,7 +23,8 @@ const Charcoal = (() => {
     return 0;
   }
 
-  // 탭: 없음→주문→나감→초기화 (타임슬롯 독립)
+  // 탭: 없음→주문→나감→초기화
+  // 나감(status=2)이 되면 2타임 예약 텐트의 다음 타임도 자동 나감
   function tapCell(timeslot, tentNo) {
     const data = getChar(date);
     if (!data[timeslot]) data[timeslot] = {};
@@ -33,6 +34,19 @@ const Charcoal = (() => {
       data[timeslot][tentNo] = { status: 1, seq: maxSeq + 1 };
     } else if (cur.status === 1) {
       data[timeslot][tentNo] = { ...cur, status: 2 };
+      // 2타임 예약이면 다음 타임도 나감
+      const nextTs = TIMESLOTS[TIMESLOTS.indexOf(timeslot) + 1];
+      if (nextTs) {
+        const row = allRowsOf(timeslot).find(r => r.tent_no === tentNo);
+        if (row && row.two_time && String(row.two_time).includes(nextTs)) {
+          if (!data[nextTs]) data[nextTs] = {};
+          if (!data[nextTs][tentNo]) {
+            data[nextTs][tentNo] = { status: 2, seq: cur.seq };
+          } else {
+            data[nextTs][tentNo] = { ...data[nextTs][tentNo], status: 2 };
+          }
+        }
+      }
     } else {
       delete data[timeslot][tentNo];
     }
@@ -184,7 +198,7 @@ const Charcoal = (() => {
         <table style="width:100%;border-collapse:collapse;table-layout:fixed">
           <colgroup>
             <col style="width:24px">
-            <col style="width:130px">
+            <col style="width:150px">
             <col style="width:36px">
             <col style="width:24px">
             <col style="width:40px">
