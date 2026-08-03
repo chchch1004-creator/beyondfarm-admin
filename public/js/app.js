@@ -228,7 +228,7 @@ function initPullToRefresh() {
   main.addEventListener('touchmove', e => {
     if (!pulling) return;
     const dist = e.touches[0].clientY - startY;
-    if (dist <= 0) { indicator.style.display = 'none'; return; }
+    if (dist <= 0) { indicator.style.display = 'none'; pulling = false; return; }
     if (dist > 10) {
       indicator.style.display = 'flex';
       if (dist >= THRESHOLD) {
