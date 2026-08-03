@@ -143,21 +143,22 @@ const Charcoal = (() => {
 
       return `<tr onclick="Charcoal.tapCell('${activeSlot}','${r.tent_no}')"
         style="cursor:pointer;background:${bg};border-bottom:${border}">
-        <td style="padding:6px 4px;font-size:12px;font-weight:700;color:#1d4ed8;text-align:center">${r.tent_no}</td>
-        <td style="padding:6px 4px;font-size:12px;font-weight:600;color:#1e293b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+        <td style="padding:4px 3px;font-size:11px;font-weight:700;color:#1d4ed8;text-align:center">${r.tent_no}</td>
+        <td style="padding:4px 3px;font-size:12px;font-weight:600;color:#1e293b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
           ${r.name || ''}${hasBulmung?'🔥':''}${charcoalHint}${badge}
         </td>
-        <td style="padding:6px 4px;font-size:11px;color:#374151;text-align:center">${r.reserved||''}</td>
-        <td style="padding:6px 4px;font-size:11px;color:#374151;text-align:center">${r.two_time||''}</td>
-        <td style="padding:6px 4px;font-size:11px;color:#374151;text-align:center">${r.extra_hour||''}</td>
-        <td style="padding:6px 4px;font-size:11px;color:#374151;text-align:center">${prevExtra}</td>
-        <td style="padding:6px 4px;font-size:12px;color:#374151;text-align:center;word-break:break-all">${r.car||''}</td>
-        <td style="padding:6px 4px;font-size:11px;color:#64748b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.memo||''}</td>
+        <td style="padding:4px 3px;font-size:11px;color:#374151;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.bulmung||''}</td>
+        <td style="padding:4px 3px;font-size:11px;color:#374151;text-align:center">${r.reserved||''}</td>
+        <td style="padding:4px 3px;font-size:11px;color:#374151;text-align:center">${r.two_time||''}</td>
+        <td style="padding:4px 3px;font-size:11px;color:#374151;text-align:center">${r.extra_hour||''}</td>
+        <td style="padding:4px 3px;font-size:11px;color:#374151;text-align:center">${prevExtra}</td>
+        <td style="padding:4px 3px;font-size:11px;color:#374151;text-align:center;word-break:break-all">${r.car||''}</td>
+        <td style="padding:4px 3px;font-size:11px;color:#64748b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.memo||''}</td>
       </tr>`;
     }
 
     // 선만 있는 구분행
-    const divRow = `<tr><td colspan="8" style="padding:0;height:3px;background:#e2e8f0;border:none"></td></tr>`;
+    const divRow = `<tr><td colspan="9" style="padding:0;height:3px;background:#e2e8f0;border:none"></td></tr>`;
 
     // tent8: G와 H 사이 구분
     function buildT8Rows(tent8) {
@@ -180,25 +181,27 @@ const Charcoal = (() => {
       <div style="overflow-x:auto">
         <table style="width:100%;border-collapse:collapse;table-layout:fixed">
           <colgroup>
-            <col style="width:32px">
+            <col style="width:24px">
             <col style="width:90px">
-            <col style="width:32px">
-            <col style="width:42px">
             <col style="width:36px">
-            <col style="width:46px">
-            <col style="width:360px">
-            <col style="width:60px">
+            <col style="width:24px">
+            <col style="width:32px">
+            <col style="width:28px">
+            <col style="width:38px">
+            <col style="width:110px">
+            <col>
           </colgroup>
           <thead>
             <tr style="background:#f8fafc;border-bottom:2px solid #e2e8f0">
-              <th style="padding:5px 4px;font-size:10px;color:#64748b;text-align:center">번호</th>
-              <th style="padding:5px 4px;font-size:10px;color:#64748b;text-align:left">이름</th>
-              <th style="padding:5px 4px;font-size:10px;color:#64748b;text-align:center">예약</th>
-              <th style="padding:5px 4px;font-size:10px;color:#64748b;text-align:center">2타임</th>
-              <th style="padding:5px 4px;font-size:10px;color:#64748b;text-align:center">1시간+</th>
-              <th style="padding:5px 4px;font-size:10px;color:#64748b;text-align:center">전타임1시간</th>
-              <th style="padding:5px 4px;font-size:10px;color:#64748b;text-align:center">차량</th>
-              <th style="padding:5px 4px;font-size:10px;color:#64748b;text-align:left">메모</th>
+              <th style="padding:5px 3px;font-size:10px;color:#64748b;text-align:center">번호</th>
+              <th style="padding:5px 3px;font-size:10px;color:#64748b;text-align:left">이름</th>
+              <th style="padding:5px 3px;font-size:10px;color:#64748b;text-align:center">불멍</th>
+              <th style="padding:5px 3px;font-size:10px;color:#64748b;text-align:center">예약</th>
+              <th style="padding:5px 3px;font-size:10px;color:#64748b;text-align:center">2타임</th>
+              <th style="padding:5px 3px;font-size:10px;color:#64748b;text-align:center">1시간+</th>
+              <th style="padding:5px 3px;font-size:10px;color:#64748b;text-align:center">전타임1시간</th>
+              <th style="padding:5px 3px;font-size:10px;color:#64748b;text-align:center">차량</th>
+              <th style="padding:5px 3px;font-size:10px;color:#64748b;text-align:left">메모</th>
             </tr>
           </thead>
           <tbody>
