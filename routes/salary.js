@@ -94,12 +94,14 @@ router.post('/sync-from-timesheet', requireAdmin, async (req, res) => {
       const adj = adjRow?.adj || 0;   // 상여
       const adj1 = adjRow?.adj1 || 0; // 조정
 
-      const netPay = Math.round(totalHours * (emp.hourly_rate || 0) + adj * 10000 + adj1 * 10000);
-      const bonus = Math.round(adj * 10000);
-      const tax = Math.round(netPay * 0.03);
-      const localTax = Math.round(netPay * 0.003);
+      // 근무표와 동일한 계산식: 시급*시간 + 상여 + 조정 = 세전 총급여
+      const grossPay = Math.round(totalHours * (emp.hourly_rate || 0) + adj * 10000 + adj1 * 10000);
+      const bonus = Math.round(adj * 10000); // 표시용
+      const tax = Math.round(grossPay * 0.03);
+      const localTax = Math.round(grossPay * 0.003);
       const deduction = tax + localTax;
-      const salaryNetPay = netPay + bonus - deduction;
+      const salaryNetPay = grossPay - deduction; // 근무표 transfer와 동일
+      const netPay = grossPay; // base_salary에 저장할 세전 총액
 
       if (netPay === 0 && bonus === 0) continue;
 
