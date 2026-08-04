@@ -66,15 +66,17 @@ router.post('/upload', requireAdmin, upload.single('file'), async (req, res) => 
 
     // 컬럼명 매핑 (페이히어 엑셀 형식)
     const COL_SKU = 'SKU';
-    const COL_QTY = '가용 재고';   // 페이히어 엑셀 실제 컬럼명
     const COL_NAME = '상품명';
     const COL_CAT = '카테고리';
     const COL_BARCODE = '바코드';
     const COL_PRICE = '판매가';
     const COL_THRESHOLD = '안전재고';
+    // 파일 형식 자동 감지: RETAIL 파일(가용 재고) vs 입고양식(기존 수량)
+    const firstRow = rows[0] || {};
+    const COL_QTY = '가용 재고' in firstRow ? '가용 재고' : '기존 수량';
 
-    if (!rows.length || !(COL_SKU in rows[0])) {
-      return res.status(400).json({ error: '페이히어 재고 엑셀 형식이 아닙니다. (SKU, 상품명, 기존 수량 컬럼 필요)' });
+    if (!rows.length || !(COL_SKU in firstRow)) {
+      return res.status(400).json({ error: '페이히어 재고 엑셀 형식이 아닙니다. (SKU, 상품명 컬럼 필요)' });
     }
 
     const kst = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
