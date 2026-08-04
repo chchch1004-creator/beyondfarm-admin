@@ -87,12 +87,12 @@ router.post('/upload', requireAdmin, upload.single('file'), async (req, res) => 
       const name = String(row[COL_NAME] || '').trim();
       if (!sku || !name) continue;
 
-      const stockQty = parseFloat(row[COL_QTY]) || 0;
+      const stockQty = Math.max(0, parseFloat(row[COL_QTY]) || 0);
       const category = String(row[COL_CAT] || '').trim();
       const barcode = String(row[COL_BARCODE] || '').trim();
-      const price = parseInt(row[COL_PRICE]) || 0;
-      const thresholdFromFile = (row[COL_THRESHOLD] !== null && row[COL_THRESHOLD] !== undefined && row[COL_THRESHOLD] !== '')
-        ? parseInt(row[COL_THRESHOLD]) : null;
+      const price = Math.max(0, parseInt(row[COL_PRICE]) || 0);
+      const thresholdRaw = parseInt(row[COL_THRESHOLD]);
+      const thresholdFromFile = (!isNaN(thresholdRaw) && thresholdRaw > 0) ? thresholdRaw : null;
 
       // 이미 있으면 재고만 업데이트, 없으면 INSERT (안전재고는 파일값 우선, 이미 설정됐으면 유지)
       const existing = await db.prepare('SELECT threshold FROM payhere_products WHERE sku=?').get(sku);
