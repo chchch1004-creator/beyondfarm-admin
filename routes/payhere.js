@@ -54,8 +54,14 @@ router.post('/upload', requireAdmin, upload.single('file'), async (req, res) => 
     if (!req.file) return res.status(400).json({ error: '파일 없음' });
     const db = getDb();
 
-    const wb = XLSX.read(req.file.buffer, { type: 'buffer', cellDates: false, cellNF: false, cellText: false });
+    const wb = XLSX.read(req.file.buffer, { type: 'buffer', cellDates: false, cellNF: false, cellText: false, cellFormula: false });
     const ws = wb.Sheets[wb.SheetNames[0]];
+    // NaN/Infinity 셀 값 제거 (SSF.format 오류 방지)
+    Object.keys(ws).filter(k => k[0] !== '!').forEach(k => {
+      const c = ws[k];
+      if (c && typeof c.v === 'number' && !isFinite(c.v)) c.v = null;
+      if (c && c.t === 'e') { c.t = 'n'; c.v = null; } // 수식 오류 셀
+    });
     const rows = XLSX.utils.sheet_to_json(ws, { raw: true, defval: null });
 
     // 컬럼명 매핑 (페이히어 엑셀 형식)
