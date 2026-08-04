@@ -81,7 +81,13 @@ router.post('/upload', requireAdmin, upload.single('file'), async (req, res) => 
     const pad = n => String(n).padStart(2, '0');
     const now = `${kst.getFullYear()}-${pad(kst.getMonth()+1)}-${pad(kst.getDate())} ${pad(kst.getHours())}:${pad(kst.getMinutes())}:${pad(kst.getSeconds())}`;
 
+    // 기존 임계값 한 번에 조회
+    const existingRows = await db.prepare('SELECT sku, threshold FROM payhere_products').all();
+    const existingMap = {};
+    existingRows.forEach(r => { existingMap[r.sku] = r.threshold; });
+
     let inserted = 0, updated = 0;
+    const stmts = [];
     for (const row of rows) {
       const sku = String(row[COL_SKU] || '').trim();
       const name = String(row[COL_NAME] || '').trim();
@@ -94,22 +100,18 @@ router.post('/upload', requireAdmin, upload.single('file'), async (req, res) => 
       const thresholdRaw = parseInt(row[COL_THRESHOLD]);
       const thresholdFromFile = (!isNaN(thresholdRaw) && thresholdRaw > 0) ? thresholdRaw : null;
 
-      // 이미 있으면 재고만 업데이트, 없으면 INSERT (안전재고는 파일값 우선, 이미 설정됐으면 유지)
-      const existing = await db.prepare('SELECT threshold FROM payhere_products WHERE sku=?').get(sku);
-      if (existing) {
-        const keepThreshold = (existing.threshold !== null && existing.threshold !== undefined)
-          ? existing.threshold : thresholdFromFile;
-        await db.prepare(
-          `UPDATE payhere_products SET product_name=?, category=?, barcode=?, price=?, stock_qty=?, threshold=?, updated_at=? WHERE sku=?`
-        ).run(name, category, barcode, price, stockQty, keepThreshold, now, sku);
+      if (sku in existingMap) {
+        const keepThreshold = (existingMap[sku] !== null && existingMap[sku] !== undefined)
+          ? existingMap[sku] : thresholdFromFile;
+        stmts.push({ sql: `UPDATE payhere_products SET product_name=?, category=?, barcode=?, price=?, stock_qty=?, threshold=?, updated_at=? WHERE sku=?`, args: [name, category, barcode, price, stockQty, keepThreshold, now, sku] });
         updated++;
       } else {
-        await db.prepare(
-          `INSERT INTO payhere_products (sku, product_name, category, barcode, price, stock_qty, threshold, updated_at) VALUES (?,?,?,?,?,?,?,?)`
-        ).run(sku, name, category, barcode, price, stockQty, thresholdFromFile, now);
+        stmts.push({ sql: `INSERT INTO payhere_products (sku, product_name, category, barcode, price, stock_qty, threshold, updated_at) VALUES (?,?,?,?,?,?,?,?)`, args: [sku, name, category, barcode, price, stockQty, thresholdFromFile, now] });
         inserted++;
       }
     }
+    // 배치 실행 (한 번의 네트워크 왕복)
+    if (stmts.length) await db.batch(stmts);
 
     // 부족 상품 집계
     const lowRows = await db.prepare(
