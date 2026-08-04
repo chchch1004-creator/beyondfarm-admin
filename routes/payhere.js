@@ -56,7 +56,7 @@ router.post('/upload', requireAdmin, upload.single('file'), async (req, res) => 
 
     const wb = XLSX.read(req.file.buffer, { type: 'buffer', cellDates: false, cellNF: false, cellText: false });
     const ws = wb.Sheets[wb.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json(ws, { raw: false, defval: '' });
+    const rows = XLSX.utils.sheet_to_json(ws, { raw: true, defval: null });
 
     // 컬럼명 매핑 (페이히어 엑셀 형식)
     const COL_SKU = 'SKU';
