@@ -45,8 +45,8 @@ async function checkLocation(req) {
   const { lat, lon } = req.body;
   if (lat == null || lon == null) return { ok: false, error: '위치 정보가 없습니다. 브라우저 위치 권한을 허용해주세요.' };
   const uLat = parseFloat(lat), uLon = parseFloat(lon);
-  if (hasLoc1 && calcDistance(uLat, uLon, parseFloat(cfg.work_lat), parseFloat(cfg.work_lon)) <= (parseFloat(cfg.work_radius)||300)) return { ok: true };
-  if (hasLoc2 && calcDistance(uLat, uLon, parseFloat(cfg.work_lat2), parseFloat(cfg.work_lon2)) <= (parseFloat(cfg.work_radius2)||300)) return { ok: true };
+  if (hasLoc1 && calcDistance(uLat, uLon, parseFloat(cfg.work_lat), parseFloat(cfg.work_lon)) <= (parseFloat(cfg.work_radius)||300)) return { ok: true, location: 1 };
+  if (hasLoc2 && calcDistance(uLat, uLon, parseFloat(cfg.work_lat2), parseFloat(cfg.work_lon2)) <= (parseFloat(cfg.work_radius2)||300)) return { ok: true, location: 2 };
   const names = [hasLoc1 && (cfg.work_name||'사무실'), hasLoc2 && (cfg.work_name2||'현장')].filter(Boolean).join(' 또는 ');
   return { ok: false, error: `근무지(${names}) 반경 안에 있지 않습니다.` };
 }
@@ -58,10 +58,11 @@ router.post('/check-in', requireLogin, async (req, res) => {
     const today = kstDate();
     const now = kstTime();
     const userId = req.session.user.id;
+    const workLoc = loc.location || 1;
     const existing = await db.prepare('SELECT * FROM attendance WHERE user_id = ? AND date = ?').get(userId, today);
     if (existing?.check_in) return res.status(400).json({ error: '이미 출근 처리되었습니다.' });
-    if (existing) await db.prepare('UPDATE attendance SET check_in = ? WHERE id = ?').run(now, existing.id);
-    else await db.prepare('INSERT INTO attendance (user_id, date, check_in) VALUES (?, ?, ?)').run(userId, today, now);
+    if (existing) await db.prepare('UPDATE attendance SET check_in = ?, work_location = ? WHERE id = ?').run(now, workLoc, existing.id);
+    else await db.prepare('INSERT INTO attendance (user_id, date, check_in, work_location) VALUES (?, ?, ?, ?)').run(userId, today, now, workLoc);
     res.json({ ok: true, time: now });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });

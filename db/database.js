@@ -380,6 +380,7 @@ async function init() {
     "ALTER TABLE community_messages ADD COLUMN room_id INTEGER",
     "ALTER TABLE timesheet_confirmations ADD COLUMN admin_comment TEXT",
     "ALTER TABLE timesheet_confirmations ADD COLUMN admin_replied_at TEXT",
+    "ALTER TABLE attendance ADD COLUMN work_location INTEGER DEFAULT 1",
     `CREATE TABLE IF NOT EXISTS timesheet_confirmation_history (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL,

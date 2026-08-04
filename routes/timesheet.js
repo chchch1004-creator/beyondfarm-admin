@@ -52,11 +52,12 @@ router.get('/', requireAuth, async (req, res) => {
     const fieldWeekendStart = cfg.field_weekend_start || '09:30';
 
     const parseMin = t => { const [h,m] = (t||'00:00').split(':').map(Number); return h*60+m; };
-    function calcOfficialHours(checkIn, checkOut, employeeType, date) {
+    function calcOfficialHours(checkIn, checkOut, employeeType, date, workLocation) {
       if (!checkIn || !checkOut) return 0;
       const dow = new Date(date).getDay(); // 0=일, 6=토
       const isWeekend = dow === 0 || dow === 6;
-      const isField = ['주말고정','주말','평일'].includes(employeeType);
+      // work_location 2 = 현장, 1 = 사무실. 미설정 시 employee_type으로 fallback
+      const isField = workLocation === 2 || (workLocation == null && ['주말고정','주말','평일'].includes(employeeType));
       const officialStartStr = isField ? (isWeekend ? fieldWeekendStart : fieldWeekdayStart) : officeStart;
       const officialStart = parseMin(officialStartStr);
       const actualStart = parseMin(checkIn);
@@ -99,7 +100,7 @@ router.get('/', requireAuth, async (req, res) => {
       attendance.filter(a => a.user_id === emp.id).forEach(att => {
         if (att.check_in && att.check_out) {
           const day = parseInt(att.date.split('-')[2]);
-          const hours = calcOfficialHours(att.check_in, att.check_out, emp.employee_type, att.date);
+          const hours = calcOfficialHours(att.check_in, att.check_out, emp.employee_type, att.date, att.work_location);
           if (hours > 0) attDaily[day] = hours;
         }
       });

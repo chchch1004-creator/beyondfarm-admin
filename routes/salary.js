@@ -68,11 +68,11 @@ router.post('/sync-from-timesheet', requireAdmin, async (req, res) => {
     const fieldWeekendStart = cfg.field_weekend_start || '09:30';
 
     const parseMin = t => { const [h,m] = (t||'00:00').split(':').map(Number); return h*60+m; };
-    function calcH(ci, co, empType, date) {
+    function calcH(ci, co, empType, date, workLocation) {
       if (!ci || !co) return 0;
       const dow = new Date(date).getDay();
       const isWknd = dow === 0 || dow === 6;
-      const isField = ['주말고정','주말','평일'].includes(empType);
+      const isField = workLocation === 2 || (workLocation == null && ['주말고정','주말','평일'].includes(empType));
       const oStart = parseMin(isField ? (isWknd ? fieldWeekendStart : fieldWeekdayStart) : officeStart);
       const effectiveStart = Math.max(parseMin(ci), oStart);
       const mins = parseMin(co) - effectiveStart;
@@ -88,7 +88,7 @@ router.post('/sync-from-timesheet', requireAdmin, async (req, res) => {
       let totalHours = Object.values(manH).reduce((s,h) => s+h, 0);
       attendance.filter(a => a.user_id === emp.id).forEach(att => {
         const day = parseInt(att.date.split('-')[2]);
-        if (manH[day] === undefined) totalHours += calcH(att.check_in, att.check_out, emp.employee_type, att.date);
+        if (manH[day] === undefined) totalHours += calcH(att.check_in, att.check_out, emp.employee_type, att.date, att.work_location);
       });
 
       const adj = adjRow?.adj || 0;   // 상여
