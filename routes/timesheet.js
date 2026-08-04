@@ -56,7 +56,7 @@ router.get('/', requireAuth, async (req, res) => {
       if (!checkIn || !checkOut) return 0;
       const dow = new Date(date).getDay(); // 0=일, 6=토
       const isWeekend = dow === 0 || dow === 6;
-      const isField = ['주말고정','주말'].includes(employeeType);
+      const isField = ['주말고정','주말','평일'].includes(employeeType);
       const officialStartStr = isField ? (isWeekend ? fieldWeekendStart : fieldWeekdayStart) : officeStart;
       const officialStart = parseMin(officialStartStr);
       const actualStart = parseMin(checkIn);

@@ -72,7 +72,7 @@ router.post('/sync-from-timesheet', requireAdmin, async (req, res) => {
       if (!ci || !co) return 0;
       const dow = new Date(date).getDay();
       const isWknd = dow === 0 || dow === 6;
-      const isField = ['주말고정','주말'].includes(empType);
+      const isField = ['주말고정','주말','평일'].includes(empType);
       const oStart = parseMin(isField ? (isWknd ? fieldWeekendStart : fieldWeekdayStart) : officeStart);
       const effectiveStart = Math.max(parseMin(ci), oStart);
       const mins = parseMin(co) - effectiveStart;
