@@ -121,11 +121,12 @@ const Timesheet = {
     }
 
     const getDow = (d) => new Date(year, month - 1, d).getDay();
+    const isHol = (d) => krIsHoliday(year, month, d);
 
     // 헤더 날짜
     const dayHeaders = Array.from({length: days}, (_, i) => {
       const d = i + 1, dow = getDow(d);
-      const c = dow === 0 ? 'color:#ff4444' : dow === 6 ? 'color:#4488ff' : '';
+      const c = (dow === 0 || isHol(d)) ? 'color:#ff4444' : dow === 6 ? 'color:#4488ff' : '';
       return `<th style="${c}">${d}</th>`;
     }).join('');
 

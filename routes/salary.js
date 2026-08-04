@@ -1,4 +1,5 @@
 const express = require('express');
+const { isHoliday } = require('../utils/holidays');
 const { getDb } = require('../db/database');
 const db = { prepare: (...a) => getDb().prepare(...a) };
 const router = express.Router();
@@ -71,7 +72,7 @@ router.post('/sync-from-timesheet', requireAdmin, async (req, res) => {
     function calcH(ci, co, empType, date, workLocation) {
       if (!ci || !co) return 0;
       const dow = new Date(date).getDay();
-      const isWknd = dow === 0 || dow === 6;
+      const isWknd = dow === 0 || dow === 6 || isHoliday(date);
       const isField = workLocation === 2 || (workLocation == null && ['주말고정','주말','평일'].includes(empType));
       const oStart = parseMin(isField ? (isWknd ? fieldWeekendStart : fieldWeekdayStart) : officeStart);
       const effectiveStart = Math.max(parseMin(ci), oStart);

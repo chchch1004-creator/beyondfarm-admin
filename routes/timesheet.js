@@ -1,5 +1,6 @@
 const express = require('express');
 const { getDb } = require('../db/database');
+const { isHoliday } = require('../utils/holidays');
 const db = { prepare: (...a) => getDb().prepare(...a) };
 const router = express.Router();
 
@@ -55,7 +56,7 @@ router.get('/', requireAuth, async (req, res) => {
     function calcOfficialHours(checkIn, checkOut, employeeType, date, workLocation) {
       if (!checkIn || !checkOut) return 0;
       const dow = new Date(date).getDay(); // 0=일, 6=토
-      const isWeekend = dow === 0 || dow === 6;
+      const isWeekend = dow === 0 || dow === 6 || isHoliday(date);
       // work_location 2 = 현장, 1 = 사무실. 미설정 시 employee_type으로 fallback
       const isField = workLocation === 2 || (workLocation == null && ['주말고정','주말','평일'].includes(employeeType));
       const officialStartStr = isField ? (isWeekend ? fieldWeekendStart : fieldWeekdayStart) : officeStart;
