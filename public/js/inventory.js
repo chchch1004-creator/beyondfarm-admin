@@ -213,6 +213,10 @@ const PayhereAlert = {
             style="padding:8px 18px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">
             업로드
           </button>
+          <button onclick="PayhereAlert.clearAll()"
+            style="padding:8px 14px;background:#fff;color:#dc2626;border:1px solid #fca5a5;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">
+            전체 초기화
+          </button>
         </div>
         ${this._lastUpload ? `<div style="font-size:11px;color:#94a3b8;margin-top:8px">마지막 업로드: ${this._lastUpload}</div>` : ''}
       </div>` : '';
@@ -327,6 +331,16 @@ const PayhereAlert = {
       await this._load();
       this._renderUI(App.user.role === 'superadmin');
       Utils.showToast(`업로드 완료 · 신규 ${data.inserted}개 · 업데이트 ${data.updated}개 · 부족 ${data.low_count}개`);
+    } catch (e) { Utils.showToast(e.message, 'error'); }
+  },
+
+  async clearAll() {
+    if (!confirm('전체 상품 목록을 초기화하시겠습니까?\n이후 엑셀을 다시 업로드하세요.')) return;
+    try {
+      await API.delete('/api/payhere/products');
+      this._data = [];
+      this._renderUI(App.user.role === 'superadmin');
+      Utils.showToast('초기화 완료');
     } catch (e) { Utils.showToast(e.message, 'error'); }
   },
 

@@ -114,6 +114,15 @@ router.post('/upload', requireAdmin, upload.single('file'), async (req, res) => 
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// 전체 상품 삭제
+router.delete('/products', requireAdmin, async (req, res) => {
+  try {
+    const db = getDb();
+    await db.prepare('DELETE FROM payhere_products').run();
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // 재고 부족 알림 발송
 router.post('/notify', requireAdmin, async (req, res) => {
   try {
