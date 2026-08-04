@@ -66,7 +66,7 @@ router.post('/upload', requireAdmin, upload.single('file'), async (req, res) => 
 
     // 컬럼명 매핑 (페이히어 엑셀 형식)
     const COL_SKU = 'SKU';
-    const COL_QTY = '기존 수량';
+    const COL_QTY = '가용 재고';   // 페이히어 엑셀 실제 컬럼명
     const COL_NAME = '상품명';
     const COL_CAT = '카테고리';
     const COL_BARCODE = '바코드';
