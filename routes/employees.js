@@ -78,4 +78,38 @@ router.delete('/:id', requireAdmin, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// 시급 이력 조회
+router.get('/:id/rate-history', requireAdmin, async (req, res) => {
+  try {
+    const rows = await db.prepare(
+      'SELECT * FROM hourly_rate_history WHERE user_id=? ORDER BY effective_from DESC'
+    ).all(parseInt(req.params.id));
+    res.json(rows);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// 시급 이력 추가 (적용 시작일 지정)
+router.post('/:id/rate-history', requireAdmin, async (req, res) => {
+  try {
+    const { hourly_rate, effective_from, note } = req.body;
+    if (!hourly_rate || !effective_from) return res.status(400).json({ error: '시급과 적용 시작일 필수' });
+    const rate = parseInt(hourly_rate);
+    await db.prepare(
+      'INSERT INTO hourly_rate_history (user_id, hourly_rate, effective_from, note) VALUES (?,?,?,?)'
+    ).run(parseInt(req.params.id), rate, effective_from, note || null);
+    // users.hourly_rate도 최신값으로 동기화
+    await db.prepare('UPDATE users SET hourly_rate=? WHERE id=?').run(rate, parseInt(req.params.id));
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// 시급 이력 삭제
+router.delete('/:id/rate-history/:histId', requireAdmin, async (req, res) => {
+  try {
+    await db.prepare('DELETE FROM hourly_rate_history WHERE id=? AND user_id=?')
+      .run(parseInt(req.params.histId), parseInt(req.params.id));
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 module.exports = router;

@@ -165,7 +165,12 @@ const Employees = {
         <td style="${p}">${e.birth_date || '-'}</td>
         ${(() => { const d = this.calcDday(e.birth_date,'birth'); return `<td style="${p};${d.style||'color:#198754'}">${d.text}</td>`; })()}
         ${isAdmin ? `<td style="${p}"><span class="badge ${e.role==='superadmin'?'badge-danger':'badge-secondary'}">${roleLabel[e.role]||'사용자'}</span></td>` : ''}
-        ${isAdmin ? `<td style="${p};text-align:right">${e.hourly_rate ? Utils.formatNum(e.hourly_rate)+'원' : '-'}</td>` : ''}
+        ${isAdmin ? `<td style="${p};text-align:right">
+          <span onclick="Employees.showRateHistory(${e.id},'${e.name}')"
+            style="cursor:pointer;color:#1971c2;text-decoration:underline;font-size:12px">
+            ${e.hourly_rate ? Utils.formatNum(e.hourly_rate)+'원' : '미설정'}
+          </span>
+        </td>` : ''}
         ${isAdmin ? `<td style="${p};white-space:nowrap">
           <button class="btn btn-secondary btn-sm" style="padding:2px 5px;font-size:11px" onclick="Employees.showForm(${e.id})">수정</button>
           <button class="btn btn-sm" style="background:#6f42c1;color:#fff;padding:2px 5px;font-size:11px" onclick="Employees.showPermissions(${e.id},'${e.name}')">권한</button>
@@ -229,7 +234,13 @@ const Employees = {
             <option value="superadmin" ${emp?.role==='superadmin'?'selected':''}>총괄관리자</option>
           </select>
         </div>
-        <div class="form-group"><label>시급 (원)</label><input type="number" id="f-hourly" placeholder="예: 10030" value="${emp?.hourly_rate || ''}"></div>
+        <div class="form-group"><label>시급 (원)</label>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:14px;font-weight:600">${emp?.hourly_rate ? Utils.formatNum(emp.hourly_rate)+'원' : '미설정'}</span>
+            ${emp ? `<button type="button" onclick="Utils.closeModal();Employees.showRateHistory(${emp.id},'${emp.name}')"
+              style="padding:3px 10px;font-size:12px;background:#1971c2;color:#fff;border:none;border-radius:6px;cursor:pointer">이력/변경</button>` : ''}
+          </div>
+        </div>
         <div class="form-group"><label>주민등록번호</label><input id="f-ssn" placeholder="숫자만 입력" value="${emp?.ssn || ''}"></div>
         <div class="form-group"><label>은행명</label><input id="f-bank" placeholder="예: 농협" value="${emp?.bank_name || ''}"></div>
         <div class="form-group"><label>계좌번호</label><input id="f-account" placeholder="계좌번호 입력" value="${emp?.bank_account || ''}"></div>` : ''}
@@ -250,7 +261,6 @@ const Employees = {
           body.ssn = Utils.val('f-ssn');
           body.bank_name = Utils.val('f-bank');
           body.bank_account = Utils.val('f-account');
-          body.hourly_rate = Utils.val('f-hourly');
         }
         if (!body.name) return Utils.showToast('이름을 입력하세요', 'error');
         try {
@@ -337,6 +347,86 @@ const Employees = {
   _toggleSA(cb) {
     const wrap = document.getElementById('perm-table-wrap');
     if (wrap) { wrap.style.opacity = cb.checked ? '0.4' : ''; wrap.style.pointerEvents = cb.checked ? 'none' : ''; }
+  },
+
+  async showRateHistory(id, name) {
+    let history = [];
+    try { history = await API.get(`/api/employees/${id}/rate-history`); } catch {}
+
+    const renderRows = (list) => list.length === 0
+      ? `<tr><td colspan="3" style="text-align:center;padding:16px;color:#94a3b8">이력 없음</td></tr>`
+      : list.map(h => `<tr style="border-bottom:1px solid #f0f0f0">
+          <td style="padding:8px 10px;font-size:13px;font-weight:600">${Utils.formatNum(h.hourly_rate)}원</td>
+          <td style="padding:8px 10px;font-size:13px">${h.effective_from}</td>
+          <td style="padding:8px 10px;font-size:12px;color:#64748b">${h.note || ''}</td>
+          <td style="padding:8px 4px;text-align:center">
+            <button onclick="Employees._deleteRate(${id},'${name}',${h.id})"
+              style="font-size:11px;padding:2px 7px;background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;border-radius:4px;cursor:pointer">삭제</button>
+          </td>
+        </tr>`).join('');
+
+    Utils.modal(
+      `💰 ${name} 시급 이력`,
+      `<div style="margin-bottom:16px;padding:14px;background:#f0f9ff;border-radius:10px;border:1px solid #bae6fd">
+        <div style="font-size:13px;font-weight:700;color:#0369a1;margin-bottom:10px">새 시급 등록</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+          <div><div style="font-size:11px;color:#64748b;margin-bottom:4px">시급 (원)</div>
+            <input type="number" id="rh-rate" placeholder="예: 11000" style="width:110px;padding:6px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px"></div>
+          <div><div style="font-size:11px;color:#64748b;margin-bottom:4px">적용 시작일</div>
+            <input type="date" id="rh-from" value="${new Date().toISOString().slice(0,10)}" style="padding:6px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px"></div>
+          <div><div style="font-size:11px;color:#64748b;margin-bottom:4px">메모 (선택)</div>
+            <input id="rh-note" placeholder="예: 2026년 최저임금" style="width:140px;padding:6px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px"></div>
+          <button onclick="Employees._addRate(${id},'${name}')"
+            style="padding:6px 14px;background:#0369a1;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer">등록</button>
+        </div>
+      </div>
+      <table style="width:100%;border-collapse:collapse">
+        <thead><tr style="background:#f8f9fa;font-size:12px;color:#6c757d">
+          <th style="padding:8px 10px;text-align:left">시급</th>
+          <th style="padding:8px 10px;text-align:left">적용 시작일</th>
+          <th style="padding:8px 10px;text-align:left">메모</th>
+          <th style="width:50px"></th>
+        </tr></thead>
+        <tbody id="rh-tbody">${renderRows(history)}</tbody>
+      </table>`,
+      null, { confirmLabel: '닫기', cancelLabel: null }
+    );
+  },
+
+  async _addRate(id, name) {
+    const rate = parseInt(document.getElementById('rh-rate')?.value);
+    const from = document.getElementById('rh-from')?.value;
+    const note = document.getElementById('rh-note')?.value;
+    if (!rate || rate <= 0) return Utils.showToast('시급을 입력하세요', 'error');
+    if (!from) return Utils.showToast('적용 시작일을 선택하세요', 'error');
+    try {
+      await API.post(`/api/employees/${id}/rate-history`, { hourly_rate: rate, effective_from: from, note });
+      Utils.showToast('등록되었습니다.');
+      // 이력 새로고침
+      const history = await API.get(`/api/employees/${id}/rate-history`);
+      const tbody = document.getElementById('rh-tbody');
+      if (tbody) tbody.innerHTML = history.length === 0
+        ? `<tr><td colspan="3" style="text-align:center;padding:16px;color:#94a3b8">이력 없음</td></tr>`
+        : history.map(h => `<tr style="border-bottom:1px solid #f0f0f0">
+            <td style="padding:8px 10px;font-size:13px;font-weight:600">${Utils.formatNum(h.hourly_rate)}원</td>
+            <td style="padding:8px 10px;font-size:13px">${h.effective_from}</td>
+            <td style="padding:8px 10px;font-size:12px;color:#64748b">${h.note || ''}</td>
+            <td style="padding:8px 4px;text-align:center">
+              <button onclick="Employees._deleteRate(${id},'${name}',${h.id})"
+                style="font-size:11px;padding:2px 7px;background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;border-radius:4px;cursor:pointer">삭제</button>
+            </td>
+          </tr>`).join('');
+      Employees.render();
+    } catch (e) { Utils.showToast(e.message, 'error'); }
+  },
+
+  async _deleteRate(userId, name, histId) {
+    if (!confirm('이 이력을 삭제하시겠습니까?')) return;
+    try {
+      await API.delete(`/api/employees/${userId}/rate-history/${histId}`);
+      Utils.showToast('삭제되었습니다.');
+      Employees.showRateHistory(userId, name);
+    } catch (e) { Utils.showToast(e.message, 'error'); }
   },
 
   async retire(id, name) {

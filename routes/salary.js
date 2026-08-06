@@ -52,6 +52,15 @@ router.delete('/:id', requireAdmin, async (req, res) => {
   catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// 해당 월에 적용할 시급 조회 (이력 기반, 없으면 users.hourly_rate)
+async function getEffectiveRate(db, userId, year, month) {
+  const lastDay = `${year}-${String(month).padStart(2,'0')}-31`;
+  const row = await db.prepare(
+    `SELECT hourly_rate FROM hourly_rate_history WHERE user_id=? AND effective_from<=? ORDER BY effective_from DESC LIMIT 1`
+  ).get(userId, lastDay);
+  return row ? row.hourly_rate : null;
+}
+
 // 근무표에서 급여 자동 연동
 router.post('/sync-from-timesheet', requireAdmin, async (req, res) => {
   try {
@@ -95,8 +104,9 @@ router.post('/sync-from-timesheet', requireAdmin, async (req, res) => {
       const adj = adjRow?.adj || 0;   // 상여
       const adj1 = adjRow?.adj1 || 0; // 조정
 
+      const effectiveRate = (await getEffectiveRate(db, emp.id, year, month)) ?? (emp.hourly_rate || 0);
       // 근무표와 동일한 계산식: 시급*시간 + 상여 + 조정 = 세전 총급여
-      const grossPay = Math.round(totalHours * (emp.hourly_rate || 0) + adj * 10000 + adj1 * 10000);
+      const grossPay = Math.round(totalHours * effectiveRate + adj * 10000 + adj1 * 10000);
       const bonus = Math.round(adj * 10000); // 표시용
       const tax = Math.round(grossPay * 0.03);
       const localTax = Math.round(grossPay * 0.003);

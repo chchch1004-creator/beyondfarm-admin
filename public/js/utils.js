@@ -18,6 +18,7 @@ const Utils = {
     setTimeout(() => el.remove(), 3000);
   },
   modal(title, bodyHtml, onConfirm, confirmLabel = '저장') {
+    const noConfirm = onConfirm === null;
     document.getElementById('modal-container').innerHTML = `
       <div class="modal-backdrop" onclick="if(event.target===this)Utils.closeModal()">
         <div class="modal">
@@ -25,8 +26,10 @@ const Utils = {
           <div class="modal-title">${title}</div>
           <div id="modal-body">${bodyHtml}</div>
           <div class="form-actions">
-            <button class="btn btn-secondary" onclick="Utils.closeModal()">취소</button>
-            <button class="btn btn-primary" onclick="Utils._onConfirm()">${confirmLabel}</button>
+            ${noConfirm
+              ? `<button class="btn btn-primary" onclick="Utils.closeModal()">닫기</button>`
+              : `<button class="btn btn-secondary" onclick="Utils.closeModal()">취소</button>
+                 <button class="btn btn-primary" onclick="Utils._onConfirm()">${confirmLabel}</button>`}
           </div>
         </div>
       </div>`;

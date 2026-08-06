@@ -391,6 +391,14 @@ async function init() {
       comment TEXT,
       created_at TEXT NOT NULL
     )`,
+    `CREATE TABLE IF NOT EXISTS hourly_rate_history (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      hourly_rate INTEGER NOT NULL,
+      effective_from TEXT NOT NULL,
+      note TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+    )`,
   ];
   for (const sql of newCols) {
     try { await client.execute({ sql, args: [] }); } catch {}
