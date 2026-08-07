@@ -354,23 +354,71 @@ router.get('/excel', requireSuperAdmin, async (req, res) => {
     const effectiveRateMap={};
     rateHistAll.forEach(r=>{effectiveRateMap[r.user_id]=r.hourly_rate;});
 
+    // 주주 데이터
+    const SH_NAMES = ['조상희','조상하','정재호','소재훈'];
+    const SH_FIXED = { '조상희':130, '조상하':80, '정재호':80, '소재훈':200 };
+    const SH_FIXED_DAY = 10;
+    const shEmployees = employees.filter(e=>SH_NAMES.includes(e.name));
+    const shIds = shEmployees.map(e=>e.id);
+    const [shParts, shExtras] = shIds.length ? await Promise.all([
+      db.prepare(`SELECT user_id,day FROM shareholder_participation WHERE year=? AND month=? AND participated=1`).all(y,m),
+      db.prepare(`SELECT user_id,day FROM shareholder_extra WHERE year=? AND month=? AND participated=1`).all(y,m),
+    ]) : [[],[]];
+    const shMap={}, shExtraMap={};
+    shIds.forEach(id=>{shMap[id]=new Set();shExtraMap[id]=new Set();});
+    shParts.forEach(p=>{if(shMap[p.user_id])shMap[p.user_id].add(p.day);});
+    shExtras.forEach(p=>{if(shExtraMap[p.user_id])shExtraMap[p.user_id].add(p.day);});
+
+    const shRate=(day)=>{
+      const dow=new Date(y,m-1,day).getDay();
+      const ds=`${y}-${String(m).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+      if(isHol(ds)||dow===0||dow===6) return 30;
+      if(dow===5) return 25;
+      return 20;
+    };
+    const shExtraRate=(day)=>{
+      const dow=new Date(y,m-1,day).getDay();
+      const ds=`${y}-${String(m).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+      if(isHol(ds)||dow===0||dow===6) return 20;
+      if(dow===5) return 15;
+      return 10;
+    };
+
     const empData = employees.map(emp=>{
+      const isSH = SH_NAMES.includes(emp.name);
+      const adj=adjustments.find(a=>a.user_id===emp.id);
+      const adjAmt=(adj?.adj||0)*10000, adj1Amt=(adj?.adj1||0)*10000;
+      const s=(emp.ssn||'').replace(/-/g,'');
+      const ssn=s.length===13?s.slice(0,6)+'-'+s.slice(6):(emp.ssn||'');
+      const bank=emp.bank_name?(emp.bank_name+' '+(emp.bank_account||'')):emp.bank_account||'';
+
+      if(isSH) {
+        const days_sh=[...shMap[emp.id]||[]];
+        const days_ex=[...shExtraMap[emp.id]||[]];
+        const shTotal=days_sh.reduce((s,d)=>s+shRate(d)*10000,0);
+        const exTotal=days_ex.reduce((s,d)=>s+shExtraRate(d)*10000,0);
+        const fixedAmt=(SH_FIXED[emp.name]||0)*10000;
+        const netPay=Math.round(shTotal+exTotal+fixedAmt+adjAmt+adj1Amt);
+        const tax=Math.round(netPay*0.03), localTax=Math.round(netPay*0.003);
+        // daily: 참여일 표시용 (금액 표시)
+        const daily={};
+        days_sh.forEach(d=>{daily[d]={sh:shRate(d), extra:shExtraMap[emp.id].has(d)?shExtraRate(d):0};});
+        days_ex.forEach(d=>{if(!daily[d])daily[d]={sh:0,extra:shExtraRate(d)};});
+        return { name:emp.name, isSH:true, daily, adj:adj?.adj||0, adj1:adj?.adj1||0,
+          totalH:days_sh.length, netPay, tax, localTax, transfer:netPay-tax-localTax, ssn, bank };
+      }
+
       const daily={};
       attendance.filter(a=>a.user_id===emp.id).forEach(a=>{
         if(a.check_in&&a.check_out){const d=parseInt(a.date.split('-')[2]);const h=calcH(a.check_in,a.check_out,emp.employee_type,a.date,a.work_location);if(h>0)daily[d]={hours:h};}
       });
       manualHours.filter(h=>h.user_id===emp.id).forEach(h=>{daily[h.day]={hours:h.hours,manual:true};});
-      const adj=adjustments.find(a=>a.user_id===emp.id);
       const rate=effectiveRateMap[emp.id]??emp.hourly_rate??0;
       const totalH=Object.values(daily).reduce((s,v)=>s+(v.hours||0),0);
-      const adjAmt=(adj?.adj||0)*10000, adj1Amt=(adj?.adj1||0)*10000;
       const netPay=Math.round(totalH*rate+adjAmt+adj1Amt);
       const tax=Math.round(netPay*0.03), localTax=Math.round(netPay*0.003);
-      const s=(emp.ssn||'').replace(/-/g,'');
-      return { name:emp.name, hourly_rate:rate, daily, adj:adj?.adj||0, adj1:adj?.adj1||0,
-        totalH, netPay, tax, localTax, transfer:netPay-tax-localTax,
-        ssn:s.length===13?s.slice(0,6)+'-'+s.slice(6):(emp.ssn||''),
-        bank:emp.bank_name?(emp.bank_name+' '+(emp.bank_account||'')):emp.bank_account||'' };
+      return { name:emp.name, isSH:false, daily, adj:adj?.adj||0, adj1:adj?.adj1||0,
+        totalH, netPay, tax, localTax, transfer:netPay-tax-localTax, ssn, bank };
     });
 
     // ── ExcelJS 워크북 ──
@@ -443,8 +491,14 @@ router.get('/excel', requireSuperAdmin, async (req, res) => {
     // ── 데이터 행 ──
     empData.forEach((emp, ri) => {
       const rowBg = ri % 2 === 0 ? C.rowOdd : C.rowEven;
+      const dailyVals = Array.from({length:days},(_,i)=>{
+        const d=i+1, cell=emp.daily[d];
+        if(!cell) return '';
+        if(emp.isSH) return (cell.sh||0)+(cell.extra||0) > 0 ? '●' : '';
+        return cell.hours||'';
+      });
       const vals = [emp.name, emp.totalH||'',
-        ...Array.from({length:days},(_,i)=>emp.daily[i+1]?.hours||''),
+        ...dailyVals,
         emp.adj||'', emp.adj1||'',
         emp.netPay||'', emp.netPay?emp.tax:'', emp.netPay?emp.localTax:'',
         emp.netPay?emp.transfer:'', emp.ssn, emp.bank];
