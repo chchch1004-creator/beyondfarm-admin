@@ -310,4 +310,227 @@ router.post('/confirmations/reply', requireSuperAdmin, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ─── 스타일 엑셀 다운로드 ──────────────────────────────────────────────────
+router.get('/excel', requireSuperAdmin, async (req, res) => {
+  try {
+    const ExcelJS = require('exceljs');
+    const { isHoliday: isHol } = require('../utils/holidays');
+
+    const y = parseInt(req.query.year) || new Date().getFullYear();
+    const m = parseInt(req.query.month) || new Date().getMonth() + 1;
+    const days = new Date(y, m, 0).getDate();
+
+    // ── 데이터 조회 (GET / 와 동일 로직) ──
+    const employees = await db.prepare(
+      `SELECT id, name, employee_type, ssn, bank_name, bank_account, hourly_rate, hire_date
+       FROM users WHERE status='active' ORDER BY
+       CASE name WHEN '조상희' THEN 101 WHEN '조상하' THEN 102 WHEN '정재호' THEN 103 WHEN '소재훈' THEN 104 WHEN '관리자' THEN 105
+       ELSE CASE WHEN name LIKE '%TEST%' OR name='T' THEN 106 WHEN name LIKE '%테스트%' THEN 107 ELSE 0 END END,
+       hire_date ASC, name`
+    ).all();
+    const attendance = await db.prepare(
+      `SELECT * FROM attendance WHERE strftime('%Y',date)=? AND strftime('%m',date)=?`
+    ).all(String(y), String(m).padStart(2,'0'));
+    const settingsRows = await db.prepare('SELECT key,value FROM settings').all();
+    const cfg = {}; settingsRows.forEach(r => { cfg[r.key] = r.value; });
+    const officeStart = cfg.office_start||'10:00';
+    const fieldWeekdayStart = cfg.field_weekday_start||'13:00';
+    const fieldWeekendStart = cfg.field_weekend_start||'09:30';
+    const parseMin = t => { const [h,mm] = (t||'00:00').split(':').map(Number); return h*60+mm; };
+    const calcH = (ci,co,et,date,wl) => {
+      if(!ci||!co) return 0;
+      const dow=new Date(date).getDay(), isWknd=dow===0||dow===6||isHol(date);
+      const isField=wl===2||(wl==null&&['주말고정','주말','평일'].includes(et));
+      const start=parseMin(isField?(isWknd?fieldWeekendStart:fieldWeekdayStart):officeStart);
+      const mins=parseMin(co)-Math.max(parseMin(ci),start);
+      return mins<=0?0:Math.round(mins/30)*0.5;
+    };
+    const manualHours = await db.prepare('SELECT * FROM timesheet_manual_hours WHERE year=? AND month=?').all(y,m);
+    const adjustments = await db.prepare('SELECT * FROM timesheet_adjustments WHERE year=? AND month=?').all(y,m);
+
+    // 시급 이력 기반 조회
+    const lastDay=`${y}-${String(m).padStart(2,'0')}-31`;
+    const rateHistAll = await db.prepare('SELECT user_id,hourly_rate FROM hourly_rate_history WHERE effective_from<=? ORDER BY effective_from ASC').all(lastDay);
+    const effectiveRateMap={};
+    rateHistAll.forEach(r=>{effectiveRateMap[r.user_id]=r.hourly_rate;});
+
+    const empData = employees.map(emp=>{
+      const daily={};
+      attendance.filter(a=>a.user_id===emp.id).forEach(a=>{
+        if(a.check_in&&a.check_out){const d=parseInt(a.date.split('-')[2]);const h=calcH(a.check_in,a.check_out,emp.employee_type,a.date,a.work_location);if(h>0)daily[d]={hours:h};}
+      });
+      manualHours.filter(h=>h.user_id===emp.id).forEach(h=>{daily[h.day]={hours:h.hours,manual:true};});
+      const adj=adjustments.find(a=>a.user_id===emp.id);
+      const rate=effectiveRateMap[emp.id]??emp.hourly_rate??0;
+      const totalH=Object.values(daily).reduce((s,v)=>s+(v.hours||0),0);
+      const adjAmt=(adj?.adj||0)*10000, adj1Amt=(adj?.adj1||0)*10000;
+      const netPay=Math.round(totalH*rate+adjAmt+adj1Amt);
+      const tax=Math.round(netPay*0.03), localTax=Math.round(netPay*0.003);
+      const s=(emp.ssn||'').replace(/-/g,'');
+      return { name:emp.name, hourly_rate:rate, daily, adj:adj?.adj||0, adj1:adj?.adj1||0,
+        totalH, netPay, tax, localTax, transfer:netPay-tax-localTax,
+        ssn:s.length===13?s.slice(0,6)+'-'+s.slice(6):(emp.ssn||''),
+        bank:emp.bank_name?(emp.bank_name+' '+(emp.bank_account||'')):emp.bank_account||'' };
+    });
+
+    // ── ExcelJS 워크북 ──
+    const wb = new ExcelJS.Workbook();
+    wb.creator = '비욘더팜'; wb.created = new Date();
+    const ws = wb.addWorksheet(`${m}월 근무표`, { views:[{state:'frozen',xSplit:2,ySplit:2}] });
+
+    // 색상 상수
+    const C = {
+      darkGreen: '1B4332', white: 'FFFFFF', sunday: 'FF4444', saturday: '4488FF',
+      amber: '856404', amberBg: 'FFF3CD', adjFg: 'E67700', adjBg: 'FFFDE7',
+      transferFg: '1B4332', transferBg: 'D1FAE5', headerBg: '1B4332',
+      rowOdd: 'F8FAFB', rowEven: 'FFFFFF', borderColor: 'CCCCCC',
+      totalH: 'EFF6FF', totalFg: '1E40AF', holidayBg: 'FFF5F5', satBg: 'EFF6FF',
+    };
+
+    const border = (color=C.borderColor) => ({
+      top:{style:'thin',color:{argb:'FF'+color}}, left:{style:'thin',color:{argb:'FF'+color}},
+      bottom:{style:'thin',color:{argb:'FF'+color}}, right:{style:'thin',color:{argb:'FF'+color}}
+    });
+    const fill = color => ({ type:'pattern', pattern:'solid', fgColor:{argb:'FF'+color} });
+    const numFmt = '#,##0';
+
+    // ── 컬럼 폭 설정 ──
+    // 이름(12), 합계(6), 날짜1~N(4), 상여(5), 조정(5), 합계금액(13), 국세(11), 지방세(11), 이체금액(13), 주민번호(16), 계좌번호(22)
+    const colWidths = [12, 6, ...Array(days).fill(4), 5, 5, 13, 11, 11, 13, 16, 22];
+    ws.columns = colWidths.map(w => ({ width: w }));
+
+    // ── 1행: 제목 ──
+    const totalCols = 2 + days + 2 + 4 + 2; // 이름+합계+날짜+상여조정+금액4개+주민번호+계좌
+    const titleRow = ws.addRow([`${y}년 ${m}월 비욘더팜 근무표`]);
+    ws.mergeCells(1, 1, 1, totalCols);
+    const titleCell = titleRow.getCell(1);
+    titleCell.font = { bold:true, size:14, color:{argb:'FF'+C.white}, name:'맑은 고딕' };
+    titleCell.fill = fill(C.darkGreen);
+    titleCell.alignment = { horizontal:'center', vertical:'middle' };
+    titleCell.border = border();
+    titleRow.height = 28;
+
+    // ── 2행: 헤더 ──
+    const headerLabels = ['이름','합계', ...Array.from({length:days},(_,i)=>i+1),
+      '상여','조정','합계금액','국세','지방세','이체금액','주민등록번호','계좌번호'];
+    const hRow = ws.addRow(headerLabels);
+    hRow.height = 20;
+    hRow.eachCell((cell, colNum) => {
+      const d = colNum - 2; // 날짜 컬럼 인덱스 (1부터)
+      const dow = (colNum >= 3 && colNum <= 2+days) ? new Date(y,m-1,d).getDay() : -1;
+      const isHolDay = (colNum >= 3 && colNum <= 2+days) ? isHol(`${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`) : false;
+      const isSun = dow === 0 || isHolDay;
+      const isSat = dow === 6;
+      const isAdj = colNum === 3+days || colNum === 4+days;
+
+      if (isAdj) {
+        cell.fill = fill(C.amber);
+        cell.font = { bold:true, color:{argb:'FF'+C.white}, name:'맑은 고딕', size:10 };
+      } else if (isSun) {
+        cell.fill = fill(C.darkGreen);
+        cell.font = { bold:true, color:{argb:'FFFF6666'}, name:'맑은 고딕', size:10 };
+      } else if (isSat) {
+        cell.fill = fill(C.darkGreen);
+        cell.font = { bold:true, color:{argb:'FF88BBFF'}, name:'맑은 고딕', size:10 };
+      } else {
+        cell.fill = fill(C.darkGreen);
+        cell.font = { bold:true, color:{argb:'FF'+C.white}, name:'맑은 고딕', size:10 };
+      }
+      cell.alignment = { horizontal:'center', vertical:'middle' };
+      cell.border = border();
+    });
+
+    // ── 데이터 행 ──
+    empData.forEach((emp, ri) => {
+      const rowBg = ri % 2 === 0 ? C.rowOdd : C.rowEven;
+      const vals = [emp.name, emp.totalH||'',
+        ...Array.from({length:days},(_,i)=>emp.daily[i+1]?.hours||''),
+        emp.adj||'', emp.adj1||'',
+        emp.netPay||'', emp.netPay?emp.tax:'', emp.netPay?emp.localTax:'',
+        emp.netPay?emp.transfer:'', emp.ssn, emp.bank];
+      const row = ws.addRow(vals);
+      row.height = 18;
+
+      row.eachCell((cell, colNum) => {
+        const d = colNum - 2;
+        const dow = (colNum >= 3 && colNum <= 2+days) ? new Date(y,m-1,d).getDay() : -1;
+        const isHolDay = (colNum >= 3 && colNum <= 2+days) ? isHol(`${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`) : false;
+        const isSun = dow === 0 || isHolDay;
+        const isSat = dow === 6;
+
+        cell.border = border();
+        cell.font = { name:'맑은 고딕', size:10 };
+
+        if (colNum === 1) { // 이름
+          cell.font = { ...cell.font, bold:true };
+          cell.fill = fill(rowBg);
+          cell.alignment = { horizontal:'left', vertical:'middle', indent:1 };
+        } else if (colNum === 2) { // 합계시간
+          cell.fill = fill(C.totalH);
+          cell.font = { ...cell.font, bold:true, color:{argb:'FF'+C.totalFg} };
+          cell.alignment = { horizontal:'center', vertical:'middle' };
+          if (typeof cell.value === 'number') cell.numFmt = '#,##0.0';
+        } else if (colNum >= 3 && colNum <= 2+days) { // 날짜별
+          const bg = isSun ? C.holidayBg : isSat ? C.satBg : rowBg;
+          cell.fill = fill(bg);
+          cell.alignment = { horizontal:'center', vertical:'middle' };
+          if (isSun) cell.font = { ...cell.font, color:{argb:'FFCC3333'} };
+          else if (isSat) cell.font = { ...cell.font, color:{argb:'FF3366CC'} };
+          if (emp.daily[d]?.manual) cell.font = { ...cell.font, color:{argb:'FFCC0000'}, bold:true };
+        } else if (colNum === 3+days || colNum === 4+days) { // 상여·조정
+          cell.fill = fill(C.amberBg);
+          cell.font = { ...cell.font, color:{argb:'FF'+C.adjFg}, bold:true };
+          cell.alignment = { horizontal:'center', vertical:'middle' };
+        } else if (colNum === 5+days) { // 합계금액
+          cell.fill = fill(rowBg);
+          cell.font = { ...cell.font, bold:true };
+          cell.alignment = { horizontal:'right', vertical:'middle' };
+          if (typeof cell.value === 'number') cell.numFmt = numFmt;
+        } else if (colNum === 6+days || colNum === 7+days) { // 국세·지방세
+          cell.fill = fill(rowBg);
+          cell.font = { ...cell.font, color:{argb:'FF888888'} };
+          cell.alignment = { horizontal:'right', vertical:'middle' };
+          if (typeof cell.value === 'number') cell.numFmt = numFmt;
+        } else if (colNum === 8+days) { // 이체금액
+          cell.fill = fill(C.transferBg);
+          cell.font = { ...cell.font, bold:true, color:{argb:'FF'+C.transferFg} };
+          cell.alignment = { horizontal:'right', vertical:'middle' };
+          if (typeof cell.value === 'number') cell.numFmt = numFmt;
+        } else { // 주민번호·계좌
+          cell.fill = fill(rowBg);
+          cell.font = { ...cell.font, size:9 };
+          cell.alignment = { horizontal:'left', vertical:'middle' };
+        }
+      });
+    });
+
+    // ── 합계 행 ──
+    const totalRow = ws.addRow(
+      ['합계', empData.reduce((s,e)=>s+(e.totalH||0),0),
+        ...Array(days).fill(''),
+        '', '',
+        empData.reduce((s,e)=>s+(e.netPay||0),0),
+        empData.reduce((s,e)=>s+(e.tax||0),0),
+        empData.reduce((s,e)=>s+(e.localTax||0),0),
+        empData.reduce((s,e)=>s+(e.transfer||0),0),
+        '', '']
+    );
+    totalRow.height = 20;
+    totalRow.eachCell((cell, colNum) => {
+      cell.fill = fill(C.darkGreen);
+      cell.font = { bold:true, color:{argb:'FF'+C.white}, name:'맑은 고딕', size:10 };
+      cell.border = border();
+      cell.alignment = { horizontal: colNum===1?'left':'right', vertical:'middle', indent: colNum===1?1:0 };
+      if ([2,5+days,6+days,7+days,8+days].includes(colNum) && typeof cell.value==='number') {
+        cell.numFmt = colNum===2 ? '#,##0.0' : numFmt;
+      }
+    });
+
+    res.setHeader('Content-Type','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition',`attachment; filename*=UTF-8''${encodeURIComponent(`${y}년_${m}월_비욘더팜_근무표.xlsx`)}`);
+    await wb.xlsx.write(res);
+    res.end();
+  } catch(e) { console.error(e); res.status(500).json({ error: e.message }); }
+});
+
 module.exports = router;

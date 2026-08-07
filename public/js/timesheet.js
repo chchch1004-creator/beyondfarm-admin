@@ -679,26 +679,8 @@ const Timesheet = {
   },
 
   downloadExcel() {
-    if (!this.data || typeof XLSX === 'undefined') return;
-    const { year, month, days, employees } = this.data;
-    const getDow = (d) => new Date(year, month - 1, d).getDay();
-    const header = ['이름','합계',...Array.from({length:days},(_,i)=>i+1),'조정','조정','합계금액','국세','지방세','이체금액','주민등록번호','계좌번호'];
-    const rows = [[`${year}년 ${month}월 비욘더팜 근무표`], header];
-
-    employees.forEach(emp => {
-      const { totalHours, netPay, tax, localTax, transfer } = this.calc(emp);
-      const dailyVals = Array.from({length:days}, (_,i) => emp.daily[i+1]?.hours || '');
-      const s = (emp.ssn||'').replace(/-/g,'');
-      const ssn = s.length===13 ? s.substring(0,6)+'-'+s.substring(6) : emp.ssn || '';
-      rows.push([emp.name, totalHours||'', ...dailyVals, emp.adj||'', emp.adj1||'',
-        netPay||'', netPay?tax:'', netPay?localTax:'', netPay?transfer:'',
-        ssn, emp.bank_name ? emp.bank_name+' '+(emp.bank_account||'') : (emp.bank_account||'')]);
-    });
-
-    const ws = XLSX.utils.aoa_to_sheet(rows);
-    ws['!cols'] = [{wch:12},{wch:5},...Array(days).fill({wch:4}),{wch:5},{wch:5},{wch:12},{wch:10},{wch:10},{wch:12},{wch:16},{wch:22}];
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, `${month}월 근무표`);
-    XLSX.writeFile(wb, `${year}년_${month}월_비욘더팜_근무표.xlsx`);
+    if (!this.data) return;
+    const { year, month } = this.data;
+    window.location.href = `/api/timesheet/excel?year=${year}&month=${month}`;
   }
 };
