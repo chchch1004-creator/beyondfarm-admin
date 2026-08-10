@@ -286,7 +286,7 @@ const PayhereAlert = {
             ${isLow ? '⚠️ ' : ''}${this._esc(r.product_name)}
           </div>
           <div style="font-size:11px;color:#94a3b8">
-            ${r.sku ? `<span style="font-family:monospace;letter-spacing:0.5px">${this._esc(r.sku)}</span> · ` : ''}${this._esc(r.category||'')}${r.updated_at ? ' · ' + r.updated_at.slice(0,10) : ''}
+            ${r.barcode ? `<span style="font-family:monospace;letter-spacing:0.5px">${this._esc(r.barcode)}</span> · ` : ''}${this._esc(r.category||'')}${r.updated_at ? ' · ' + r.updated_at.slice(0,10) : ''}
           </div>
         </div>
         <div style="text-align:center;min-width:50px">
