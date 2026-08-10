@@ -14,7 +14,10 @@ const PAGES = [
   { key: 'sales',                 label: '매출현황' },
   { key: 'inflow',                label: '유입량' },
   { key: 'checklist',             label: '인원체크리스트' },
+  { key: 'charcoal',             label: '숯방' },
   { key: 'announcement',          label: '안내방송' },
+  { key: 'callstaff',             label: '직원 호출' },
+  { key: 'community',             label: '커뮤니티' },
   { key: 'corp',                  label: '법인 계정 정보' },
 ];
 
