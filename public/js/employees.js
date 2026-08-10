@@ -326,11 +326,16 @@ const Employees = {
           const e = document.querySelector(`.perm-edit[data-page="${pg.key}"]`)?.checked;
           permissions[pg.key] = { view: !!v, edit: !!e };
         });
+        const btn = document.querySelector('.modal .btn-primary');
+        if (btn) { btn.disabled = true; btn.textContent = '저장 중...'; }
         try {
           await API.put(`/api/permissions/${id}`, { role, permissions });
           Utils.showToast('권한이 저장되었습니다.');
           Utils.closeModal(); Employees.render();
-        } catch (e) { Utils.showToast(e.message, 'error'); }
+        } catch (e) {
+          Utils.showToast(e.message, 'error');
+          if (btn) { btn.disabled = false; btn.textContent = '저장'; }
+        }
       },
       '저장'
     );

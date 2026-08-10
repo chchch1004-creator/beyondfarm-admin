@@ -57,14 +57,15 @@ router.put('/:userId', requireSuperAdmin, async (req, res) => {
     }
 
     if (permissions) {
-      for (const pg of PAGES) {
+      const stmts = PAGES.map(pg => {
         const perm = permissions[pg.key] || { view: false, edit: false };
-        await db.prepare(`
-          INSERT INTO user_permissions (user_id, page, can_view, can_edit)
-          VALUES (?, ?, ?, ?)
-          ON CONFLICT(user_id, page) DO UPDATE SET can_view=excluded.can_view, can_edit=excluded.can_edit
-        `).run(userId, pg.key, perm.view ? 1 : 0, perm.edit ? 1 : 0);
-      }
+        return {
+          sql: `INSERT INTO user_permissions (user_id, page, can_view, can_edit) VALUES (?, ?, ?, ?)
+                ON CONFLICT(user_id, page) DO UPDATE SET can_view=excluded.can_view, can_edit=excluded.can_edit`,
+          args: [userId, pg.key, perm.view ? 1 : 0, perm.edit ? 1 : 0]
+        };
+      });
+      await db.batch(stmts);
     }
 
     res.json({ ok: true });
