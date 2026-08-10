@@ -20,6 +20,9 @@ function wrap(client) {
   });
   return {
     prepare,
+    async batch(stmts) {
+      return client.batch(stmts.map(s => ({ sql: s.sql, args: (s.args || []).map(a => a ?? null) })));
+    },
     async exec(sql) {
       const stmts = sql.split(';').map(s => s.trim()).filter(Boolean);
       for (const s of stmts) await client.execute({ sql: s, args: [] });

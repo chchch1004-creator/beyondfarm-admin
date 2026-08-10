@@ -40,12 +40,14 @@ router.get('/', requireAuth, async (req, res) => {
        hire_date ASC, name`
     ).all();
 
-    const attendance = await db.prepare(
-      `SELECT * FROM attendance WHERE strftime('%Y', date) = ? AND strftime('%m', date) = ?`
-    ).all(String(y), String(m).padStart(2, '0'));
+    const [attendance, settingsRows, manualHoursAll, adjustmentsAll, noteRow] = await Promise.all([
+      db.prepare(`SELECT * FROM attendance WHERE strftime('%Y', date) = ? AND strftime('%m', date) = ?`).all(String(y), String(m).padStart(2, '0')),
+      db.prepare('SELECT key, value FROM settings').all(),
+      db.prepare('SELECT * FROM timesheet_manual_hours WHERE year = ? AND month = ?').all(y, m),
+      db.prepare('SELECT * FROM timesheet_adjustments WHERE year = ? AND month = ?').all(y, m),
+      db.prepare('SELECT content FROM timesheet_notes WHERE year = ? AND month = ?').get(y, m),
+    ]);
 
-    // 공식 출근 시간 설정 로드
-    const settingsRows = await db.prepare('SELECT key, value FROM settings').all();
     const cfg = {};
     settingsRows.forEach(r => { cfg[r.key] = r.value; });
     const officeStart = cfg.office_start || '10:00';
@@ -69,17 +71,9 @@ router.get('/', requireAuth, async (req, res) => {
       return Math.round(totalMins / 30) * 0.5;
     }
 
-    const manualHours = await db.prepare(
-      `SELECT * FROM timesheet_manual_hours WHERE year = ? AND month = ?`
-    ).all(y, m);
-
-    const adjustments = await db.prepare(
-      `SELECT * FROM timesheet_adjustments WHERE year = ? AND month = ?`
-    ).all(y, m);
-
-    const note = await db.prepare(
-      `SELECT content FROM timesheet_notes WHERE year = ? AND month = ?`
-    ).get(y, m);
+    const manualHours = manualHoursAll;
+    const adjustments = adjustmentsAll;
+    const note = noteRow;
 
     const shareholderNames = ['조상희','조상하','정재호','소재훈'];
     const shareholderIds = employees.filter(e => shareholderNames.includes(e.name)).map(e => e.id);

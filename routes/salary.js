@@ -89,7 +89,19 @@ router.post('/sync-from-timesheet', requireAdmin, async (req, res) => {
       return mins <= 0 ? 0 : Math.round(mins / 30) * 0.5;
     }
 
+    // 시급 이력 + 기존 급여 일괄 조회 (직원별 개별 쿼리 제거)
+    const lastDay = `${year}-${String(month).padStart(2,'0')}-31`;
+    const [rateHistAll, existingSalaries] = await Promise.all([
+      db.prepare('SELECT user_id, hourly_rate FROM hourly_rate_history WHERE effective_from <= ? ORDER BY effective_from ASC').all(lastDay),
+      db.prepare('SELECT id, user_id FROM salaries WHERE year = ? AND month = ?').all(year, month),
+    ]);
+    const effectiveRateMap = {};
+    rateHistAll.forEach(r => { effectiveRateMap[r.user_id] = r.hourly_rate; });
+    const existingMap = {};
+    existingSalaries.forEach(s => { existingMap[s.user_id] = s.id; });
+
     let synced = 0;
+    const stmts = [];
     for (const emp of employees) {
       const adjRow = adjustments.find(a => a.user_id === emp.id);
       const manH = {};
@@ -101,31 +113,29 @@ router.post('/sync-from-timesheet', requireAdmin, async (req, res) => {
         if (manH[day] === undefined) totalHours += calcH(att.check_in, att.check_out, emp.employee_type, att.date, att.work_location);
       });
 
-      const adj = adjRow?.adj || 0;   // 상여
-      const adj1 = adjRow?.adj1 || 0; // 조정
-
-      const effectiveRate = (await getEffectiveRate(db, emp.id, year, month)) ?? (emp.hourly_rate || 0);
-      // 근무표와 동일한 계산식: 시급*시간 + 상여 + 조정 = 세전 총급여
+      const adj = adjRow?.adj || 0;
+      const adj1 = adjRow?.adj1 || 0;
+      const effectiveRate = effectiveRateMap[emp.id] ?? (emp.hourly_rate || 0);
       const grossPay = Math.round(totalHours * effectiveRate + adj * 10000 + adj1 * 10000);
-      const bonus = Math.round(adj * 10000); // 표시용
+      const bonus = Math.round(adj * 10000);
       const tax = Math.round(grossPay * 0.03);
       const localTax = Math.round(grossPay * 0.003);
       const deduction = tax + localTax;
-      const salaryNetPay = grossPay - deduction; // 근무표 transfer와 동일
-      const netPay = grossPay; // base_salary에 저장할 세전 총액
+      const salaryNetPay = grossPay - deduction;
+      const netPay = grossPay;
 
       if (netPay === 0 && bonus === 0) continue;
 
-      const existing = await db.prepare('SELECT id FROM salaries WHERE user_id = ? AND year = ? AND month = ?').get(emp.id, year, month);
-      if (existing) {
-        await db.prepare('UPDATE salaries SET base_salary=?, overtime_pay=0, bonus=?, deduction=?, net_pay=?, note=? WHERE id=?')
-          .run(netPay, bonus, deduction, salaryNetPay, '근무표 자동 연동', existing.id);
+      if (existingMap[emp.id]) {
+        stmts.push({ sql: 'UPDATE salaries SET base_salary=?, overtime_pay=0, bonus=?, deduction=?, net_pay=?, note=? WHERE id=?',
+          args: [netPay, bonus, deduction, salaryNetPay, '근무표 자동 연동', existingMap[emp.id]] });
       } else {
-        await db.prepare('INSERT INTO salaries (user_id, year, month, base_salary, overtime_pay, bonus, deduction, net_pay, note) VALUES (?,?,?,?,0,?,?,?,?)')
-          .run(emp.id, year, month, netPay, bonus, deduction, salaryNetPay, '근무표 자동 연동');
+        stmts.push({ sql: 'INSERT INTO salaries (user_id, year, month, base_salary, overtime_pay, bonus, deduction, net_pay, note) VALUES (?,?,?,?,0,?,?,?,?)',
+          args: [emp.id, year, month, netPay, bonus, deduction, salaryNetPay, '근무표 자동 연동'] });
       }
       synced++;
     }
+    if (stmts.length) await db.batch(stmts);
     res.json({ ok: true, synced });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
