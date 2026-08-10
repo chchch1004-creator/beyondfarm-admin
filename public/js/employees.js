@@ -57,6 +57,7 @@ const Employees = {
             </select>
             <input id="emp-search" placeholder="이름 검색" oninput="Employees.filter()" style="padding:6px 10px;border:1px solid #dee2e6;border-radius:6px;font-size:13px">
           </div>
+          <div id="menu-perm-section" style="display:none"></div>
           <div style="overflow-x:auto">
             <table id="emp-table" class="resizable-table" style="border-collapse:collapse;width:100%;min-width:700px;table-layout:fixed">
               <colgroup>
@@ -79,10 +80,20 @@ const Employees = {
               <tbody id="emp-tbody"></tbody>
             </table>
           </div>
-        </div>`;
+        </div>
+        ${isAdmin ? `
+        <div class="card" style="margin-top:20px;padding:0;overflow:hidden">
+          <div style="padding:14px 20px;display:flex;align-items:center;gap:10px;border-bottom:1px solid #dee2e6;background:#f8f9fa">
+            <span style="font-size:15px;font-weight:600">🔑 메뉴별 권한관리</span>
+            <span style="font-size:12px;color:#6c757d">특정 메뉴를 선택하면 전 직원에게 일괄로 권한을 부여하거나 해제할 수 있습니다</span>
+          </div>
+          <div id="menu-perm-btn-row" style="padding:14px 16px;display:flex;flex-wrap:wrap;gap:8px;border-bottom:1px solid #dee2e6"></div>
+          <div id="menu-perm-body" style="padding:16px;display:none"></div>
+        </div>` : ''}`;
 
       this.filter();
       this.initResize();
+      if (isAdmin) this._initMenuPermBtns();
     } catch (e) {
       content.innerHTML = `<div class="empty-state"><div class="icon">⚠️</div>${e.message}</div>`;
     }
@@ -459,6 +470,127 @@ const Employees = {
         btn.style.color = newVal ? '#fff' : '#64748b';
         btn.textContent = `📣${newVal ? '호출ON' : '호출OFF'}`;
       }
+    } catch (e) { Utils.showToast(e.message, 'error'); }
+  },
+
+  _menuPages: null,
+  _menuSelected: null,
+
+  async _initMenuPermBtns() {
+    const btnRow = document.getElementById('menu-perm-btn-row');
+    if (!btnRow) return;
+    try {
+      this._menuPages = await API.get('/api/permissions/pages');
+    } catch { this._menuPages = []; }
+    btnRow.innerHTML = this._menuPages.map(pg => `
+      <button id="mpbtn-${pg.key}" onclick="Employees.showMenuPerm('${pg.key}','${pg.label}')"
+        style="padding:5px 12px;font-size:12px;border:1px solid #dee2e6;border-radius:20px;background:#fff;cursor:pointer;transition:all .15s">
+        ${pg.label}
+      </button>`).join('');
+  },
+
+  async showMenuPerm(pageKey, pageLabel) {
+    // 버튼 활성화 표시
+    if (this._menuPages) {
+      this._menuPages.forEach(pg => {
+        const b = document.getElementById(`mpbtn-${pg.key}`);
+        if (b) { b.style.background = pg.key === pageKey ? '#6f42c1' : '#fff'; b.style.color = pg.key === pageKey ? '#fff' : ''; b.style.borderColor = pg.key === pageKey ? '#6f42c1' : '#dee2e6'; }
+      });
+    }
+    this._menuSelected = pageKey;
+    const body = document.getElementById('menu-perm-body');
+    if (!body) return;
+    body.style.display = 'block';
+    body.innerHTML = `<div style="text-align:center;padding:20px;color:#6c757d">불러오는 중...</div>`;
+
+    try {
+      const [permMap, employees] = await Promise.all([
+        API.get(`/api/permissions/menu/${pageKey}`),
+        Promise.resolve(this.data.filter(e => e.status === 'active')),
+      ]);
+
+      const allView = employees.every(e => permMap[e.id]?.view);
+      const allEdit = employees.every(e => permMap[e.id]?.edit);
+
+      body.innerHTML = `
+        <div style="margin-bottom:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <span style="font-weight:700;font-size:14px;color:#6f42c1">[${pageLabel}]</span>
+          <span style="font-size:12px;color:#6c757d">재직 중인 직원 ${employees.length}명</span>
+          <div style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">
+            <button onclick="Employees._toggleAllMenuPerm('view',true)" style="padding:4px 10px;font-size:12px;border:1px solid #198754;border-radius:6px;background:#d1fae5;color:#065f46;cursor:pointer">조회 전체ON</button>
+            <button onclick="Employees._toggleAllMenuPerm('view',false)" style="padding:4px 10px;font-size:12px;border:1px solid #dc3545;border-radius:6px;background:#fee2e2;color:#991b1b;cursor:pointer">조회 전체OFF</button>
+            <button onclick="Employees._toggleAllMenuPerm('edit',true)" style="padding:4px 10px;font-size:12px;border:1px solid #1971c2;border-radius:6px;background:#dbeafe;color:#1e3a5f;cursor:pointer">수정 전체ON</button>
+            <button onclick="Employees._toggleAllMenuPerm('edit',false)" style="padding:4px 10px;font-size:12px;border:1px solid #6c757d;border-radius:6px;background:#f1f5f9;color:#475569;cursor:pointer">수정 전체OFF</button>
+          </div>
+        </div>
+        <div style="overflow-x:auto">
+          <table style="border-collapse:collapse;width:100%;font-size:13px">
+            <thead>
+              <tr style="background:#f8f9fa;border-bottom:2px solid #dee2e6">
+                <th style="padding:8px 12px;text-align:left;font-weight:600">이름</th>
+                <th style="padding:8px 12px;text-align:left;font-weight:600">부서</th>
+                <th style="padding:8px 12px;text-align:center;font-weight:600">조회</th>
+                <th style="padding:8px 12px;text-align:center;font-weight:600">수정</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${employees.map(e => {
+                const v = !!permMap[e.id]?.view;
+                const ed = !!permMap[e.id]?.edit;
+                return `<tr style="border-bottom:1px solid #f0f0f0" onmouseover="this.style.background='#f8f9fa'" onmouseout="this.style.background=''">
+                  <td style="padding:7px 12px;font-weight:600">${e.name}</td>
+                  <td style="padding:7px 12px;color:#64748b">${e.department || '-'}</td>
+                  <td style="padding:7px 12px;text-align:center">
+                    <input type="checkbox" class="mp-view" data-uid="${e.id}" ${v?'checked':''}
+                      style="width:15px;height:15px;cursor:pointer" onchange="Employees._mpViewChange(this)">
+                  </td>
+                  <td style="padding:7px 12px;text-align:center">
+                    <input type="checkbox" class="mp-edit" data-uid="${e.id}" ${ed?'checked':''} ${!v?'disabled':''}
+                      style="width:15px;height:15px;cursor:pointer">
+                  </td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+        <div style="margin-top:14px;display:flex;justify-content:flex-end">
+          <button onclick="Employees._saveMenuPerms('${pageKey}','${pageLabel}')"
+            style="padding:8px 22px;background:#6f42c1;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">
+            저장
+          </button>
+        </div>`;
+    } catch (e) {
+      body.innerHTML = `<div style="color:#dc3545;padding:12px">${e.message}</div>`;
+    }
+  },
+
+  _mpViewChange(cb) {
+    const uid = cb.dataset.uid;
+    const editCb = document.querySelector(`.mp-edit[data-uid="${uid}"]`);
+    if (editCb) { if (!cb.checked) { editCb.checked = false; editCb.disabled = true; } else { editCb.disabled = false; } }
+  },
+
+  _toggleAllMenuPerm(type, val) {
+    document.querySelectorAll(`.mp-${type}`).forEach(cb => {
+      if (cb.disabled && val) return;
+      cb.checked = val;
+      if (type === 'view') Employees._mpViewChange(cb);
+    });
+    if (type === 'view' && !val) {
+      document.querySelectorAll('.mp-edit').forEach(cb => { cb.checked = false; cb.disabled = true; });
+    }
+  },
+
+  async _saveMenuPerms(pageKey, pageLabel) {
+    const permissions = [];
+    document.querySelectorAll('.mp-view').forEach(cb => {
+      const uid = parseInt(cb.dataset.uid);
+      const editCb = document.querySelector(`.mp-edit[data-uid="${uid}"]`);
+      permissions.push({ user_id: uid, view: cb.checked, edit: !!(editCb?.checked) });
+    });
+    try {
+      await API.put(`/api/permissions/menu/${pageKey}`, { permissions });
+      Utils.showToast(`[${pageLabel}] 권한이 저장되었습니다.`);
     } catch (e) { Utils.showToast(e.message, 'error'); }
   },
 };

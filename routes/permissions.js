@@ -44,6 +44,37 @@ router.get('/:userId', requireSuperAdmin, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// GET /api/permissions/menu/:pageKey — 해당 메뉴에 대한 전 직원 권한 조회
+router.get('/menu/:pageKey', requireSuperAdmin, async (req, res) => {
+  try {
+    const db = getDb();
+    const { pageKey } = req.params;
+    const rows = await db.prepare(
+      'SELECT user_id, can_view, can_edit FROM user_permissions WHERE page = ?'
+    ).all(pageKey);
+    const map = {};
+    rows.forEach(r => { map[r.user_id] = { view: !!r.can_view, edit: !!r.can_edit }; });
+    res.json(map);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// PUT /api/permissions/menu/:pageKey — 해당 메뉴 권한 일괄 저장
+router.put('/menu/:pageKey', requireSuperAdmin, async (req, res) => {
+  try {
+    const db = getDb();
+    const { pageKey } = req.params;
+    const { permissions } = req.body; // [{user_id, view, edit}]
+    if (!Array.isArray(permissions) || !permissions.length) return res.json({ ok: true });
+    const stmts = permissions.map(p => ({
+      sql: `INSERT INTO user_permissions (user_id, page, can_view, can_edit) VALUES (?, ?, ?, ?)
+            ON CONFLICT(user_id, page) DO UPDATE SET can_view=excluded.can_view, can_edit=excluded.can_edit`,
+      args: [p.user_id, pageKey, p.view ? 1 : 0, p.edit ? 1 : 0]
+    }));
+    await db.batch(stmts);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // PUT /api/permissions/:userId — 권한 저장
 router.put('/:userId', requireSuperAdmin, async (req, res) => {
   try {
