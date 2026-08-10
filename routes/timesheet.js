@@ -494,7 +494,7 @@ router.get('/excel', requireSuperAdmin, async (req, res) => {
       const dailyVals = Array.from({length:days},(_,i)=>{
         const d=i+1, cell=emp.daily[d];
         if(!cell) return '';
-        if(emp.isSH) return (cell.sh||0)+(cell.extra||0) > 0 ? '●' : '';
+        if(emp.isSH) return (cell.sh||0)+(cell.extra||0) || '';
         return cell.hours||'';
       });
       const vals = [emp.name, emp.totalH||'',
