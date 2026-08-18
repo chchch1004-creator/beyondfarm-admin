@@ -59,10 +59,12 @@ router.post('/check-in', requireLogin, async (req, res) => {
     const now = kstTime();
     const userId = req.session.user.id;
     const workLoc = loc.location || 1;
-    const existing = await db.prepare('SELECT * FROM attendance WHERE user_id = ? AND date = ?').get(userId, today);
-    if (existing?.check_in) return res.status(400).json({ error: '이미 출근 처리되었습니다.' });
-    if (existing) await db.prepare('UPDATE attendance SET check_in = ?, work_location = ? WHERE id = ?').run(now, workLoc, existing.id);
-    else await db.prepare('INSERT INTO attendance (user_id, date, check_in, work_location) VALUES (?, ?, ?, ?)').run(userId, today, now, workLoc);
+    // 오늘 미완료(퇴근 안 한) 레코드가 있으면 중복 출근 불가
+    const open = await db.prepare(
+      'SELECT id FROM attendance WHERE user_id = ? AND date = ? AND check_in IS NOT NULL AND check_out IS NULL'
+    ).get(userId, today);
+    if (open) return res.status(400).json({ error: '이미 출근 중입니다. 퇴근 후 다시 출근할 수 있습니다.' });
+    await db.prepare('INSERT INTO attendance (user_id, date, check_in, work_location) VALUES (?, ?, ?, ?)').run(userId, today, now, workLoc);
     res.json({ ok: true, time: now });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -74,10 +76,12 @@ router.post('/check-out', requireLogin, async (req, res) => {
     const today = kstDate();
     const now = kstTime();
     const userId = req.session.user.id;
-    const existing = await db.prepare('SELECT * FROM attendance WHERE user_id = ? AND date = ?').get(userId, today);
-    if (!existing?.check_in) return res.status(400).json({ error: '출근 기록이 없습니다.' });
-    if (existing.check_out) return res.status(400).json({ error: '이미 퇴근 처리되었습니다.' });
-    await db.prepare('UPDATE attendance SET check_out = ? WHERE id = ?').run(now, existing.id);
+    // 오늘 미완료(퇴근 안 한) 레코드 찾기
+    const open = await db.prepare(
+      'SELECT id FROM attendance WHERE user_id = ? AND date = ? AND check_in IS NOT NULL AND check_out IS NULL'
+    ).get(userId, today);
+    if (!open) return res.status(400).json({ error: '출근 기록이 없습니다.' });
+    await db.prepare('UPDATE attendance SET check_out = ? WHERE id = ?').run(now, open.id);
     res.json({ ok: true, time: now });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });

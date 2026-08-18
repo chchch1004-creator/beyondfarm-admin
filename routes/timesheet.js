@@ -96,7 +96,7 @@ router.get('/', requireAuth, async (req, res) => {
         if (att.check_in && att.check_out) {
           const day = parseInt(att.date.split('-')[2]);
           const hours = calcOfficialHours(att.check_in, att.check_out, emp.employee_type, att.date, att.work_location);
-          if (hours > 0) attDaily[day] = hours;
+          if (hours > 0) attDaily[day] = (attDaily[day] || 0) + hours;
         }
       });
 
@@ -404,7 +404,7 @@ router.get('/excel', requireSuperAdmin, async (req, res) => {
 
       const daily={};
       attendance.filter(a=>a.user_id===emp.id).forEach(a=>{
-        if(a.check_in&&a.check_out){const d=parseInt(a.date.split('-')[2]);const h=calcH(a.check_in,a.check_out,emp.employee_type,a.date,a.work_location);if(h>0)daily[d]={hours:h};}
+        if(a.check_in&&a.check_out){const d=parseInt(a.date.split('-')[2]);const h=calcH(a.check_in,a.check_out,emp.employee_type,a.date,a.work_location);if(h>0)daily[d]={hours:(daily[d]?.hours||0)+h};}
       });
       manualHours.filter(h=>h.user_id===emp.id).forEach(h=>{daily[h.day]={hours:h.hours,manual:true};});
       const rate=effectiveRateMap[emp.id]??emp.hourly_rate??0;
