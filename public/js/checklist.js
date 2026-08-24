@@ -203,15 +203,39 @@ const Checklist = (() => {
     });
   }
 
+  // ── 저장 상태 표시 ──
+  function _setSaveStatus(status) {
+    // status: 'saving' | 'saved' | 'error'
+    const el = document.getElementById('cl-save-status');
+    if (!el) return;
+    if (status === 'saving') { el.textContent = '저장 중...'; el.style.color = '#94a3b8'; }
+    else if (status === 'saved') { el.textContent = '✓ 저장됨'; el.style.color = '#16a34a'; }
+    else if (status === 'error') { el.textContent = '⚠ 저장 실패 — 재시도 중'; el.style.color = '#dc2626'; }
+  }
+
   // ── 무음 자동저장 ──
-  function _doSave(date, ts) {
-    return API.put(`/api/checklist/${date}/${ts}`, state.data[ts] || emptyTimeslot())
-      .then(() => { if (!state.dates.includes(date)) state.dates.unshift(date); })
-      .catch(() => {});
+  async function _doSave(date, ts, retries = 2) {
+    _setSaveStatus('saving');
+    try {
+      await API.put(`/api/checklist/${date}/${ts}`, state.data[ts] || emptyTimeslot());
+      if (!state.dates.includes(date)) state.dates.unshift(date);
+      _setSaveStatus('saved');
+    } catch (e) {
+      if (retries > 0) {
+        await new Promise(r => setTimeout(r, 1500));
+        return _doSave(date, ts, retries - 1);
+      }
+      _setSaveStatus('error');
+      Utils.showToast('체크리스트 저장 실패! 네트워크를 확인하고 다시 편집하거나 새로고침 전에 내용을 메모해 두세요.', 'error');
+    }
   }
   function silentSave() {
     clearTimeout(_saveTimer);
-    _saveTimer = setTimeout(() => _doSave(state.date, state.timeslot), 800);
+    _saveTimer = setTimeout(async () => {
+      _saveTimer = 1; // null이 아닌 값으로 유지 (flushSave 감지용)
+      await _doSave(state.date, state.timeslot);
+      _saveTimer = null;
+    }, 800);
   }
   // 즉시 저장 (날짜/탭 전환 전에 호출)
   async function flushSave() {
@@ -239,9 +263,11 @@ const Checklist = (() => {
     await Promise.all(batch.map(e => API.post('/api/checklist/log', e).catch(() => {})));
   }
 
-  function destroy() {
+  async function destroy() {
     clearTimeout(_wsReconnectTimer);
     if (_ws) { _ws.onclose = null; _ws.close(); _ws = null; }
+    await flushSave();
+    await flushLogs();
   }
 
   async function render() {
@@ -458,7 +484,8 @@ const Checklist = (() => {
     return `<button id="cl-tab-log" onclick="Checklist.switchTab('log')"
       style="padding:9px 20px;border:1px solid #2563eb;
       background:${active?'#2563eb':'#fff'};color:${active?'#fff':'#2563eb'};
-      cursor:pointer;font-size:13px;font-weight:600;border-radius:0 8px 0 0">변경 로그</button>`;
+      cursor:pointer;font-size:13px;font-weight:600;border-radius:0 8px 0 0">변경 로그</button>
+    <span id="cl-save-status" style="font-size:11px;color:#94a3b8;margin-left:10px;align-self:center"></span>`;
   }
 
   function renderPanel() {
