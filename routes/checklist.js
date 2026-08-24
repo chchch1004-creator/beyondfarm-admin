@@ -5,6 +5,10 @@ const { getDb } = require('../db/database');
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 
+function kstNow() {
+  return new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Seoul' }).replace('T', ' ');
+}
+
 // ── 네이버 예약 엑셀 파싱 및 텐트 자동 배정 ──────────────────────────────
 
 const TENT8_LABELS = ['A','B','C','D','E','F','G','H','J','K','L','P','S'];
@@ -319,10 +323,11 @@ router.post('/upload-excel', requireAuth, upload.single('file'), async (req, res
     if (orders.length > 0) console.log(`[Excel] sample order:`, JSON.stringify(orders[0]));
 
     for (const ts of ['11', '15', '19']) {
+      const now = kstNow();
       await getDb().prepare(`
-        INSERT INTO checklist_data (date, timeslot, data, updated_at) VALUES (?,?,?,datetime('now'))
-        ON CONFLICT(date, timeslot) DO UPDATE SET data=excluded.data, updated_at=datetime('now')
-      `).run(date, ts, JSON.stringify(slotData[ts]));
+        INSERT INTO checklist_data (date, timeslot, data, updated_at) VALUES (?,?,?,?)
+        ON CONFLICT(date, timeslot) DO UPDATE SET data=excluded.data, updated_at=?
+      `).run(date, ts, JSON.stringify(slotData[ts]), now, now);
     }
 
     const orderCounts = { '11': 0, '15': 0, '19': 0 };
@@ -380,10 +385,11 @@ router.put('/:date/:timeslot', requireAuth, async (req, res) => {
   try {
     if (!await canEdit(req)) return res.status(403).json({ error: '수정 권한이 없습니다' });
     const json = JSON.stringify(req.body);
+    const now = kstNow();
     await getDb().prepare(`
-      INSERT INTO checklist_data (date, timeslot, data, updated_at) VALUES (?,?,?,datetime('now'))
-      ON CONFLICT(date, timeslot) DO UPDATE SET data=excluded.data, updated_at=datetime('now')
-    `).run(req.params.date, req.params.timeslot, json);
+      INSERT INTO checklist_data (date, timeslot, data, updated_at) VALUES (?,?,?,?)
+      ON CONFLICT(date, timeslot) DO UPDATE SET data=excluded.data, updated_at=?
+    `).run(req.params.date, req.params.timeslot, json, now, now);
     if (global.wsBroadcast) global.wsBroadcast({ type: 'checklist_update', date: req.params.date, timeslot: req.params.timeslot });
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -395,9 +401,9 @@ router.post('/log', requireAuth, async (req, res) => {
     const u = req.session.user;
     const { date, timeslot, tent_no, field, old_value, new_value, action } = req.body;
     await getDb().prepare(`
-      INSERT INTO checklist_log (user_id, username, date, timeslot, tent_no, field, old_value, new_value, action)
-      VALUES (?,?,?,?,?,?,?,?,?)
-    `).run(u.id, u.username, date, timeslot, tent_no ?? '', field ?? '', old_value ?? '', new_value ?? '', action);
+      INSERT INTO checklist_log (user_id, username, date, timeslot, tent_no, field, old_value, new_value, action, created_at)
+      VALUES (?,?,?,?,?,?,?,?,?,?)
+    `).run(u.id, u.username, date, timeslot, tent_no ?? '', field ?? '', old_value ?? '', new_value ?? '', action, kstNow());
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
