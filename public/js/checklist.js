@@ -266,7 +266,14 @@ const Checklist = (() => {
   async function destroy() {
     clearTimeout(_wsReconnectTimer);
     if (_ws) { _ws.onclose = null; _ws.close(); _ws = null; }
-    await flushSave();
+    // 미저장 데이터 즉시 flush (타임아웃 없이 한 번만 시도)
+    if (_saveTimer !== null) {
+      clearTimeout(_saveTimer);
+      _saveTimer = null;
+      const date = state.date, ts = state.timeslot;
+      const data = state.data[ts];
+      if (data) API.put(`/api/checklist/${date}/${ts}`, data).catch(() => {});
+    }
     await flushLogs();
   }
 
