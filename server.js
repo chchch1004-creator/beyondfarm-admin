@@ -25,7 +25,8 @@ app.use(session({
   resave: false,
   saveUninitialized: false,
   store: sessionStore,
-  cookie: { maxAge: 8 * 60 * 60 * 1000 }
+  rolling: true,
+  cookie: { maxAge: 30 * 24 * 60 * 60 * 1000 }
 }));
 // 1시간마다 만료 세션 정리
 setInterval(() => sessionStore.cleanup(), 60 * 60 * 1000);

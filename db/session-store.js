@@ -1,7 +1,7 @@
 const session = require('express-session');
 const { getDb } = require('./database');
 
-const TTL_MS = 8 * 60 * 60 * 1000; // 8시간
+const TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30일
 
 class TursoStore extends session.Store {
   get(sid, cb = () => {}) {
