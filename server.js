@@ -50,6 +50,8 @@ app.use('/api/user-settings', require('./routes/settings_user'));
 app.use('/api/community', require('./routes/community'));
 app.use('/api/corp', require('./routes/corp'));
 app.use('/api/payhere', require('./routes/payhere'));
+app.use('/api/dashboard', require('./routes/dashboard'));
+app.use('/api/backup', require('./routes/backup'));
 
 app.get('*', (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
@@ -69,10 +71,27 @@ wss.on('connection', (ws) => {
   ws.on('error', () => {});
 });
 
+// ── 매일 새벽 2시(KST) 자동 백업 ─────────────────────────────────
+function scheduleBackup() {
+  const { runBackup } = require('./routes/backup');
+  const now = new Date();
+  const kst = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
+  const next2am = new Date(kst);
+  next2am.setHours(2, 0, 0, 0);
+  if (next2am <= kst) next2am.setDate(next2am.getDate() + 1);
+  const ms = next2am - kst;
+  setTimeout(async () => {
+    try { await runBackup(); } catch {}
+    scheduleBackup();
+  }, ms);
+  console.log(`[백업] 다음 자동백업: ${next2am.toLocaleString('ko-KR')} (${Math.round(ms/3600000)}시간 후)`);
+}
+
 init().then(() => {
   server.listen(PORT, () => {
     console.log(`비욘더팜 관리 시스템 실행 중: http://localhost:${PORT}`);
   });
+  scheduleBackup();
 }).catch(err => {
   console.error('DB 초기화 실패:', err);
   process.exit(1);

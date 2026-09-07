@@ -131,10 +131,27 @@ const Settings = {
           3. 주소창 옆 <strong>홈 화면에 추가</strong> 버튼으로 앱처럼 설치 가능
         </div>
       </div>
+
+      ${App.user.role === 'superadmin' ? `
+      <!-- 데이터 백업 -->
+      <div class="card" style="max-width:640px;margin-top:0">
+        <div class="card-title">🔒 데이터 백업</div>
+        <p style="color:#6c757d;font-size:12px;margin-bottom:12px">
+          매일 새벽 2시에 전체 데이터가 GitHub 비공개 저장소에 자동 백업됩니다.<br>
+          지금 즉시 백업하려면 아래 버튼을 눌러주세요.
+        </p>
+        <div id="backup-status-area" style="padding:12px;background:#f8f9fa;border-radius:8px;font-size:13px;margin-bottom:12px">
+          확인 중...
+        </div>
+        <div class="form-actions">
+          <button id="backup-now-btn" class="btn btn-primary" onclick="Settings.runBackupNow()">지금 백업하기</button>
+        </div>
+      </div>` : ''}
     `;
 
     this.loadServerIP();
     this.gcalCheckStatus();
+    if (App.user.role === 'superadmin') this.loadBackupStatus();
   },
 
   async loadServerIP() {
@@ -289,5 +306,42 @@ const Settings = {
       });
       Utils.showToast('설정이 저장되었습니다.');
     } catch (e) { Utils.showToast(e.message, 'error'); }
+  },
+
+  async loadBackupStatus() {
+    const area = document.getElementById('backup-status-area');
+    if (!area) return;
+    try {
+      const s = await API.get('/api/backup/status');
+      if (!s.configured) {
+        area.innerHTML = '<span style="color:#dc2626">⚠️ GITHUB_BACKUP_TOKEN 또는 GITHUB_BACKUP_REPO 환경변수가 설정되지 않았습니다.</span>';
+        return;
+      }
+      if (s.error) { area.innerHTML = `<span style="color:#dc2626">오류: ${s.error}</span>`; return; }
+      const list = s.recentBackups?.length
+        ? s.recentBackups.map(f => `<span style="margin-right:8px;color:#2f9e44">✓ ${f.replace('.json','')}</span>`).join('')
+        : '<span style="color:#adb5bd">아직 백업 파일 없음</span>';
+      area.innerHTML = `
+        <div style="margin-bottom:6px">저장소: <strong>${s.repo}</strong></div>
+        <div style="font-size:12px;color:#6c757d;margin-bottom:4px">최근 백업:</div>
+        <div style="line-height:1.8">${list}</div>`;
+    } catch (e) {
+      if (area) area.innerHTML = `<span style="color:#dc2626">상태 조회 실패: ${e.message}</span>`;
+    }
+  },
+
+  async runBackupNow() {
+    const btn = document.getElementById('backup-now-btn');
+    const area = document.getElementById('backup-status-area');
+    if (btn) { btn.disabled = true; btn.textContent = '백업 중...'; }
+    try {
+      const r = await API.post('/api/backup/run', {});
+      Utils.showToast(`백업 완료 (${r.tables}개 테이블, ${r.date})`);
+      await this.loadBackupStatus();
+    } catch (e) {
+      Utils.showToast('백업 실패: ' + e.message, 'error');
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '지금 백업하기'; }
+    }
   }
 };
