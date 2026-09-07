@@ -48,12 +48,11 @@ const Dashboard = {
   },
   _getWeekDates(baseDate) {
     const d = new Date(baseDate);
-    const dow = d.getDay();
-    const monday = new Date(d);
-    monday.setDate(d.getDate() - (dow === 0 ? 6 : dow - 1));
+    const sunday = new Date(d);
+    sunday.setDate(d.getDate() - d.getDay()); // 해당 주 일요일
     return Array.from({ length: 7 }, (_, i) => {
-      const day = new Date(monday);
-      day.setDate(monday.getDate() + i);
+      const day = new Date(sunday);
+      day.setDate(sunday.getDate() + i);
       return day;
     });
   },
@@ -189,7 +188,7 @@ const Dashboard = {
 
   // ── 3주 테이블 (헤더 1회, 3행) ────────────────────────────────────
   _renderTwoWeeks(thisWeek, nextWeek, week3, canEdit) {
-    const DOW = ['월','화','수','목','금','토','일'];
+    const DOW = ['일','월','화','수','목','금','토'];
     const headers = DOW.map((d, i) =>
       `<th style="padding:8px 4px;text-align:center;font-size:12px;font-weight:700;border-bottom:2px solid #dee2e6;color:${i>=5?'#e03131':'#495057'};min-width:110px">${d}</th>`
     ).join('');
@@ -212,7 +211,7 @@ const Dashboard = {
     const cells = dates.map((d, i) => {
       const ds = this._fmtDate(d);
       const isToday = ds === todayStr;
-      const isWknd = i >= 5;
+      const isWknd = i === 0 || i === 6;
       const isHol = this._isHoliday(d);
       const isRed = isWknd || isHol;
       const cellBg = isToday ? '#f0fff4' : isRed ? '#fff5f5' : '#fff';
