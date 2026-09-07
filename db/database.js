@@ -367,6 +367,16 @@ async function init() {
     UNIQUE(user_id, endpoint)
   )`);
 
+  tables.push(`CREATE TABLE IF NOT EXISTS dashboard_schedule (
+    date TEXT NOT NULL,
+    slot INTEGER NOT NULL DEFAULT 0,
+    text TEXT NOT NULL DEFAULT '',
+    color TEXT,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+    updated_by TEXT,
+    PRIMARY KEY (date, slot)
+  )`);
+
   for (const sql of tables) {
     await client.execute({ sql, args: [] });
   }

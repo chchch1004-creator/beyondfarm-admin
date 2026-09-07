@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const https = require('https');
 const { getDb } = require('../db/database');
 
 function requireSuperAdmin(req, res, next) {
@@ -24,6 +25,26 @@ async function dumpAllTables() {
   return dump;
 }
 
+// https 요청 helper (fetch 대체)
+function httpsRequest(url, options, body) {
+  return new Promise((resolve, reject) => {
+    const u = new URL(url);
+    const req = https.request({
+      hostname: u.hostname,
+      path: u.pathname + u.search,
+      method: options.method || 'GET',
+      headers: options.headers || {},
+    }, (res) => {
+      let data = '';
+      res.on('data', chunk => { data += chunk; });
+      res.on('end', () => resolve({ status: res.statusCode, text: () => data, json: () => JSON.parse(data) }));
+    });
+    req.on('error', reject);
+    if (body) req.write(body);
+    req.end();
+  });
+}
+
 // GitHub에 파일 커밋
 async function pushToGitHub(filename, content) {
   const token = process.env.GITHUB_BACKUP_TOKEN;
@@ -40,17 +61,16 @@ async function pushToGitHub(filename, content) {
   // 기존 파일 SHA 조회 (업데이트 시 필요)
   let sha;
   try {
-    const res = await fetch(api, { headers });
-    if (res.ok) sha = (await res.json()).sha;
+    const res = await httpsRequest(api, { headers });
+    if (res.status === 200) sha = res.json().sha;
   } catch {}
 
-  const body = { message: `backup: ${filename}`, content: Buffer.from(content).toString('base64') };
-  if (sha) body.sha = sha;
+  const bodyObj = { message: `backup: ${filename}`, content: Buffer.from(content).toString('base64') };
+  if (sha) bodyObj.sha = sha;
 
-  const res = await fetch(api, { method: 'PUT', headers, body: JSON.stringify(body) });
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`GitHub API 오류: ${res.status} ${err}`);
+  const res = await httpsRequest(api, { method: 'PUT', headers }, JSON.stringify(bodyObj));
+  if (res.status !== 200 && res.status !== 201) {
+    throw new Error(`GitHub API 오류: ${res.status} ${res.text()}`);
   }
 }
 
@@ -89,8 +109,8 @@ router.get('/status', requireSuperAdmin, async (req, res) => {
   if (!token || !repo) return res.json({ configured: false });
   try {
     const headers = { Authorization: `token ${token}`, 'User-Agent': 'beyondfarm-backup' };
-    const r = await fetch(`https://api.github.com/repos/${repo}/contents/backups`, { headers });
-    const files = r.ok ? await r.json() : [];
+    const r = await httpsRequest(`https://api.github.com/repos/${repo}/contents/backups`, { headers });
+    const files = r.status === 200 ? r.json() : [];
     const list = Array.isArray(files)
       ? files.map(f => f.name).filter(n => n.endsWith('.json')).sort().reverse().slice(0, 10)
       : [];
