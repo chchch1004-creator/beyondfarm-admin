@@ -84,17 +84,12 @@ const Dashboard = {
 
   // ── 저장 항목 파싱 (@field|이름1|... / @office|이름1|... / 일반텍스트) ─
   _parseStored(entries) {
-    let fieldExtra = [], officeExtra = [], notes = [];
+    let fieldExtra = [], officeExtra = [];
     for (const e of entries) {
-      if (e.text.startsWith('@field|')) {
-        fieldExtra = e.text.slice(7).split('|').filter(Boolean);
-      } else if (e.text.startsWith('@office|')) {
-        officeExtra = e.text.slice(8).split('|').filter(Boolean);
-      } else {
-        notes.push(e);
-      }
+      if (e.text.startsWith('@field|')) fieldExtra = e.text.slice(7).split('|').filter(Boolean);
+      else if (e.text.startsWith('@office|')) officeExtra = e.text.slice(8).split('|').filter(Boolean);
     }
-    return { fieldExtra, officeExtra, notes };
+    return { fieldExtra, officeExtra };
   },
 
   // ── 렌더 ───────────────────────────────────────────────────────────
@@ -204,16 +199,31 @@ const Dashboard = {
       const autoField  = this._autoField(d);
       const autoOffice = this._autoOffice(d);
       const stored = this._scheduleData[ds] || [];
-      const { fieldExtra, officeExtra, notes } = this._parseStored(stored);
+      const { fieldExtra, officeExtra } = this._parseStored(stored);
 
       const fieldNames  = [...new Set([...autoField,  ...fieldExtra])];
       const officeNames = [...new Set([...autoOffice, ...officeExtra])];
+
+      const addRow = isEdit ? `
+        <div style="margin-top:5px;border-top:1px solid #f1f3f5;padding-top:5px;display:flex;gap:3px">
+          <input id="inp-${ds}" list="emp-dl-${ds}" placeholder="이름 입력..."
+            style="flex:1;min-width:0;font-size:10px;padding:3px 5px;border:1px solid #dee2e6;border-radius:4px"
+            onkeydown="if(event.key==='Enter'){Dashboard._addByText('${ds}')}"
+          >
+          <datalist id="emp-dl-${ds}">${this._employees.map(n=>`<option value="${n}">`).join('')}</datalist>
+          <select id="typ-${ds}" style="font-size:10px;padding:3px;border:1px solid #dee2e6;border-radius:4px;color:#495057">
+            <option value="field">현장</option>
+            <option value="office">사무실</option>
+          </select>
+          <button onclick="Dashboard._addByText('${ds}')"
+            style="font-size:10px;padding:3px 7px;border:1px solid #6f42c1;border-radius:4px;background:#6f42c1;color:#fff;cursor:pointer;white-space:nowrap">+추가</button>
+        </div>` : '';
 
       return `<td style="padding:6px 5px;vertical-align:top;background:${cellBg};border:1px solid #f1f3f5;min-width:110px">
         <div style="${numStyle};margin-bottom:4px">${d.getMonth()+1}/${d.getDate()}</div>
         ${this._renderSection('현장', 'field', ds, fieldNames, autoField, fieldExtra, isEdit)}
         ${this._renderSection('사무실', 'office', ds, officeNames, autoOffice, officeExtra, isEdit)}
-        ${this._renderNotes(ds, notes, isEdit)}
+        ${addRow}
       </td>`;
     }).join('');
     return `<tr>${cells}</tr>`;
@@ -236,59 +246,12 @@ const Dashboard = {
       return `<span style="display:inline-block;padding:1px 5px;border-radius:10px;font-size:10px;font-weight:600;background:${c.bg};color:${c.fg};border:1px solid ${c.border};margin:1px">${name}</span>`;
     }).join('');
 
-    const addBtn = isEdit ? `<div style="margin-top:3px">
-      <select onchange="Dashboard._addExtra('${ds}','${type}',this)" style="font-size:10px;padding:2px 4px;border:1px dashed #adb5bd;border-radius:4px;color:#6c757d;background:#fff;max-width:100%">
-        <option value="">+ 직원 추가</option>
-        ${this._employees.map(n => `<option value="${n}">${n}</option>`).join('')}
-      </select>
-    </div>` : '';
-
     return `<div style="margin-bottom:4px">
-      <div style="font-size:9px;font-weight:700;color:${c.fg};margin-bottom:2px;text-transform:uppercase;letter-spacing:0.5px">${label}</div>
-      <div style="display:flex;flex-wrap:wrap;gap:1px">${badges || `<span style="font-size:10px;color:#adb5bd">-</span>`}</div>
-      ${addBtn}
+      <div style="font-size:9px;font-weight:700;color:${c.fg};margin-bottom:2px;letter-spacing:0.5px">${label}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:1px">${badges || (isEdit ? '' : `<span style="font-size:10px;color:#adb5bd">-</span>`)}</div>
     </div>`;
   },
 
-  // ── 메모 섹션 ──────────────────────────────────────────────────────
-  _renderNotes(ds, notes, isEdit) {
-    const COLOR_OPTIONS = [
-      { v:'', label:'기본', fg:'#495057', bg:'#f8f9fa' },
-      { v:'red', label:'빨강', fg:'#dc2626', bg:'#fff5f5' },
-      { v:'blue', label:'파랑', fg:'#1971c2', bg:'#e7f5ff' },
-      { v:'green', label:'초록', fg:'#2f9e44', bg:'#ebfbee' },
-      { v:'orange', label:'주황', fg:'#e67700', bg:'#fff9db' },
-      { v:'purple', label:'보라', fg:'#7048e8', bg:'#f3f0ff' },
-    ];
-    const COLORS = { red:'#dc2626', blue:'#1971c2', green:'#2f9e44', orange:'#e67700', purple:'#7048e8' };
-
-    if (!notes.length && !isEdit) return '';
-
-    const noteHtml = notes.map((e, ei) => {
-      const fg = COLORS[e.color] || '#495057';
-      const bg = COLOR_OPTIONS.find(o => o.v === e.color)?.bg || '#f8f9fa';
-      if (isEdit) {
-        return `<div style="display:flex;align-items:center;gap:2px;margin-bottom:3px">
-          <input value="${e.text.replace(/"/g,'&quot;')}" data-date="${ds}" data-noteidx="${ei}" data-field="text"
-            style="flex:1;min-width:0;font-size:10px;padding:2px 4px;border:1px solid #dee2e6;border-radius:4px;color:${fg};background:${bg}"
-            oninput="Dashboard._onNoteInput(this)" onblur="Dashboard._saveDate('${ds}')">
-          <select data-date="${ds}" data-noteidx="${ei}" data-field="color"
-            style="font-size:10px;padding:2px;border:1px solid #dee2e6;border-radius:4px;width:42px"
-            onchange="Dashboard._onNoteInput(this);Dashboard._saveDate('${ds}')">
-            ${COLOR_OPTIONS.map(c => `<option value="${c.v}" ${e.color===c.v?'selected':''}>${c.label}</option>`).join('')}
-          </select>
-          <button onclick="Dashboard._removeNote('${ds}',${ei})" style="font-size:10px;padding:1px 4px;border:1px solid #fca5a5;border-radius:4px;background:#fff5f5;color:#dc2626;cursor:pointer">✕</button>
-        </div>`;
-      }
-      return e.text ? `<div style="font-size:10px;padding:1px 5px;border-radius:4px;margin-bottom:2px;background:${bg};color:${fg};font-weight:500">${e.text}</div>` : '';
-    }).join('');
-
-    const addBtn = isEdit ? `<button onclick="Dashboard._addNote('${ds}')"
-      style="font-size:10px;padding:2px 6px;border:1px dashed #adb5bd;border-radius:4px;background:#fff;color:#6c757d;cursor:pointer;width:100%;margin-top:2px">+ 메모</button>` : '';
-
-    if (!notes.length && !isEdit) return '';
-    return `<div style="border-top:1px solid #f1f3f5;margin-top:4px;padding-top:4px">${noteHtml}${addBtn}</div>`;
-  },
 
   // ── 수정 모드 ──────────────────────────────────────────────────────
   toggleEdit() {
@@ -313,68 +276,38 @@ const Dashboard = {
     wrap.innerHTML = this._renderTwoWeeks(thisWeek, nextWeek, canEdit);
   },
 
-  // ── 직원 추가/제거 ─────────────────────────────────────────────────
-  _addExtra(ds, type, sel) {
-    const name = sel.value; sel.value = '';
-    if (!name) return;
+  // ── 직원 추가 (이름 직접 입력 + 현장/사무실 선택) ───────────────────
+  _addByText(ds) {
+    const inp = document.getElementById(`inp-${ds}`);
+    const typ = document.getElementById(`typ-${ds}`);
+    const name = inp?.value.trim();
+    const type = typ?.value || 'field';
+    if (!name) { inp?.focus(); return; }
     const stored = this._scheduleData[ds] || [];
-    const { fieldExtra, officeExtra, notes } = this._parseStored(stored);
+    const { fieldExtra, officeExtra } = this._parseStored(stored);
     if (type === 'field') { if (!fieldExtra.includes(name)) fieldExtra.push(name); }
     else { if (!officeExtra.includes(name)) officeExtra.push(name); }
-    this._rebuildStored(ds, fieldExtra, officeExtra, notes);
+    this._rebuildStored(ds, fieldExtra, officeExtra);
     this._saveDate(ds);
+    inp.value = '';
     this._rerenderSchedule();
   },
 
   _removeExtra(ds, type, name) {
     const stored = this._scheduleData[ds] || [];
-    let { fieldExtra, officeExtra, notes } = this._parseStored(stored);
+    let { fieldExtra, officeExtra } = this._parseStored(stored);
     if (type === 'field') fieldExtra = fieldExtra.filter(n => n !== name);
     else officeExtra = officeExtra.filter(n => n !== name);
-    this._rebuildStored(ds, fieldExtra, officeExtra, notes);
-    this._saveDate(ds);
-    this._rerenderSchedule();
-  },
-
-  // ── 메모 추가/수정/제거 ────────────────────────────────────────────
-  _addNote(ds) {
-    const stored = this._scheduleData[ds] || [];
-    const { fieldExtra, officeExtra, notes } = this._parseStored(stored);
-    notes.push({ text: '', color: '' });
-    this._rebuildStored(ds, fieldExtra, officeExtra, notes);
-    this._rerenderSchedule();
-    setTimeout(() => {
-      const inputs = document.querySelectorAll(`[data-date="${ds}"][data-field="text"]`);
-      if (inputs.length) inputs[inputs.length - 1].focus();
-    }, 50);
-  },
-
-  _onNoteInput(el) {
-    const ds = el.dataset.date;
-    const idx = parseInt(el.dataset.noteidx);
-    const field = el.dataset.field;
-    const stored = this._scheduleData[ds] || [];
-    const { fieldExtra, officeExtra, notes } = this._parseStored(stored);
-    if (!notes[idx]) notes[idx] = { text: '', color: '' };
-    notes[idx][field] = el.value;
-    this._rebuildStored(ds, fieldExtra, officeExtra, notes);
-  },
-
-  _removeNote(ds, idx) {
-    const stored = this._scheduleData[ds] || [];
-    const { fieldExtra, officeExtra, notes } = this._parseStored(stored);
-    notes.splice(idx, 1);
-    this._rebuildStored(ds, fieldExtra, officeExtra, notes);
+    this._rebuildStored(ds, fieldExtra, officeExtra);
     this._saveDate(ds);
     this._rerenderSchedule();
   },
 
   // ── 저장 데이터 재구성 ─────────────────────────────────────────────
-  _rebuildStored(ds, fieldExtra, officeExtra, notes) {
+  _rebuildStored(ds, fieldExtra, officeExtra) {
     const entries = [];
     if (fieldExtra.length) entries.push({ text: '@field|' + fieldExtra.join('|'), color: '' });
     if (officeExtra.length) entries.push({ text: '@office|' + officeExtra.join('|'), color: '' });
-    notes.forEach(n => { if (n.text !== undefined) entries.push(n); });
     this._scheduleData[ds] = entries;
   },
 
