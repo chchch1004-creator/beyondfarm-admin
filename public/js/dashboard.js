@@ -102,8 +102,10 @@ const Dashboard = {
       const thisWeek = this._getWeekDates(today);
       const nextWeekBase = new Date(today); nextWeekBase.setDate(today.getDate() + 7);
       const nextWeek = this._getWeekDates(nextWeekBase);
+      const week3Base = new Date(today); week3Base.setDate(today.getDate() + 14);
+      const week3 = this._getWeekDates(week3Base);
       const from = this._fmtDate(thisWeek[0]);
-      const to   = this._fmtDate(nextWeek[6]);
+      const to   = this._fmtDate(week3[6]);
 
       const cy = today.getFullYear(), cm = today.getMonth() + 1;
       let ny = cy, nm = cm + 1; if (nm > 12) { nm = 1; ny++; }
@@ -123,14 +125,14 @@ const Dashboard = {
       content.innerHTML = `
         <div class="card" style="padding:0;overflow:hidden;margin-bottom:20px">
           <div style="padding:14px 20px;display:flex;align-items:center;gap:10px;border-bottom:1px solid #dee2e6;background:#f8f9fa">
-            <span style="font-size:15px;font-weight:700">📅 2주간 근무표</span>
+            <span style="font-size:15px;font-weight:700">📅 3주간 근무표</span>
             ${canEdit ? `<button id="dash-edit-btn" onclick="Dashboard.toggleEdit()"
               style="margin-left:auto;padding:5px 14px;font-size:12px;border-radius:6px;border:1px solid #6f42c1;background:#fff;color:#6f42c1;cursor:pointer;font-weight:600">
               ✏️ 수정
             </button>` : ''}
           </div>
           <div style="padding:16px" id="dash-schedule-wrap">
-            ${this._renderTwoWeeks(thisWeek, nextWeek, canEdit)}
+            ${this._renderTwoWeeks(thisWeek, nextWeek, week3, canEdit)}
           </div>
         </div>
 
@@ -164,8 +166,8 @@ const Dashboard = {
     }
   },
 
-  // ── 2주 테이블 (헤더 1회, 2행) ────────────────────────────────────
-  _renderTwoWeeks(thisWeek, nextWeek, canEdit) {
+  // ── 3주 테이블 (헤더 1회, 3행) ────────────────────────────────────
+  _renderTwoWeeks(thisWeek, nextWeek, week3, canEdit) {
     const DOW = ['월','화','수','목','금','토','일'];
     const headers = DOW.map((d, i) =>
       `<th style="padding:8px 4px;text-align:center;font-size:12px;font-weight:700;border-bottom:2px solid #dee2e6;color:${i>=5?'#e03131':'#495057'};min-width:110px">${d}</th>`
@@ -177,6 +179,7 @@ const Dashboard = {
         <tbody>
           ${this._makeRow(thisWeek, canEdit)}
           ${this._makeRow(nextWeek, canEdit)}
+          ${this._makeRow(week3, canEdit)}
         </tbody>
       </table>
     </div>`;
@@ -273,7 +276,9 @@ const Dashboard = {
     const thisWeek = this._getWeekDates(today);
     const nextWeekBase = new Date(today); nextWeekBase.setDate(today.getDate() + 7);
     const nextWeek = this._getWeekDates(nextWeekBase);
-    wrap.innerHTML = this._renderTwoWeeks(thisWeek, nextWeek, canEdit);
+    const week3Base = new Date(today); week3Base.setDate(today.getDate() + 14);
+    const week3 = this._getWeekDates(week3Base);
+    wrap.innerHTML = this._renderTwoWeeks(thisWeek, nextWeek, week3, canEdit);
   },
 
   // ── 직원 추가 (이름 직접 입력 + 현장/사무실 선택) ───────────────────
