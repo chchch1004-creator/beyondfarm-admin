@@ -20,8 +20,27 @@ const Dashboard = {
   calMonth: new Date().getMonth() + 1,
   _scheduleData: {},
   _leaveMap: {},
+  _shMap: {},
   _employees: [],
   _editMode: false,
+
+  // ── 주주근무표 → 날짜맵 ────────────────────────────────────────────
+  _buildShMap(...sheets) {
+    const map = {};
+    const pad = n => String(n).padStart(2,'0');
+    for (const data of sheets) {
+      if (!data?.employees) continue;
+      const { year, month, employees } = data;
+      employees.forEach(emp => {
+        (emp.days || []).forEach(d => {
+          const ds = `${year}-${pad(month)}-${pad(d)}`;
+          if (!map[ds]) map[ds] = [];
+          if (!map[ds].includes(emp.name)) map[ds].push(emp.name);
+        });
+      });
+    }
+    return map;
+  },
 
   // ── 날짜 유틸 ──────────────────────────────────────────────────────
   _fmtDate(d) {
@@ -121,6 +140,7 @@ const Dashboard = {
 
       this._scheduleData = schedData || {};
       this._leaveMap = this._buildLeaveMap(leaveData || []);
+      this._shMap = this._buildShMap(shTimesheet, shTimesheetNext);
       this._employees = (empData || []).filter(e => e.status === 'active').map(e => e.name);
 
       content.innerHTML = `
@@ -204,8 +224,9 @@ const Dashboard = {
       const autoOffice = this._autoOffice(d);
       const stored = this._scheduleData[ds] || [];
       const { fieldExtra, officeExtra } = this._parseStored(stored);
+      const shNames = isRed ? (this._shMap[ds] || []) : [];
 
-      const fieldNames  = [...new Set([...autoField,  ...fieldExtra])];
+      const fieldNames  = [...new Set([...shNames, ...autoField, ...fieldExtra])];
       const officeNames = [...new Set([...autoOffice, ...officeExtra])];
 
       const addRow = isEdit ? `
@@ -225,8 +246,8 @@ const Dashboard = {
 
       return `<td style="padding:6px 5px;vertical-align:top;background:${cellBg};border:1px solid #f1f3f5;min-width:110px">
         <div style="${numStyle};margin-bottom:4px">${d.getMonth()+1}/${d.getDate()}</div>
-        ${this._renderSection('현장', 'field', ds, fieldNames, autoField, fieldExtra, isEdit)}
-        ${this._renderSection('사무실', 'office', ds, officeNames, autoOffice, officeExtra, isEdit)}
+        ${this._renderSection('현장', 'field', ds, fieldNames, autoField, fieldExtra, shNames, isEdit)}
+        ${this._renderSection('사무실', 'office', ds, officeNames, autoOffice, officeExtra, [], isEdit)}
         ${addRow}
       </td>`;
     }).join('');
@@ -234,14 +255,20 @@ const Dashboard = {
   },
 
   // ── 현장/사무실 섹션 렌더링 ────────────────────────────────────────
-  _renderSection(label, type, ds, allNames, autoNames, extraNames, isEdit) {
+  _renderSection(label, type, ds, allNames, autoNames, extraNames, shNames, isEdit) {
     const COLOR = { field: { bg:'#fff3e0', fg:'#e65100', border:'#ffb74d' }, office: { bg:'#e3f2fd', fg:'#1565c0', border:'#90caf9' } };
+    const SH_COLOR = { '조상희':'#2d6a4f', '조상하':'#1864ab', '정재호':'#862e9c', '소재훈':'#c0392b' };
     const c = COLOR[type];
     if (!allNames.length && !isEdit) return '';
 
     const badges = allNames.map(name => {
-      const isAuto = autoNames.includes(name);
+      const isSh = shNames.includes(name);
       const isExtra = extraNames.includes(name);
+      // 주주근무표 이름 → 개인 전용 색상
+      if (isSh && SH_COLOR[name]) {
+        const shc = SH_COLOR[name];
+        return `<span style="display:inline-block;padding:1px 5px;border-radius:10px;font-size:10px;font-weight:700;background:${shc}22;color:${shc};border:1px solid ${shc};margin:1px">${name}</span>`;
+      }
       if (isEdit && isExtra) {
         return `<span style="display:inline-flex;align-items:center;gap:2px;padding:1px 5px;border-radius:10px;font-size:10px;font-weight:600;background:${c.bg};color:${c.fg};border:1px solid ${c.border};margin:1px">
           ${name}<button onclick="Dashboard._removeExtra('${ds}','${type}','${name}')" style="border:none;background:none;cursor:pointer;color:#dc2626;font-size:10px;padding:0;line-height:1">✕</button>
