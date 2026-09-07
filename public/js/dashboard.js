@@ -108,18 +108,10 @@ const Dashboard = {
     }
   },
 
-  // ── 2주 근무표 렌더링 ──────────────────────────────────────────────
+  // ── 2주 근무표 렌더링 (헤더 1번, 2주 연속) ───────────────────────
   _renderTwoWeeks(thisWeek, nextWeek, canEdit) {
     const todayStr = this._fmtDate(new Date());
-    return [
-      { label: this._weekLabel(thisWeek), dates: thisWeek },
-      { label: this._weekLabel(nextWeek), dates: nextWeek },
-    ].map(({ label, dates }) => this._renderWeekTable(label, dates, todayStr, canEdit)).join('');
-  },
-
-  _renderWeekTable(label, dates, todayStr, canEdit) {
     const DOW = ['월','화','수','목','금','토','일'];
-    const COLORS = { red:'#dc2626', blue:'#1971c2', green:'#2f9e44', orange:'#e67700', purple:'#7048e8', default:'#495057' };
     const COLOR_OPTIONS = [
       { v:'', label:'기본', bg:'#f8f9fa', fg:'#495057' },
       { v:'red', label:'빨강', bg:'#fff5f5', fg:'#dc2626' },
@@ -128,78 +120,73 @@ const Dashboard = {
       { v:'orange', label:'주황', bg:'#fff9db', fg:'#e67700' },
       { v:'purple', label:'보라', bg:'#f3f0ff', fg:'#7048e8' },
     ];
-
+    const COLORS = { red:'#dc2626', blue:'#1971c2', green:'#2f9e44', orange:'#e67700', purple:'#7048e8' };
     const isEdit = this._editMode && canEdit;
 
-    const headers = DOW.map((d, i) => {
-      const isWknd = i >= 5;
-      return `<th style="padding:8px 4px;text-align:center;font-size:12px;font-weight:700;border-bottom:2px solid #dee2e6;color:${isWknd?'#e03131':'#495057'};min-width:80px">${d}</th>`;
-    }).join('');
+    const headers = DOW.map((d, i) =>
+      `<th style="padding:8px 4px;text-align:center;font-size:12px;font-weight:700;border-bottom:2px solid #dee2e6;color:${i>=5?'#e03131':'#495057'};min-width:80px">${d}</th>`
+    ).join('');
 
-    const dateCells = dates.map((d, i) => {
-      const ds = this._fmtDate(d);
-      const isToday = ds === todayStr;
-      const isWknd = i >= 5;
-      const isHol = typeof krIsHoliday === 'function' ? krIsHoliday(d.getFullYear(), d.getMonth()+1, d.getDate()) : false;
-      const isRed = isWknd || isHol;
-      const bg = isToday ? '#1b4332' : isRed ? '#fff5f5' : '#fff';
-      const fg = isToday ? '#fff' : isRed ? '#dc2626' : '#212529';
-      const numStyle = isToday
-        ? `background:#1b4332;color:#fff;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px`
-        : `font-size:13px;font-weight:700;color:${fg}`;
-      return `<td style="padding:6px 4px;vertical-align:top;background:${isToday?'#f0fff4':isRed?'#fff5f5':'#fff'};border:1px solid #f1f3f5;min-width:80px;min-height:60px">
-        <div style="${numStyle}">${d.getMonth()+1}/${d.getDate()}</div>
-      </td>`;
-    }).join('');
+    const makeRows = (dates) => {
+      const dateCells = dates.map((d, i) => {
+        const ds = this._fmtDate(d);
+        const isToday = ds === todayStr;
+        const isWknd = i >= 5;
+        const isHol = typeof krIsHoliday === 'function' ? krIsHoliday(d.getFullYear(), d.getMonth()+1, d.getDate()) : false;
+        const isRed = isWknd || isHol;
+        const fg = isToday ? '#fff' : isRed ? '#dc2626' : '#212529';
+        const numStyle = isToday
+          ? `background:#1b4332;color:#fff;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px`
+          : `font-size:13px;font-weight:700;color:${fg}`;
+        return `<td style="padding:6px 4px;vertical-align:top;background:${isToday?'#f0fff4':isRed?'#fff5f5':'#fff'};border:1px solid #f1f3f5;min-width:80px">
+          <div style="${numStyle}">${d.getMonth()+1}/${d.getDate()}</div>
+        </td>`;
+      }).join('');
 
     const entryCells = dates.map((d, i) => {
       const ds = this._fmtDate(d);
       const isWknd = i >= 5;
       const isHol = typeof krIsHoliday === 'function' ? krIsHoliday(d.getFullYear(), d.getMonth()+1, d.getDate()) : false;
-      const isRed = isWknd || isHol;
-      const entries = this._scheduleData[ds] || [];
-
-      const entryHtml = entries.map((e, ei) => {
-        const fg = COLORS[e.color] || '#495057';
-        const bg = e.color === 'red' ? '#fff5f5' : e.color === 'blue' ? '#e7f5ff' : e.color === 'green' ? '#ebfbee' : e.color === 'orange' ? '#fff9db' : e.color === 'purple' ? '#f3f0ff' : '#f8f9fa';
-        if (isEdit) {
-          return `<div style="display:flex;align-items:center;gap:2px;margin-bottom:3px">
-            <input value="${e.text.replace(/"/g,'&quot;')}" data-date="${ds}" data-idx="${ei}" data-field="text"
-              style="flex:1;min-width:0;font-size:11px;padding:2px 4px;border:1px solid #dee2e6;border-radius:4px;color:${fg};background:${bg}"
-              oninput="Dashboard._onEntryInput(this)" onblur="Dashboard._saveDate('${ds}')">
-            <select data-date="${ds}" data-idx="${ei}" data-field="color"
-              style="font-size:10px;padding:2px;border:1px solid #dee2e6;border-radius:4px;width:44px"
-              onchange="Dashboard._onEntryInput(this);Dashboard._saveDate('${ds}')">
-              ${COLOR_OPTIONS.map(c => `<option value="${c.v}" ${e.color===c.v?'selected':''}>${c.label}</option>`).join('')}
-            </select>
-            <button onclick="Dashboard._removeEntry('${ds}',${ei})"
-              style="font-size:10px;padding:1px 4px;border:1px solid #fca5a5;border-radius:4px;background:#fff5f5;color:#dc2626;cursor:pointer">✕</button>
-          </div>`;
-        }
-        return e.text ? `<div style="font-size:11px;padding:2px 6px;border-radius:4px;margin-bottom:2px;background:${bg};color:${fg};font-weight:600">${e.text}</div>` : '';
+        const isRed = isWknd || isHol;
+        const entries = this._scheduleData[ds] || [];
+        const entryHtml = entries.map((e, ei) => {
+          const fg = COLORS[e.color] || '#495057';
+          const bg = e.color === 'red' ? '#fff5f5' : e.color === 'blue' ? '#e7f5ff' : e.color === 'green' ? '#ebfbee' : e.color === 'orange' ? '#fff9db' : e.color === 'purple' ? '#f3f0ff' : '#f8f9fa';
+          if (isEdit) {
+            return `<div style="display:flex;align-items:center;gap:2px;margin-bottom:3px">
+              <input value="${e.text.replace(/"/g,'&quot;')}" data-date="${ds}" data-idx="${ei}" data-field="text"
+                style="flex:1;min-width:0;font-size:11px;padding:2px 4px;border:1px solid #dee2e6;border-radius:4px;color:${fg};background:${bg}"
+                oninput="Dashboard._onEntryInput(this)" onblur="Dashboard._saveDate('${ds}')">
+              <select data-date="${ds}" data-idx="${ei}" data-field="color"
+                style="font-size:10px;padding:2px;border:1px solid #dee2e6;border-radius:4px;width:44px"
+                onchange="Dashboard._onEntryInput(this);Dashboard._saveDate('${ds}')">
+                ${COLOR_OPTIONS.map(c => `<option value="${c.v}" ${e.color===c.v?'selected':''}>${c.label}</option>`).join('')}
+              </select>
+              <button onclick="Dashboard._removeEntry('${ds}',${ei})"
+                style="font-size:10px;padding:1px 4px;border:1px solid #fca5a5;border-radius:4px;background:#fff5f5;color:#dc2626;cursor:pointer">✕</button>
+            </div>`;
+          }
+          return e.text ? `<div style="font-size:11px;padding:2px 6px;border-radius:4px;margin-bottom:2px;background:${bg};color:${fg};font-weight:600">${e.text}</div>` : '';
+        }).join('');
+        const addBtn = isEdit ? `<button onclick="Dashboard._addEntry('${ds}')"
+          style="font-size:10px;padding:2px 6px;border:1px dashed #adb5bd;border-radius:4px;background:#fff;color:#6c757d;cursor:pointer;width:100%;margin-top:2px">+ 추가</button>` : '';
+        return `<td style="padding:6px 4px;vertical-align:top;background:${isToday?'#f0fff4':isRed?'#fff5f5':'#fff'};border:1px solid #f1f3f5">
+          <div style="${isToday?`background:#1b4332;color:#fff;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px`:`font-size:13px;font-weight:700;color:${isRed?'#e03131':'#212529'}`}">${d.getMonth()+1}/${d.getDate()}</div>
+          ${entryHtml}${addBtn}
+        </td>`;
       }).join('');
+      return `<tr>${cells}</tr>`;
+    };
 
-      const addBtn = isEdit ? `<button onclick="Dashboard._addEntry('${ds}')"
-        style="font-size:10px;padding:2px 6px;border:1px dashed #adb5bd;border-radius:4px;background:#fff;color:#6c757d;cursor:pointer;width:100%;margin-top:2px">+ 추가</button>` : '';
-
-      return `<td style="padding:6px 4px;vertical-align:top;background:${isRed?'#fff5f5':'#fff'};border:1px solid #f1f3f5">
-        ${entryHtml}${addBtn}
-      </td>`;
-    }).join('');
-
-    return `
-      <div style="margin-bottom:16px">
-        <div style="font-size:13px;font-weight:700;color:#1b4332;margin-bottom:8px;padding:6px 10px;background:#f0fff4;border-radius:6px;border-left:3px solid #2f9e44">${label}</div>
-        <div style="overflow-x:auto">
-          <table style="width:100%;border-collapse:collapse;table-layout:fixed">
-            <thead><tr>${headers}</tr></thead>
-            <tbody>
-              <tr>${dateCells}</tr>
-              <tr>${entryCells}</tr>
-            </tbody>
-          </table>
-        </div>
-      </div>`;
+    return `<div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;table-layout:fixed">
+        <thead><tr>${headers}</tr></thead>
+        <tbody>
+          ${makeRows(thisWeek)}
+          ${makeRows(nextWeek)}
+        </tbody>
+      </table>
+    </div>`;
   },
 
   // ── 수정 모드 토글 ──────────────────────────────────────────────────
