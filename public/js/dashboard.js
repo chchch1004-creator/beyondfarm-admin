@@ -76,6 +76,7 @@ const Dashboard = {
   },
   _autoOffice(d) {
     const dow = d.getDay();
+    if (this._isHoliday(d) || dow === 0 || dow === 6) return [];
     const leaveSet = this._leaveMap[this._fmtDate(d)] || new Set();
     return Object.entries(OFFICE_RULES)
       .filter(([name, rule]) => rule.days.includes(dow) && !leaveSet.has(name))
