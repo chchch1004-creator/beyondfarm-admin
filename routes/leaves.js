@@ -67,6 +67,19 @@ router.put('/:id/status', requireLogin, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// 날짜 범위 내 승인된 휴가 (대시보드용)
+router.get('/approved-range', requireLogin, async (req, res) => {
+  try {
+    const { from, to } = req.query;
+    const rows = await db.prepare(
+      `SELECT l.start_date, l.end_date, u.name as user_name
+       FROM leaves l JOIN users u ON l.user_id = u.id
+       WHERE l.status = 'approved' AND l.start_date <= ? AND l.end_date >= ?`
+    ).all(to, from);
+    res.json(rows);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 router.delete('/:id', requireLogin, async (req, res) => {
   try {
     const leave = await db.prepare('SELECT * FROM leaves WHERE id = ?').get(req.params.id);
