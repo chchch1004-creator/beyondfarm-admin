@@ -127,27 +127,16 @@ const Dashboard = {
       `<th style="padding:8px 4px;text-align:center;font-size:12px;font-weight:700;border-bottom:2px solid #dee2e6;color:${i>=5?'#e03131':'#495057'};min-width:80px">${d}</th>`
     ).join('');
 
-    const makeRows = (dates) => {
-      const dateCells = dates.map((d, i) => {
+    const makeRow = (dates) => {
+      const cells = dates.map((d, i) => {
         const ds = this._fmtDate(d);
         const isToday = ds === todayStr;
         const isWknd = i >= 5;
         const isHol = typeof krIsHoliday === 'function' ? krIsHoliday(d.getFullYear(), d.getMonth()+1, d.getDate()) : false;
         const isRed = isWknd || isHol;
-        const fg = isToday ? '#fff' : isRed ? '#dc2626' : '#212529';
         const numStyle = isToday
-          ? `background:#1b4332;color:#fff;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px`
-          : `font-size:13px;font-weight:700;color:${fg}`;
-        return `<td style="padding:6px 4px;vertical-align:top;background:${isToday?'#f0fff4':isRed?'#fff5f5':'#fff'};border:1px solid #f1f3f5;min-width:80px">
-          <div style="${numStyle}">${d.getMonth()+1}/${d.getDate()}</div>
-        </td>`;
-      }).join('');
-
-    const entryCells = dates.map((d, i) => {
-      const ds = this._fmtDate(d);
-      const isWknd = i >= 5;
-      const isHol = typeof krIsHoliday === 'function' ? krIsHoliday(d.getFullYear(), d.getMonth()+1, d.getDate()) : false;
-        const isRed = isWknd || isHol;
+          ? 'background:#1b4332;color:#fff;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px'
+          : `font-size:13px;font-weight:700;color:${isRed?'#e03131':'#212529'}`;
         const entries = this._scheduleData[ds] || [];
         const entryHtml = entries.map((e, ei) => {
           const fg = COLORS[e.color] || '#495057';
@@ -170,8 +159,8 @@ const Dashboard = {
         }).join('');
         const addBtn = isEdit ? `<button onclick="Dashboard._addEntry('${ds}')"
           style="font-size:10px;padding:2px 6px;border:1px dashed #adb5bd;border-radius:4px;background:#fff;color:#6c757d;cursor:pointer;width:100%;margin-top:2px">+ 추가</button>` : '';
-        return `<td style="padding:6px 4px;vertical-align:top;background:${isToday?'#f0fff4':isRed?'#fff5f5':'#fff'};border:1px solid #f1f3f5">
-          <div style="${isToday?`background:#1b4332;color:#fff;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px`:`font-size:13px;font-weight:700;color:${isRed?'#e03131':'#212529'}`}">${d.getMonth()+1}/${d.getDate()}</div>
+        return `<td style="padding:6px 4px;vertical-align:top;background:${isToday?'#f0fff4':isRed?'#fff5f5':'#fff'};border:1px solid #f1f3f5;min-width:80px">
+          <div style="${numStyle}">${d.getMonth()+1}/${d.getDate()}</div>
           ${entryHtml}${addBtn}
         </td>`;
       }).join('');
@@ -182,8 +171,8 @@ const Dashboard = {
       <table style="width:100%;border-collapse:collapse;table-layout:fixed">
         <thead><tr>${headers}</tr></thead>
         <tbody>
-          ${makeRows(thisWeek)}
-          ${makeRows(nextWeek)}
+          ${makeRow(thisWeek)}
+          ${makeRow(nextWeek)}
         </tbody>
       </table>
     </div>`;
