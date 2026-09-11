@@ -101,14 +101,16 @@ const Dashboard = {
       .map(([name]) => name);
   },
 
-  // ── 저장 항목 파싱 (@field|이름1|... / @office|이름1|... / 일반텍스트) ─
+  // ── 저장 항목 파싱 (@field|... / @office|... / @xfield|... / @xoffice|...) ─
   _parseStored(entries) {
-    let fieldExtra = [], officeExtra = [];
+    let fieldExtra = [], officeExtra = [], fieldExclude = [], officeExclude = [];
     for (const e of entries) {
-      if (e.text.startsWith('@field|')) fieldExtra = e.text.slice(7).split('|').filter(Boolean);
-      else if (e.text.startsWith('@office|')) officeExtra = e.text.slice(8).split('|').filter(Boolean);
+      if (e.text.startsWith('@field|'))   fieldExtra   = e.text.slice(7).split('|').filter(Boolean);
+      else if (e.text.startsWith('@office|'))  officeExtra  = e.text.slice(8).split('|').filter(Boolean);
+      else if (e.text.startsWith('@xfield|'))  fieldExclude = e.text.slice(8).split('|').filter(Boolean);
+      else if (e.text.startsWith('@xoffice|')) officeExclude = e.text.slice(9).split('|').filter(Boolean);
     }
-    return { fieldExtra, officeExtra };
+    return { fieldExtra, officeExtra, fieldExclude, officeExclude };
   },
 
   // ── 렌더 ───────────────────────────────────────────────────────────
@@ -222,11 +224,14 @@ const Dashboard = {
       const autoField  = this._autoField(d);
       const autoOffice = this._autoOffice(d);
       const stored = this._scheduleData[ds] || [];
-      const { fieldExtra, officeExtra } = this._parseStored(stored);
+      const { fieldExtra, officeExtra, fieldExclude, officeExclude } = this._parseStored(stored);
       const shNames = isRed ? (this._shMap[ds] || []) : [];
 
-      const fieldNames  = [...new Set([...shNames, ...autoField, ...fieldExtra])];
-      const officeNames = [...new Set([...autoOffice, ...officeExtra])];
+      const autoFieldFiltered  = autoField.filter(n => !fieldExclude.includes(n));
+      const autoOfficeFiltered = autoOffice.filter(n => !officeExclude.includes(n));
+
+      const fieldNames  = [...new Set([...shNames, ...autoFieldFiltered, ...fieldExtra])];
+      const officeNames = [...new Set([...autoOfficeFiltered, ...officeExtra])];
 
       const addRow = isEdit ? `
         <div style="margin-top:5px;border-top:1px solid #f1f3f5;padding-top:5px;display:flex;gap:3px">
@@ -245,8 +250,8 @@ const Dashboard = {
 
       return `<td style="padding:6px 5px;vertical-align:top;background:${cellBg};border:1px solid #f1f3f5;min-width:110px">
         <div style="${numStyle};margin-bottom:4px">${d.getMonth()+1}/${d.getDate()}</div>
-        ${this._renderSection('현장', 'field', ds, fieldNames, autoField, fieldExtra, shNames, isEdit)}
-        ${this._renderSection('사무실', 'office', ds, officeNames, autoOffice, officeExtra, [], isEdit)}
+        ${this._renderSection('현장', 'field', ds, fieldNames, autoFieldFiltered, fieldExtra, shNames, isEdit)}
+        ${this._renderSection('사무실', 'office', ds, officeNames, autoOfficeFiltered, officeExtra, [], isEdit)}
         ${addRow}
       </td>`;
     }).join('');
@@ -263,14 +268,18 @@ const Dashboard = {
     const badges = allNames.map(name => {
       const isSh = shNames.includes(name);
       const isExtra = extraNames.includes(name);
+      const isAuto = autoNames.includes(name) && !isSh;
       // 주주근무표 이름 → 개인 전용 색상
       if (isSh && SH_COLOR[name]) {
         const shc = SH_COLOR[name];
         return `<span style="display:inline-block;padding:1px 5px;border-radius:10px;font-size:10px;font-weight:700;background:${shc}22;color:${shc};border:1px solid ${shc};margin:1px">${name}</span>`;
       }
-      if (isEdit && isExtra) {
+      if (isEdit && (isExtra || isAuto)) {
+        const removeFn = isExtra
+          ? `Dashboard._removeExtra('${ds}','${type}','${name}')`
+          : `Dashboard._removeAuto('${ds}','${type}','${name}')`;
         return `<span style="display:inline-flex;align-items:center;gap:2px;padding:1px 5px;border-radius:10px;font-size:10px;font-weight:600;background:${c.bg};color:${c.fg};border:1px solid ${c.border};margin:1px">
-          ${name}<button onclick="Dashboard._removeExtra('${ds}','${type}','${name}')" style="border:none;background:none;cursor:pointer;color:#dc2626;font-size:10px;padding:0;line-height:1">✕</button>
+          ${name}<button onclick="${removeFn}" style="border:none;background:none;cursor:pointer;color:#dc2626;font-size:10px;padding:0;line-height:1">✕</button>
         </span>`;
       }
       return `<span style="display:inline-block;padding:1px 5px;border-radius:10px;font-size:10px;font-weight:600;background:${c.bg};color:${c.fg};border:1px solid ${c.border};margin:1px">${name}</span>`;
@@ -316,10 +325,10 @@ const Dashboard = {
     const type = typ?.value || 'field';
     if (!name) { inp?.focus(); return; }
     const stored = this._scheduleData[ds] || [];
-    const { fieldExtra, officeExtra } = this._parseStored(stored);
+    const { fieldExtra, officeExtra, fieldExclude, officeExclude } = this._parseStored(stored);
     if (type === 'field') { if (!fieldExtra.includes(name)) fieldExtra.push(name); }
     else { if (!officeExtra.includes(name)) officeExtra.push(name); }
-    this._rebuildStored(ds, fieldExtra, officeExtra);
+    this._rebuildStored(ds, fieldExtra, officeExtra, fieldExclude, officeExclude);
     this._saveDate(ds);
     inp.value = '';
     this._rerenderSchedule();
@@ -327,19 +336,31 @@ const Dashboard = {
 
   _removeExtra(ds, type, name) {
     const stored = this._scheduleData[ds] || [];
-    let { fieldExtra, officeExtra } = this._parseStored(stored);
+    let { fieldExtra, officeExtra, fieldExclude, officeExclude } = this._parseStored(stored);
     if (type === 'field') fieldExtra = fieldExtra.filter(n => n !== name);
     else officeExtra = officeExtra.filter(n => n !== name);
-    this._rebuildStored(ds, fieldExtra, officeExtra);
+    this._rebuildStored(ds, fieldExtra, officeExtra, fieldExclude, officeExclude);
+    this._saveDate(ds);
+    this._rerenderSchedule();
+  },
+
+  _removeAuto(ds, type, name) {
+    const stored = this._scheduleData[ds] || [];
+    let { fieldExtra, officeExtra, fieldExclude, officeExclude } = this._parseStored(stored);
+    if (type === 'field') { if (!fieldExclude.includes(name)) fieldExclude.push(name); }
+    else { if (!officeExclude.includes(name)) officeExclude.push(name); }
+    this._rebuildStored(ds, fieldExtra, officeExtra, fieldExclude, officeExclude);
     this._saveDate(ds);
     this._rerenderSchedule();
   },
 
   // ── 저장 데이터 재구성 ─────────────────────────────────────────────
-  _rebuildStored(ds, fieldExtra, officeExtra) {
+  _rebuildStored(ds, fieldExtra, officeExtra, fieldExclude = [], officeExclude = []) {
     const entries = [];
-    if (fieldExtra.length) entries.push({ text: '@field|' + fieldExtra.join('|'), color: '' });
-    if (officeExtra.length) entries.push({ text: '@office|' + officeExtra.join('|'), color: '' });
+    if (fieldExtra.length)   entries.push({ text: '@field|'   + fieldExtra.join('|'),   color: '' });
+    if (officeExtra.length)  entries.push({ text: '@office|'  + officeExtra.join('|'),  color: '' });
+    if (fieldExclude.length) entries.push({ text: '@xfield|'  + fieldExclude.join('|'), color: '' });
+    if (officeExclude.length)entries.push({ text: '@xoffice|' + officeExclude.join('|'),color: '' });
     this._scheduleData[ds] = entries;
   },
 
