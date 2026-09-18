@@ -5,10 +5,12 @@ const FIELD_RULES = {
   '정민채': { days: [6],   excludeHoliday: false },
   '신동현': { days: [0],   excludeHoliday: false },
   '정병욱': { days: [1,2], excludeHoliday: false },
+  '김관형': { days: [3,4,5,6,0], excludeHoliday: false },
 };
 const OFFICE_RULES = {
   '문예은': { days: [1,3,4] },
   '정민채': { days: [1,3,4] },
+  '이승재': { days: [3,4,5], excludeHoliday: true },
 };
 const ALL_SCHEDULE_NAMES = [...new Set([
   ...Object.keys(FIELD_RULES), ...Object.keys(OFFICE_RULES)
@@ -94,10 +96,16 @@ const Dashboard = {
   },
   _autoOffice(d) {
     const dow = d.getDay();
-    if (this._isHoliday(d) || dow === 0 || dow === 6) return [];
+    const isHol = this._isHoliday(d);
     const leaveSet = this._leaveMap[this._fmtDate(d)] || new Set();
     return Object.entries(OFFICE_RULES)
-      .filter(([name, rule]) => rule.days.includes(dow) && !leaveSet.has(name))
+      .filter(([name, rule]) => {
+        if (!rule.days.includes(dow)) return false;
+        const exHol = rule.excludeHoliday !== false; // 기본값 true (휴일 제외)
+        if (exHol && (isHol || dow === 0 || dow === 6)) return false;
+        if (leaveSet.has(name)) return false;
+        return true;
+      })
       .map(([name]) => name);
   },
 
