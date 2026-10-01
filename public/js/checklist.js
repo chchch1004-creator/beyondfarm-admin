@@ -21,6 +21,7 @@ const Checklist = (() => {
     { key: 'prev_extra_hour', label: '전타임연장', w: 50, readOnly: true },
     { key: 'car',             label: '차량',       w: 70 },
     { key: 'memo',         label: '비고',       w: 256 },
+    { key: 'hp',           label: 'HP',         w: 42 },
   ];
 
   // 티켓(extra) 테이블: 삭제버튼 28px 만큼 memo를 줄여서 전체 폭을 M텐트/L텐트와 맞춤
@@ -34,6 +35,8 @@ const Checklist = (() => {
     editable: false,
     dates: [],
   };
+
+  let _subMap = {}; // 전화번호 뒷4자리 → 플랜명
 
   let _saveTimer = null;
   let _dragState = null;
@@ -116,7 +119,7 @@ const Checklist = (() => {
 
   function emptyRow(tent_no) {
     return { tent_no, product:'', visit_count:'', name:'', reserved:'', actual:'',
-             two_time:'', play:'', child_pool:'', adult_pool:'', bulmung:'', adult_only:'', extra_hour:'', prev_extra_hour:'', car:'', memo:'' };
+             two_time:'', play:'', child_pool:'', adult_pool:'', bulmung:'', adult_only:'', extra_hour:'', prev_extra_hour:'', car:'', memo:'', hp:'' };
   }
 
   function getCurrentData() {
@@ -281,6 +284,15 @@ const Checklist = (() => {
     state.editable = App.canEdit('checklist');
     if (!state.date) state.date = new Date().toISOString().slice(0,10);
     try { state.dates = await API.get('/api/checklist/dates'); } catch { state.dates = []; }
+    // 구독자 전화번호 뒷4자리 맵 로드
+    try {
+      const subs = await API.get('/api/subscriptions');
+      _subMap = {};
+      (subs || []).filter(s => s.status === 'active').forEach(s => {
+        const last4 = String(s.phone).replace(/\D/g,'').slice(-4);
+        if (last4) _subMap[last4] = s.plan;
+      });
+    } catch { _subMap = {}; }
     await loadAllSlots();
     renderUI();
     _connectWS();
@@ -581,7 +593,7 @@ const Checklist = (() => {
         ['예약상품','product'],['방문횟수','visit_count'],['예약인원','reserved'],
         ['입장시인원','actual'],['2타임','two_time'],['플레이','play'],
         ['아이풀','child_pool'],['성인풀','adult_pool'],['불멍','bulmung'],
-        ['성인만','adult_only'],['1시간추가','extra_hour'],['차량','car'],['비고','memo'],
+        ['성인만','adult_only'],['1시간추가','extra_hour'],['차량','car'],['비고','memo'],['HP(뒷4자리)','hp'],
       ];
       const detailHtml = E ? `
         <tr id="${expandId}" style="display:none;background:#f0f9ff">
@@ -630,7 +642,7 @@ const Checklist = (() => {
           r.style.display=r.style.display==='none'?'table-row':'none';
         })()">
         ${td(row.tent_no, 'font-weight:700;color:#1e40af;white-space:nowrap;')}
-        ${td(row.name||'', `font-size:10px;font-weight:600;text-align:left;padding-left:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;${nameBg?'background:'+nameBg+';':''}`)}
+        ${td((()=>{const sub=row.hp?_subMap[String(row.hp).replace(/\D/g,'')]:null;const badge=sub?`<span style="font-size:8px;font-weight:700;color:${sub==='charcoal'?'#e65100':'#1565c0'};background:${sub==='charcoal'?'#fff3e0':'#e3f2fd'};border-radius:3px;padding:0 2px">🎟</span>`:'';return (row.name||'')+badge;})(), `font-size:10px;font-weight:600;text-align:left;padding-left:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;${nameBg?'background:'+nameBg+';':''}`)}
         ${td(row.reserved||'')}
         ${td(row.actual||'')}
         ${td(row.two_time ? `<span style="background:${two_bg};border-radius:3px;padding:0 2px;font-size:8px;white-space:nowrap">${row.two_time}</span>` : '')}
@@ -876,6 +888,22 @@ const Checklist = (() => {
         }
         if (!E) return `<td style="text-align:center;padding:4px 3px;${baseStyle}">${val}</td>`;
         if (c.readOnly) return `<td style="text-align:center;padding:4px 3px;${baseStyle}font-size:12px;color:#374151;">${val}</td>`;
+        if (c.key === 'hp') {
+          const sub = val ? _subMap[String(val).replace(/\D/g,'')] : null;
+          const hpBg = sub ? (sub==='charcoal'?'#fff3e0':'#e3f2fd') : '';
+          const hpBadge = sub ? `<div style="font-size:8px;font-weight:700;color:${sub==='charcoal'?'#e65100':'#1565c0'};line-height:1;text-align:center">🎟${sub==='charcoal'?'숯':'+1h'}</div>` : '';
+          if (!E) return `<td style="text-align:center;padding:2px 1px;${baseStyle}${hpBg?'background:'+hpBg+';':''};font-size:11px">${val||''}${hpBadge}</td>`;
+          return `<td id="td-${section}-${idx}-hp" style="padding:2px 1px;${baseStyle}${hpBg?'background:'+hpBg+';':''}">
+            <input type="text" value="${String(val).replace(/"/g,'&quot;')}" maxlength="4" inputmode="numeric"
+              data-section="${section}" data-idx="${idx}" data-field="hp"
+              onfocus="Checklist.onRowFocus(this)"
+              oninput="Checklist.onRowInput(this);Checklist.refreshHpCell(this)"
+              onkeydown="Checklist.onRowKeydown(this,event)"
+              style="width:100%;box-sizing:border-box;border:1px solid #e2e8f0;border-radius:3px;
+                     padding:3px 1px;font-size:11px;text-align:center;background:transparent">
+            ${hpBadge}
+          </td>`;
+        }
         if (c.key === 'extra_hour') return `<td id="td-${section}-${idx}-extra_hour" style="padding:2px 2px;${baseStyle}">
           <select data-section="${section}" data-idx="${idx}" data-field="extra_hour"
             onfocus="Checklist.onRowFocus(this)"
@@ -1816,13 +1844,27 @@ const Checklist = (() => {
       </div>`;
   }
 
+  function refreshHpCell(input) {
+    const val = String(input.value || '').replace(/\D/g,'').slice(0,4);
+    const sub = val ? _subMap[val] : null;
+    const td = input.parentElement;
+    if (!td) return;
+    td.style.background = sub ? (sub==='charcoal'?'#fff3e0':'#e3f2fd') : '';
+    let badge = td.querySelector('.hp-badge');
+    if (sub) {
+      if (!badge) { badge = document.createElement('div'); badge.className = 'hp-badge'; td.appendChild(badge); }
+      badge.style.cssText = `font-size:8px;font-weight:700;color:${sub==='charcoal'?'#e65100':'#1565c0'};line-height:1;text-align:center`;
+      badge.textContent = `🎟${sub==='charcoal'?'숯':'+1h'}`;
+    } else if (badge) badge.remove();
+  }
+
   return {
     render, destroy, switchSlot, switchTab, changeDate, moveDate,
     addExtraRow, removeExtraRow, onRowFocus, onRowInput, onRowKeydown, uploadExcel, deleteDate,
     clearRow, undo, redo, loadLog, onSearch, _jumpTo,
     onDragStart, onDragOver, onDragEnter, onDragLeave, onDrop, onDragEnd,
     mobSwapTent,
-    playAnnouncement,
+    playAnnouncement, refreshHpCell,
     _isWeekdayMode, toggleWeekdayMode, _renderWeekdayGrid, _wdClickCell, _wdSaveCell,
     _wdDragStart, _wdDragOver, _wdDragLeave, _wdDrop, _wdDropOnCovered,
   };
