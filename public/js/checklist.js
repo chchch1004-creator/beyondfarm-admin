@@ -1358,10 +1358,17 @@ const Checklist = (() => {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || '업로드 실패');
       state.date = json.date;
-      state.tab = 'slot';
-      state.timeslot = '11';
-      await loadAllSlots();
-      renderUI();
+
+      // 평일 모드이면 weekdayData를 localStorage에 저장
+      if (_isWeekdayMode() && json.weekdayData && Object.keys(json.weekdayData).length > 0) {
+        localStorage.setItem(_wdKey(), JSON.stringify(json.weekdayData));
+        renderUI();
+      } else {
+        state.tab = 'slot';
+        state.timeslot = '11';
+        await loadAllSlots();
+        renderUI();
+      }
     } catch (e) {
       alert('엑셀 업로드 실패: ' + e.message);
       if (btn) { btn.disabled = false; btn.textContent = '📥 네이버 예약 가져오기'; }

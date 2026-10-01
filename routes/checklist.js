@@ -53,31 +53,23 @@ function parseNaverExcel(buffer) {
     VALID_STATUS.includes(String(r[colStatus] || '').trim())
   );
 
+  // 시간 파싱 — 실제 시간(0~23) 반환, 실패 시 -1
+  function parseHour(cell) {
+    if (cell instanceof Date) return cell.getHours();
+    const s = String(cell || '');
+    let m = s.match(/오후\s*(\d{1,2})(?::(\d{2}))?/);
+    if (m) { const h = parseInt(m[1]); return h === 12 ? 12 : h + 12; }
+    m = s.match(/오전\s*(\d{1,2})(?::(\d{2}))?/);
+    if (m) { const h = parseInt(m[1]); return h === 12 ? 0 : h; }
+    m = s.match(/(\d{1,2}):(\d{2})/);
+    if (m) return parseInt(m[1]);
+    return -1;
+  }
+
   // 타임슬롯 파싱 — 시간에서 숫자를 추출해 가장 가까운 슬롯(11/15/19)으로 매핑
   function parseTs(cell) {
-    let h = -1;
-    if (cell instanceof Date) {
-      h = cell.getHours();
-    } else {
-      const s = String(cell || '');
-      // "오후 N시", "오후 N:MM", "오전 N시", "오전 N:MM", "N:MM", "NH"
-      let m = s.match(/오후\s*(\d{1,2})(?::(\d{2}))?/);
-      if (m) {
-        h = parseInt(m[1]);
-        if (h !== 12) h += 12;
-      } else {
-        m = s.match(/오전\s*(\d{1,2})(?::(\d{2}))?/);
-        if (m) {
-          h = parseInt(m[1]);
-          if (h === 12) h = 0;
-        } else {
-          m = s.match(/(\d{1,2}):(\d{2})/);
-          if (m) h = parseInt(m[1]);
-        }
-      }
-    }
+    const h = parseHour(cell);
     if (h < 0) return '';
-    // 가장 가까운 슬롯 매핑
     if (h >= 9 && h < 13) return '11';
     if (h >= 13 && h < 17) return '15';
     if (h >= 17 && h <= 23) return '19';
@@ -115,10 +107,12 @@ function parseNaverExcel(buffer) {
 
     const ono = String(r[colOrderNo] || '').trim() || Math.random().toString();
     if (!orders[ono]) {
+      const hour = parseHour(dtCell);
       orders[ono] = {
         name: String(r[colName] || '').trim(),
         product_raw: String(r[colProduct] || '').trim(),
         ts,
+        hour: hour >= 0 ? String(hour) : ts,
         extra: 0, bulmung: '', child: 0, adult: 0, play: 0, ticket: 0,
       };
     }
@@ -330,11 +324,28 @@ router.post('/upload-excel', requireAuth, upload.single('file'), async (req, res
 
     const slotData = assignTents(orders);
 
+    // 평일 그리드 포맷 생성: { [tentNo]: { [hour]: { content: name } } }
+    const weekdayData = {};
+    for (const ts of ['11', '15', '19']) {
+      const sd = slotData[ts];
+      const allRows = [...(sd.tent4||[]), ...(sd.tent2||[]), ...(sd.tent8||[])];
+      // 해당 타임슬롯 주문에서 hour 정보 가져오기
+      const hourByName = {};
+      for (const o of orders) {
+        if (o.ts === ts && o.name) hourByName[o.name] = o.hour || ts;
+      }
+      for (const row of allRows) {
+        if (!row.name || !row.tent_no) continue;
+        const h = hourByName[row.name] || ts;
+        if (!weekdayData[row.tent_no]) weekdayData[row.tent_no] = {};
+        weekdayData[row.tent_no][h] = { content: row.name };
+      }
+    }
+
     // 디버그: 파싱 결과 로그
     const d = parsed._debug;
     console.log(`[Excel] date=${date}, confirmed=${d.confirmedCount}, orders=${orders.length}`);
     console.log(`[Excel] firstDateCell="${d.firstDateCell}"`);
-    console.log(`[Excel] sampleRows=${d.sampleRows}`);
     if (orders.length > 0) console.log(`[Excel] sample order:`, JSON.stringify(orders[0]));
 
     for (const ts of ['11', '15', '19']) {
@@ -352,7 +363,7 @@ router.post('/upload-excel', requireAuth, upload.single('file'), async (req, res
       for (const ts of ['11', '15', '19'])
         global.wsBroadcast({ type: 'checklist_update', date, timeslot: ts });
     }
-    res.json({ ok: true, date, _debug: { ...d, orderCounts, sampleOrder: orders[0] } });
+    res.json({ ok: true, date, weekdayData, _debug: { ...d, orderCounts, sampleOrder: orders[0] } });
   } catch (e) {
     console.error('Excel upload error:', e);
     res.status(500).json({ error: e.message });
