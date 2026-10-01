@@ -179,6 +179,59 @@ router.post('/:id/charge', requireAdmin, async (req, res) => {
   }
 });
 
+// 빌링키 발급 확인 (Toss 카드 등록 성공 후 호출)
+router.post('/:id/billing-confirm', requireAdmin, async (req, res) => {
+  const { authKey, customerKey } = req.body;
+  if (!authKey || !customerKey) return res.status(400).json({ error: 'authKey/customerKey 필요' });
+
+  const secretKey = process.env.TOSS_SECRET_KEY;
+  if (!secretKey) return res.status(500).json({ error: 'TOSS_SECRET_KEY 미설정' });
+
+  const db = getDb();
+  const sub = await db.prepare('SELECT * FROM subscriptions WHERE id=?').get(req.params.id);
+  if (!sub) return res.status(404).json({ error: '없음' });
+
+  try {
+    const result = await new Promise((resolve, reject) => {
+      const payload = JSON.stringify({ authKey, customerKey });
+      const req2 = https.request({
+        hostname: 'api.tosspayments.com',
+        path: '/v1/billing/authorizations/confirm',
+        method: 'POST',
+        headers: {
+          Authorization: 'Basic ' + Buffer.from(secretKey + ':').toString('base64'),
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(payload),
+        },
+      }, (r) => {
+        let data = '';
+        r.on('data', c => { data += c; });
+        r.on('end', () => resolve({ status: r.statusCode, body: JSON.parse(data) }));
+      });
+      req2.on('error', reject);
+      req2.write(payload);
+      req2.end();
+    });
+
+    if (result.status === 200) {
+      const billingKey = result.body.billingKey;
+      await db.prepare('UPDATE subscriptions SET billing_key=? WHERE id=?').run(billingKey, sub.id);
+      res.json({ ok: true, billingKey });
+    } else {
+      res.status(400).json({ error: result.body.message || '빌링키 발급 실패' });
+    }
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// 클라이언트 키 반환 (카드 등록 위젯용)
+router.get('/meta/client-key', requireAdmin, (req, res) => {
+  const key = process.env.TOSS_CLIENT_KEY;
+  if (!key) return res.status(500).json({ error: 'TOSS_CLIENT_KEY 미설정' });
+  res.json({ clientKey: key });
+});
+
 // 혜택 확인 (전화번호로 조회 — 현장 직원용)
 router.get('/check/:phone', requireLogin, async (req, res) => {
   const db = getDb();

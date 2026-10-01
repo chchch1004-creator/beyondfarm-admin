@@ -296,11 +296,17 @@ const Subscriptions = {
           ${data.memo ? `<div style="grid-column:1/-1"><span style="color:#6c757d">메모</span><br>${data.memo}</div>` : ''}
         </div>
 
+        <div style="background:${data.billing_key?'#ebfbee':'#fff5f5'};border:1px solid ${data.billing_key?'#b2f2bb':'#ffc9c9'};border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:12px;display:flex;align-items:center;gap:10px">
+          <span>${data.billing_key ? '✅ 카드 등록됨' : '⚠️ 카드 미등록 — 자동결제 불가'}</span>
+          ${data.status === 'active' ? `<button onclick="Subscriptions.registerCard(${id})" style="margin-left:auto;padding:5px 14px;font-size:12px;border:none;border-radius:6px;background:#1971c2;color:#fff;cursor:pointer">${data.billing_key ? '카드 재등록' : '💳 카드 등록'}</button>` : ''}
+        </div>
+
         <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
           ${data.status === 'active' ? `
             <button onclick="Subscriptions.changeStatus(${id},'paused')" style="padding:6px 14px;font-size:12px;border:1px solid #e67700;border-radius:6px;background:#fff;color:#e67700;cursor:pointer">일시정지</button>
             <button onclick="Subscriptions.changeStatus(${id},'cancelled')" style="padding:6px 14px;font-size:12px;border:1px solid #c92a2a;border-radius:6px;background:#fff;color:#c92a2a;cursor:pointer">해지</button>
-            <button onclick="Subscriptions.manualCharge(${id})" style="padding:6px 14px;font-size:12px;border:none;border-radius:6px;background:#1971c2;color:#fff;cursor:pointer">💳 결제 기록</button>
+            ${data.billing_key ? `<button onclick="Subscriptions.chargeNow(${id})" style="padding:6px 14px;font-size:12px;border:none;border-radius:6px;background:#1b4332;color:#fff;cursor:pointer">⚡ 즉시 결제</button>` : ''}
+            <button onclick="Subscriptions.manualCharge(${id})" style="padding:6px 14px;font-size:12px;border:1px solid #1971c2;border-radius:6px;background:#fff;color:#1971c2;cursor:pointer">📝 수동 기록</button>
           ` : `
             <button onclick="Subscriptions.changeStatus(${id},'active')" style="padding:6px 14px;font-size:12px;border:none;border-radius:6px;background:#2b8a3e;color:#fff;cursor:pointer">재활성화</button>
           `}
@@ -378,5 +384,42 @@ const Subscriptions = {
       Utils.showToast('결제 기록 완료');
       await this.render();
     } catch (e) { Utils.showToast(e.message, 'error'); }
+  },
+
+  async chargeNow(id) {
+    if (!confirm('지금 바로 결제를 진행하시겠습니까?')) return;
+    try {
+      Utils.showToast('결제 중...');
+      await API.post(`/api/subscriptions/${id}/charge`, {});
+      document.getElementById('sub-detail-modal')?.remove();
+      Utils.showToast('결제 성공');
+      await this.render();
+    } catch (e) { Utils.showToast('결제 실패: ' + e.message, 'error'); }
+  },
+
+  async registerCard(id) {
+    try {
+      const { clientKey } = await API.get('/api/subscriptions/meta/client-key');
+      // Toss Payments 빌링 위젯 SDK 로드
+      if (!window.TossPayments) {
+        await new Promise((resolve, reject) => {
+          const s = document.createElement('script');
+          s.src = 'https://js.tosspayments.com/v1/payment';
+          s.onload = resolve; s.onerror = reject;
+          document.head.appendChild(s);
+        });
+      }
+      const toss = TossPayments(clientKey);
+      const customerKey = `customer_${id}_${Date.now()}`;
+      const successUrl = `${location.origin}/billing-success?subId=${id}`;
+      const failUrl    = `${location.origin}/billing-fail?subId=${id}`;
+      await toss.requestBillingAuth('카드', {
+        customerKey,
+        successUrl,
+        failUrl,
+      });
+    } catch (e) {
+      if (e.code !== 'USER_CANCEL') Utils.showToast('카드 등록 실패: ' + (e.message || e.code), 'error');
+    }
   },
 };

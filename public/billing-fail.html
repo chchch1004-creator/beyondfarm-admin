@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>카드 등록 실패</title>
+  <style>
+    body { font-family: 'Noto Sans KR', sans-serif; display:flex; align-items:center; justify-content:center; min-height:100vh; margin:0; background:#f8f9fa; }
+    .card { background:#fff; border-radius:12px; padding:32px 40px; box-shadow:0 4px 20px rgba(0,0,0,0.1); text-align:center; max-width:400px; }
+    .icon { font-size:48px; margin-bottom:16px; }
+    h2 { font-size:20px; margin:0 0 8px; color:#c92a2a; }
+    p { font-size:14px; color:#6c757d; margin:0; }
+  </style>
+</head>
+<body>
+<div class="card">
+  <div class="icon">❌</div>
+  <h2>카드 등록 취소</h2>
+  <p id="msg">카드 등록이 취소되었습니다. 3초 후 돌아갑니다.</p>
+</div>
+<script>
+  const params = new URLSearchParams(location.search);
+  const msg = params.get('message');
+  if (msg) document.getElementById('msg').textContent = decodeURIComponent(msg);
+  setTimeout(() => { location.href = '/#subscriptions'; }, 3000);
+</script>
+</body>
+</html>
