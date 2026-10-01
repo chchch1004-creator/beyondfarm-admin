@@ -53,19 +53,34 @@ function parseNaverExcel(buffer) {
     VALID_STATUS.includes(String(r[colStatus] || '').trim())
   );
 
-  // 타임슬롯 파싱
+  // 타임슬롯 파싱 — 시간에서 숫자를 추출해 가장 가까운 슬롯(11/15/19)으로 매핑
   function parseTs(cell) {
+    let h = -1;
     if (cell instanceof Date) {
-      const h = cell.getHours();
-      if (h === 11) return '11';
-      if (h === 15) return '15';
-      if (h === 19) return '19';
-      return '';
+      h = cell.getHours();
+    } else {
+      const s = String(cell || '');
+      // "오후 N시", "오후 N:MM", "오전 N시", "오전 N:MM", "N:MM", "NH"
+      let m = s.match(/오후\s*(\d{1,2})(?::(\d{2}))?/);
+      if (m) {
+        h = parseInt(m[1]);
+        if (h !== 12) h += 12;
+      } else {
+        m = s.match(/오전\s*(\d{1,2})(?::(\d{2}))?/);
+        if (m) {
+          h = parseInt(m[1]);
+          if (h === 12) h = 0;
+        } else {
+          m = s.match(/(\d{1,2}):(\d{2})/);
+          if (m) h = parseInt(m[1]);
+        }
+      }
     }
-    const s = String(cell || '');
-    if (s.includes('오전 11') || s.includes('11:00')) return '11';
-    if (s.includes('오후 3') || s.includes('15:00') || s.includes('오후3')) return '15';
-    if (s.includes('오후 7') || s.includes('19:00') || s.includes('오후7')) return '19';
+    if (h < 0) return '';
+    // 가장 가까운 슬롯 매핑
+    if (h >= 9 && h < 13) return '11';
+    if (h >= 13 && h < 17) return '15';
+    if (h >= 17 && h <= 23) return '19';
     return '';
   }
 
