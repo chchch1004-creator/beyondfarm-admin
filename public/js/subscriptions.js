@@ -5,7 +5,8 @@ const Subscriptions = {
 
   async render() {
     const content = document.getElementById('content');
-    const isAdmin = App.hasRole('superadmin') || App.hasRole('admin');
+    const role = App.user?.role;
+    const isAdmin = role === 'superadmin' || role === 'admin';
     if (!isAdmin) {
       content.innerHTML = '<div class="empty-state"><div class="icon">🔒</div>접근 권한이 없습니다</div>';
       return;
