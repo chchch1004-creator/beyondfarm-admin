@@ -377,6 +377,36 @@ async function init() {
     PRIMARY KEY (date, slot)
   )`);
 
+  tables.push(`CREATE TABLE IF NOT EXISTS subscriptions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer_name TEXT NOT NULL,
+    phone TEXT NOT NULL,
+    plan TEXT NOT NULL,
+    start_date TEXT NOT NULL,
+    billing_day INTEGER NOT NULL DEFAULT 1,
+    mandatory_months INTEGER NOT NULL,
+    mandatory_end_date TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'active',
+    billing_key TEXT,
+    last_billed_at TEXT,
+    next_bill_at TEXT,
+    memo TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+    created_by TEXT
+  )`);
+
+  tables.push(`CREATE TABLE IF NOT EXISTS subscription_payments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    subscription_id INTEGER NOT NULL,
+    amount INTEGER NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    billed_at TEXT,
+    toss_order_id TEXT,
+    toss_payment_key TEXT,
+    fail_reason TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+  )`);
+
   for (const sql of tables) {
     await client.execute({ sql, args: [] });
   }

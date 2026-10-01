@@ -144,7 +144,8 @@ const App = {
       announcement: '안내방송',
       callstaff: '직원 호출',
       community: '커뮤니티',
-      corp: '법인 계정 정보'
+      corp: '법인 계정 정보',
+      subscriptions: '구독 관리'
     };
     document.getElementById('page-title').textContent = titles[page] || page;
     const mpt = document.getElementById('mobile-page-title');
@@ -153,7 +154,7 @@ const App = {
     const isSuperAdmin = App.user.role === 'superadmin';
 
     // 메뉴 표시/숨김: 권한 기반
-    const navPages = ['dashboard','employees','attendance','leaves','salary','inventory','timesheet','shareholder_timesheet','sales','inflow','checklist','charcoal','announcement','corp'];
+    const navPages = ['dashboard','employees','attendance','leaves','salary','inventory','timesheet','shareholder_timesheet','sales','inflow','checklist','charcoal','announcement','corp','subscriptions'];
     navPages.forEach(p => {
       const el = document.querySelector(`#sidebar [data-page="${p}"]`);
       if (el) el.style.display = App.canView(p) ? '' : 'none';
@@ -179,7 +180,7 @@ const App = {
       return;
     }
 
-    const pages = { dashboard: Dashboard, employees: Employees, attendance: Attendance, leaves: Leaves, salary: Salary, finance: Finance, inventory: Inventory, settings: Settings, mypage: MyPage, timesheet: Timesheet, shareholder_timesheet: ShareholderTimesheet, sales: Sales, inflow: Inflow, checklist: Checklist, charcoal: Charcoal, announcement: Announcement, callstaff: CallStaff, community: Community, corp: Corp };
+    const pages = { dashboard: Dashboard, employees: Employees, attendance: Attendance, leaves: Leaves, salary: Salary, finance: Finance, inventory: Inventory, settings: Settings, mypage: MyPage, timesheet: Timesheet, shareholder_timesheet: ShareholderTimesheet, sales: Sales, inflow: Inflow, checklist: Checklist, charcoal: Charcoal, announcement: Announcement, callstaff: CallStaff, community: Community, corp: Corp, subscriptions: Subscriptions };
     const renderParams = App._gotoParams || {};
     App._gotoParams = {};
     pages[page]?.render(renderParams);
