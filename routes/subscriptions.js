@@ -15,8 +15,11 @@ function requireAdmin(req, res, next) {
 }
 
 const PLANS = {
-  charcoal:   { name: '숯불 무료',      price: 3900,  mandatory: 6, benefit: '숯불비용 무료' },
-  extra_hour: { name: '추가시간 무료',   price: 9900,  mandatory: 3, benefit: '1시간 추가비용 무료' },
+  charcoal:            { name: '숯불 무료',                    price:  3900, mandatory: 6, benefit: '숯불비용 무료' },
+  extra_hour_5:        { name: '추가1시간 무료(최대5인)',        price: 12900, mandatory: 3, benefit: '1시간 추가비용 무료 (최대 5인)' },
+  extra_hour_unlim:    { name: '추가1시간 무료(인원 무제한)',    price: 18900, mandatory: 3, benefit: '1시간 추가비용 무료 (인원 무제한)' },
+  charcoal_extra_5:    { name: '숯불+1시간 무료(최대5인)',       price: 14900, mandatory: 3, benefit: '숯불비용 무료 + 1시간 추가비용 무료 (최대 5인)' },
+  charcoal_extra_unlim:{ name: '숯불+1시간 무료(인원 무제한)',   price: 20900, mandatory: 3, benefit: '숯불비용 무료 + 1시간 추가비용 무료 (인원 무제한)' },
 };
 
 function addMonths(dateStr, n) {

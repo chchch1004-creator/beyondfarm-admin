@@ -71,9 +71,16 @@ const Subscriptions = {
     });
   },
 
+  _planColor(plan) {
+    if (plan === 'charcoal') return '#e67700';
+    if (plan === 'charcoal_extra_5' || plan === 'charcoal_extra_unlim') return '#d9480f';
+    if (plan === 'extra_hour_unlim') return '#0c7de6';
+    return '#1971c2';
+  },
+
   _planBadge(plan) {
     const p = this._plans[plan] || {};
-    const color = plan === 'charcoal' ? '#e67700' : '#1971c2';
+    const color = this._planColor(plan);
     return `<span style="padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700;background:${color}22;color:${color};border:1px solid ${color}">${p.name || plan}</span>`;
   },
 
@@ -174,7 +181,7 @@ const Subscriptions = {
         result.innerHTML = `<div style="padding:16px;background:#fff5f5;border-radius:8px;border:1px solid #ffc9c9;color:#c92a2a;font-weight:600">❌ 구독 중인 플랜 없음</div>`;
       } else {
         const cards = data.benefits.map(b => {
-          const color = b.plan === 'charcoal' ? '#e67700' : '#1971c2';
+          const color = this._planColor(b.plan);
           return `<div style="padding:14px 16px;background:${color}11;border-radius:8px;border:1px solid ${color}44;margin-bottom:8px">
             <div style="font-size:13px;font-weight:700;color:${color}">${this._plans[b.plan]?.name || b.plan}</div>
             <div style="font-size:15px;font-weight:700;margin-top:4px">✅ ${b.benefit}</div>
