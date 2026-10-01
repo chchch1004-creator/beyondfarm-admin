@@ -21,7 +21,7 @@ function parseNaverExcel(buffer) {
 
   // 헤더 행 동적 탐색: "예약번호", "상태", "예약자명" 등의 키워드로 헤더 위치 찾기
   let headerRow = -1;
-  let colStatus = -1, colOrderNo = -1, colName = -1, colProduct = -1, colDateTime = -1, colOption = -1, colQty = -1;
+  let colStatus = -1, colOrderNo = -1, colName = -1, colProduct = -1, colDateTime = -1, colOption = -1, colQty = -1, colPhone = -1;
   for (let i = 0; i < Math.min(rows.length, 10); i++) {
     const r = rows[i];
     for (let j = 0; j < r.length; j++) {
@@ -33,6 +33,7 @@ function parseNaverExcel(buffer) {
       if (v.includes('방문일') || v.includes('예약일') || v.includes('이용일시') || v.includes('방문일시')) colDateTime = j;
       if (v.includes('가격분류') || v.includes('옵션') || v.includes('추가상품')) { if (colOption < 0) colOption = j; }
       if (v === '수량' || v === '구매수량') { if (colQty < 0) colQty = j; }
+      if (v === '전화번호' || v === '휴대폰' || v === '연락처') { if (colPhone < 0) colPhone = j; }
     }
     if (headerRow >= 0 && colStatus >= 0) break;
   }
@@ -42,10 +43,11 @@ function parseNaverExcel(buffer) {
   if (colOrderNo < 0) colOrderNo = 0;
   if (colStatus < 0) colStatus = 5;
   if (colName < 0) colName = 7;
+  if (colPhone < 0) colPhone = 8;
   if (colDateTime < 0) colDateTime = 13;
   if (colProduct < 0) colProduct = colDateTime + 2;
   if (colOption < 0) colOption = colDateTime + 4;
-  if (colQty < 0) colQty = colOption + 1;  // 수량은 보통 옵션 바로 다음 열
+  if (colQty < 0) colQty = colOption + 1;
 
   const VALID_STATUS = ['확정', '이용완료', '예약완료', '사용완료', '방문완료'];
   // 데이터 행: 헤더 다음 행부터, 유효한 상태만
@@ -108,11 +110,14 @@ function parseNaverExcel(buffer) {
     const ono = String(r[colOrderNo] || '').trim() || Math.random().toString();
     if (!orders[ono]) {
       const hour = parseHour(dtCell);
+      const phoneRaw = String(r[colPhone] || '').replace(/\D/g, '');
+      const hp = phoneRaw.slice(-4);
       orders[ono] = {
         name: String(r[colName] || '').trim(),
         product_raw: String(r[colProduct] || '').trim(),
         ts,
         hour: hour >= 0 ? String(hour) : ts,
+        hp,
         extra: 0, bulmung: '', child: 0, adult: 0, play: 0, ticket: 0,
       };
     }
@@ -202,7 +207,7 @@ function assignTents(allOrders) {
       play: o.play ? String(o.play) : '',
       child_pool: o.child ? String(o.child) : '',
       adult_pool: o.adult ? String(o.adult) : '',
-      bulmung: o.bulmung || '', adult_only: '', extra_hour: '', memo: '',
+      bulmung: o.bulmung || '', adult_only: '', extra_hour: '', memo: '', hp: o.hp || '',
     };
   };
 
@@ -334,11 +339,14 @@ router.post('/upload-excel', requireAuth, upload.single('file'), async (req, res
       for (const o of orders) {
         if (o.ts === ts && o.name) hourByName[o.name] = o.hour || ts;
       }
+      // hp도 name→hp로 조회
+      const hpByName = {};
+      for (const o of orders) { if (o.ts === ts && o.name) hpByName[o.name] = o.hp || ''; }
       for (const row of allRows) {
         if (!row.name || !row.tent_no) continue;
         const h = hourByName[row.name] || ts;
         if (!weekdayData[row.tent_no]) weekdayData[row.tent_no] = {};
-        weekdayData[row.tent_no][h] = { content: row.name };
+        weekdayData[row.tent_no][h] = { content: row.name, hp: hpByName[row.name] || '' };
       }
     }
 

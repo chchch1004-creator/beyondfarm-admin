@@ -21,7 +21,7 @@ const Checklist = (() => {
     { key: 'prev_extra_hour', label: '전타임연장', w: 50, readOnly: true },
     { key: 'car',             label: '차량',       w: 70 },
     { key: 'memo',         label: '비고',       w: 256 },
-    { key: 'hp',           label: 'HP',         w: 42 },
+    { key: 'hp',           label: 'H.P',        w: 42 },
   ];
 
   // 티켓(extra) 테이블: 삭제버튼 28px 만큼 memo를 줄여서 전체 폭을 M텐트/L텐트와 맞춤
@@ -1362,6 +1362,16 @@ const Checklist = (() => {
       // 평일 모드이면 weekdayData를 localStorage에 저장
       if (_isWeekdayMode() && json.weekdayData && Object.keys(json.weekdayData).length > 0) {
         localStorage.setItem(_wdKey(), JSON.stringify(json.weekdayData));
+        // hp 맵 저장: { name → last4 }
+        const hpMap = {};
+        for (const tentData of Object.values(json.weekdayData)) {
+          for (const cell of Object.values(tentData)) {
+            if (cell.content && cell.hp) hpMap[cell.content] = cell.hp;
+          }
+        }
+        if (Object.keys(hpMap).length > 0) {
+          localStorage.setItem(`cl_weekday_hp_${state.date}`, JSON.stringify(hpMap));
+        }
         renderUI();
       } else {
         state.tab = 'slot';
