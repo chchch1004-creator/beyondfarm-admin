@@ -139,6 +139,7 @@ const App = {
       shareholder_timesheet: '주주근무표',
       sales: '매출현황',
       inflow: '유입량',
+      tasks: '업무 체크리스트',
       checklist: '인원체크리스트',
       charcoal: '숯방',
       announcement: '안내방송',
@@ -154,7 +155,7 @@ const App = {
     const isSuperAdmin = App.user.role === 'superadmin';
 
     // 메뉴 표시/숨김: 권한 기반
-    const navPages = ['dashboard','employees','attendance','leaves','salary','inventory','timesheet','shareholder_timesheet','sales','inflow','checklist','charcoal','announcement','corp','subscriptions'];
+    const navPages = ['dashboard','employees','attendance','leaves','salary','inventory','timesheet','shareholder_timesheet','sales','inflow','tasks','checklist','charcoal','announcement','corp','subscriptions'];
     navPages.forEach(p => {
       const el = document.querySelector(`#sidebar [data-page="${p}"]`);
       if (el) el.style.display = App.canView(p) ? '' : 'none';
@@ -180,7 +181,7 @@ const App = {
       return;
     }
 
-    const pages = { dashboard: Dashboard, employees: Employees, attendance: Attendance, leaves: Leaves, salary: Salary, finance: Finance, inventory: Inventory, settings: Settings, mypage: MyPage, timesheet: Timesheet, shareholder_timesheet: ShareholderTimesheet, sales: Sales, inflow: Inflow, checklist: Checklist, charcoal: Charcoal, announcement: Announcement, callstaff: CallStaff, community: Community, corp: Corp, subscriptions: Subscriptions };
+    const pages = { dashboard: Dashboard, employees: Employees, attendance: Attendance, leaves: Leaves, salary: Salary, finance: Finance, inventory: Inventory, settings: Settings, mypage: MyPage, timesheet: Timesheet, shareholder_timesheet: ShareholderTimesheet, sales: Sales, inflow: Inflow, tasks: Tasks, checklist: Checklist, charcoal: Charcoal, announcement: Announcement, callstaff: CallStaff, community: Community, corp: Corp, subscriptions: Subscriptions };
     const renderParams = App._gotoParams || {};
     App._gotoParams = {};
     pages[page]?.render(renderParams);

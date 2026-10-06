@@ -196,7 +196,7 @@ router.post('/:id/billing-confirm', requireAdmin, async (req, res) => {
       const payload = JSON.stringify({ authKey, customerKey });
       const req2 = https.request({
         hostname: 'api.tosspayments.com',
-        path: '/v1/billing/authorizations/confirm',
+        path: '/v1/billing/authorizations/issue',
         method: 'POST',
         headers: {
           Authorization: 'Basic ' + Buffer.from(secretKey + ':').toString('base64'),

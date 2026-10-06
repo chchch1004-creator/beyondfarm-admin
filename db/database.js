@@ -407,6 +407,27 @@ async function init() {
     created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
   )`);
 
+  tables.push(`CREATE TABLE IF NOT EXISTS task_templates (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    category TEXT,
+    frequency TEXT NOT NULL,
+    day_of_week TEXT,
+    day_of_month INTEGER,
+    active INTEGER NOT NULL DEFAULT 1,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+  )`);
+
+  tables.push(`CREATE TABLE IF NOT EXISTS task_completions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id INTEGER NOT NULL,
+    period_key TEXT NOT NULL,
+    completed_by TEXT,
+    completed_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+    UNIQUE(task_id, period_key)
+  )`);
+
   for (const sql of tables) {
     await client.execute({ sql, args: [] });
   }

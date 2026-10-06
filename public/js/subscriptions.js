@@ -400,21 +400,21 @@ const Subscriptions = {
   async registerCard(id) {
     try {
       const { clientKey } = await API.get('/api/subscriptions/meta/client-key');
-      // Toss Payments 빌링 위젯 SDK 로드
       if (!window.TossPayments) {
         await new Promise((resolve, reject) => {
           const s = document.createElement('script');
-          s.src = 'https://js.tosspayments.com/v1/payment';
+          s.src = 'https://js.tosspayments.com/v2/standard';
           s.onload = resolve; s.onerror = reject;
           document.head.appendChild(s);
         });
       }
-      const toss = TossPayments(clientKey);
-      const customerKey = `customer_${id}_${Date.now()}`;
+      const tossPayments = TossPayments(clientKey);
+      const customerKey = `customer_${id}`;
       const successUrl = `${location.origin}/billing-success?subId=${id}`;
       const failUrl    = `${location.origin}/billing-fail?subId=${id}`;
-      await toss.requestBillingAuth('카드', {
-        customerKey,
+      const payment = tossPayments.payment({ customerKey });
+      await payment.requestBillingAuth({
+        method: 'CARD',
         successUrl,
         failUrl,
       });
