@@ -411,6 +411,7 @@ async function init() {
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     title TEXT NOT NULL,
     category TEXT,
+    phase TEXT,
     frequency TEXT NOT NULL,
     day_of_week TEXT,
     day_of_month INTEGER,
@@ -463,6 +464,7 @@ async function init() {
       note TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
     )`,
+    "ALTER TABLE task_templates ADD COLUMN phase TEXT",
   ];
   for (const sql of newCols) {
     try { await client.execute({ sql, args: [] }); } catch {}
