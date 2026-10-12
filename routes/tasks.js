@@ -89,14 +89,33 @@ function isDueToday(task, kst) {
   }
 }
 
+// 부서 목록 (업무 추가 폼용)
+router.get('/departments', requireAdmin, async (req, res) => {
+  const db = getDb();
+  const rows = await db.prepare(
+    "SELECT DISTINCT department FROM users WHERE department IS NOT NULL AND department != '' ORDER BY department"
+  ).all();
+  res.json(rows.map(r => r.department));
+});
+
 // 오늘의 업무 목록 (완료 여부 포함)
 router.get('/today', requireLogin, async (req, res) => {
   const db = getDb();
+  const user = req.session.user;
+  const isAdmin = user.role === 'superadmin' || user.role === 'admin';
+  const userDept = user.department || '';
+
   const tasks = await db.prepare('SELECT * FROM task_templates WHERE active=1 ORDER BY sort_order, id').all();
   const kst = nowKST();
   const result = [];
 
   for (const task of tasks) {
+    // 부서 필터: departments가 비어있으면 전체, 있으면 해당 부서만 (admin은 전체)
+    if (!isAdmin && task.departments) {
+      const allowed = task.departments.split(',').map(d => d.trim()).filter(Boolean);
+      if (allowed.length > 0 && !allowed.includes(userDept)) continue;
+    }
+
     const periodKey = getPeriodKey(task.frequency, kst);
     const completion = await db.prepare(
       'SELECT * FROM task_completions WHERE task_id=? AND period_key=?'
@@ -148,24 +167,25 @@ router.delete('/:id/complete', requireLogin, async (req, res) => {
 
 // 템플릿 생성
 router.post('/', requireAdmin, async (req, res) => {
-  const { title, category, phase, frequency, day_of_week, day_of_month, sort_order = 0 } = req.body;
+  const { title, category, phase, departments, frequency, day_of_week, day_of_month, sort_order = 0 } = req.body;
   if (!title || !frequency) return res.status(400).json({ error: '필수값 누락' });
   const db = getDb();
   const r = await db.prepare(`
-    INSERT INTO task_templates (title, category, phase, frequency, day_of_week, day_of_month, sort_order)
-    VALUES (?,?,?,?,?,?,?)
-  `).run(title, category || null, phase || null, frequency, day_of_week || null, day_of_month || null, sort_order);
+    INSERT INTO task_templates (title, category, phase, departments, frequency, day_of_week, day_of_month, sort_order)
+    VALUES (?,?,?,?,?,?,?,?)
+  `).run(title, category || null, phase || null, departments || null, frequency, day_of_week || null, day_of_month || null, sort_order);
   res.json({ id: r.lastInsertRowid });
 });
 
 // 템플릿 수정
 router.put('/:id', requireAdmin, async (req, res) => {
-  const { title, category, phase, frequency, day_of_week, day_of_month, active, sort_order } = req.body;
+  const { title, category, phase, departments, frequency, day_of_week, day_of_month, active, sort_order } = req.body;
   const db = getDb();
   const fields = [], args = [];
   if (title !== undefined)       { fields.push('title=?');       args.push(title); }
   if (category !== undefined)    { fields.push('category=?');    args.push(category); }
   if (phase !== undefined)       { fields.push('phase=?');       args.push(phase); }
+  if (departments !== undefined) { fields.push('departments=?'); args.push(departments || null); }
   if (frequency !== undefined)   { fields.push('frequency=?');   args.push(frequency); }
   if (day_of_week !== undefined) { fields.push('day_of_week=?'); args.push(day_of_week); }
   if (day_of_month !== undefined){ fields.push('day_of_month=?');args.push(day_of_month); }

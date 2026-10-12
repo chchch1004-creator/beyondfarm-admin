@@ -412,6 +412,7 @@ async function init() {
     title TEXT NOT NULL,
     category TEXT,
     phase TEXT,
+    departments TEXT,
     frequency TEXT NOT NULL,
     day_of_week TEXT,
     day_of_month INTEGER,
@@ -465,6 +466,7 @@ async function init() {
       created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
     )`,
     "ALTER TABLE task_templates ADD COLUMN phase TEXT",
+    "ALTER TABLE task_templates ADD COLUMN departments TEXT",
   ];
   for (const sql of newCols) {
     try { await client.execute({ sql, args: [] }); } catch {}

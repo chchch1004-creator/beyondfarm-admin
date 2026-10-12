@@ -171,7 +171,7 @@ const Tasks = {
     const PHASE_LABEL = { open: '🌅 오픈시', operation: '⚡ 운영 중', close: '🌙 마감시' };
 
     const rows = this._tasks.length === 0
-      ? `<tr><td colspan="6" style="text-align:center;padding:24px;color:#adb5bd">등록된 업무 없음</td></tr>`
+      ? `<tr><td colspan="7" style="text-align:center;padding:24px;color:#adb5bd">등록된 업무 없음</td></tr>`
       : this._tasks.map(t => {
           const when = this._scheduleLabel(t, DOW);
           const phaseInfo = this.PHASES.find(p => p.key === (t.phase || null));
@@ -181,6 +181,7 @@ const Tasks = {
             </td>
             <td style="padding:10px 8px;font-size:13px;font-weight:500">${t.title}</td>
             <td style="padding:10px 8px;font-size:12px;color:#495057">${t.category || '-'}</td>
+            <td style="padding:10px 8px;font-size:12px">${t.departments ? t.departments.split(',').map(d=>`<span style="background:#e7f5ff;color:#1971c2;padding:1px 6px;border-radius:6px;font-size:11px;margin-right:3px">${d.trim()}</span>`).join('') : '<span style="color:#adb5bd;font-size:11px">전체</span>'}</td>
             <td style="padding:10px 8px"><span style="background:${this._freqColor(t.frequency)};color:#fff;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600">${FREQ_LABEL[t.frequency] || t.frequency}</span></td>
             <td style="padding:10px 8px;font-size:12px;color:#495057">${when}</td>
             <td style="padding:10px 8px;white-space:nowrap">
@@ -201,6 +202,7 @@ const Tasks = {
               <th style="padding:10px 8px;text-align:left;font-size:12px;color:#495057;font-weight:600">시점</th>
               <th style="padding:10px 8px;text-align:left;font-size:12px;color:#495057;font-weight:600">업무명</th>
               <th style="padding:10px 8px;text-align:left;font-size:12px;color:#495057;font-weight:600">카테고리</th>
+              <th style="padding:10px 8px;text-align:left;font-size:12px;color:#495057;font-weight:600">대상 부서</th>
               <th style="padding:10px 8px;text-align:left;font-size:12px;color:#495057;font-weight:600">주기</th>
               <th style="padding:10px 8px;text-align:left;font-size:12px;color:#495057;font-weight:600">날짜/요일</th>
               <th style="padding:10px 8px;text-align:left;font-size:12px;color:#495057;font-weight:600"></th>
@@ -287,8 +289,12 @@ const Tasks = {
     if (task) this._openModal(task);
   },
 
-  _openModal(task) {
+  async _openModal(task) {
     const isEdit = !!task;
+    let deptList = [];
+    try { deptList = await API.get('/api/tasks/departments'); } catch {}
+    const selectedDepts = (task?.departments || '').split(',').map(d => d.trim()).filter(Boolean);
+
     const DOW_ITEMS = [
       {v:'1',l:'월'},{v:'2',l:'화'},{v:'3',l:'수'},{v:'4',l:'목'},
       {v:'5',l:'금'},{v:'6',l:'토'},{v:'0',l:'일'},
@@ -339,6 +345,19 @@ const Tasks = {
         <label style="font-size:13px;font-weight:600;color:#495057">날짜 (일)</label>
         <input id="t-dom" type="number" min="1" max="31" class="form-control" value="${task?.day_of_month || ''}" placeholder="예: 5 (매월 5일)">
       </div>
+      ${deptList.length > 0 ? `
+      <div class="form-group">
+        <label style="font-size:13px;font-weight:600;color:#495057">대상 부서 <span style="font-weight:400;color:#adb5bd">(선택 안 하면 전체 표시)</span></label>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">
+          ${deptList.map(d => `
+            <label style="display:flex;align-items:center;gap:4px;padding:5px 12px;border:1px solid ${selectedDepts.includes(d)?'#1b4332':'#dee2e6'};border-radius:6px;cursor:pointer;font-size:13px;background:${selectedDepts.includes(d)?'#ebfbee':'#fff'}">
+              <input type="checkbox" name="t-dept" value="${d}" ${selectedDepts.includes(d)?'checked':''} style="display:none" onchange="Tasks._updateDowStyle(this)">
+              ${d}
+            </label>
+          `).join('')}
+        </div>
+      </div>
+      ` : ''}
       <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:20px">
         <button onclick="Utils.closeModal()" class="btn btn-secondary">취소</button>
         <button onclick="Tasks._save(${isEdit ? task.id : 'null'})" class="btn btn-primary">${isEdit ? '저장' : '추가'}</button>
@@ -368,18 +387,20 @@ const Tasks = {
     const phase    = document.getElementById('t-phase')?.value || null;
     const frequency = document.getElementById('t-freq')?.value;
     const dom      = document.getElementById('t-dom')?.value;
-    const dowChecks = document.querySelectorAll('input[name="t-dow"]:checked');
+    const dowChecks  = document.querySelectorAll('input[name="t-dow"]:checked');
+    const deptChecks = document.querySelectorAll('input[name="t-dept"]:checked');
     const day_of_week  = Array.from(dowChecks).map(c => c.value).join(',') || null;
     const day_of_month = dom ? parseInt(dom) : null;
+    const departments  = Array.from(deptChecks).map(c => c.value).join(',') || null;
 
     if (!title)     return Utils.showToast('업무명을 입력해주세요', 'error');
     if (!frequency) return Utils.showToast('주기를 선택해주세요', 'error');
 
     try {
       if (id) {
-        await API.put(`/api/tasks/${id}`, { title, category, phase, frequency, day_of_week, day_of_month });
+        await API.put(`/api/tasks/${id}`, { title, category, phase, departments, frequency, day_of_week, day_of_month });
       } else {
-        await API.post('/api/tasks', { title, category, phase, frequency, day_of_week, day_of_month });
+        await API.post('/api/tasks', { title, category, phase, departments, frequency, day_of_week, day_of_month });
       }
       Utils.closeModal();
       Utils.showToast(id ? '수정되었습니다' : '업무가 추가되었습니다');
