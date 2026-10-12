@@ -572,7 +572,7 @@ const Checklist = (() => {
       const two_bg  = twoTimeBg(row.two_time);
       const rowBg   = idx % 2 === 0 ? '#fff' : '#f8fafc';
       const _rn = (row.name || '').trim();
-      const nameBg  = row.actual ? ((_rn && _dupNames.has(_rn)) ? '#fecaca' : '#bae6fd') : '';
+      const nameBg  = (_rn && _dupNames.has(_rn)) ? '#fecaca' : (row.actual ? '#bae6fd' : '');
 
       // 뱃지들 (2타임·불멍·플레이·추가옵션)
       const badges = [
@@ -871,9 +871,9 @@ const Checklist = (() => {
   function cellBg(key, row) {
     if (key === 'two_time')        return twoTimeBg(row.two_time);
     if (key === 'name') {
-      if (!row.actual) return '';
       const n = (row.name || '').trim();
-      return (n && _dupNames.has(n)) ? '#fecaca' : '#bae6fd';
+      if (n && _dupNames.has(n)) return '#fecaca';
+      return row.actual ? '#bae6fd' : '';
     }
     if (key === 'extra_hour')      return row.extra_hour ? '#fca5a5' : '';
     if (key === 'prev_extra_hour') return row.prev_extra_hour ? '#bbf7d0' : '';
