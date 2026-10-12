@@ -780,6 +780,27 @@ const Checklist = (() => {
     _dupNames = new Set(Object.keys(freq).filter(n => freq[n] > 1));
   }
 
+  // 이름/입장인원 변경 시 실시간으로 모든 이름 셀 색상 갱신
+  function refreshAllNameCells(d) {
+    buildDupNames(d);
+    // 데스크톱: td-{section}-{idx}-name
+    const sections = [
+      { key: 'tent4', sec: 'mtent', offset: 0 },
+      { key: 'tent2', sec: 'mtent', offset: 6 },
+      { key: 'tent8', sec: 'tent8', offset: 0 },
+      { key: 'extra', sec: 'extra', offset: 0 },
+    ];
+    for (const { key, sec, offset } of sections) {
+      (d[key] || []).forEach((row, i) => {
+        const n = (row.name || '').trim();
+        const isDup = n && _dupNames.has(n);
+        const bg = isDup ? '#fecaca' : (row.actual ? '#bae6fd' : '');
+        const td = document.getElementById(`td-${sec}-${i + offset}-name`);
+        if (td) td.style.background = bg;
+      });
+    }
+  }
+
   /* ── 타임슬롯 렌더링 ── */
   function renderSlot(d, E) {
     buildDupNames(d);
@@ -1251,9 +1272,8 @@ const Checklist = (() => {
         const td = document.getElementById(`td-${sec0}-${i0}-two_time`);
         if (td) td.style.background = twoTimeBg(el.value);
       }
-      if (field === 'actual') {
-        const td = document.getElementById(`td-${sec0}-${i0}-name`);
-        if (td) td.style.background = el.value ? '#bae6fd' : '';
+      if (field === 'actual' || field === 'name') {
+        refreshAllNameCells(d);
       }
       if (field === 'extra_hour') {
         const td = document.getElementById(`td-${sec0}-${i0}-extra_hour`);
