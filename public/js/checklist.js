@@ -37,6 +37,7 @@ const Checklist = (() => {
   };
 
   let _subMap = {}; // 전화번호 뒷4자리 → 플랜명
+  let _dupNames = new Set(); // 동일 타임슬롯 내 중복 이름
 
   let _saveTimer = null;
   let _dragState = null;
@@ -516,6 +517,7 @@ const Checklist = (() => {
 
   /* ── 모바일 컴팩트 테이블 ── */
   function renderSlotMobile(d, E) {
+    buildDupNames(d);
     injectPrevExtraHour(d);
     recalcSummary(d, state.timeslot);
     const s = d.summary || {};
@@ -569,7 +571,8 @@ const Checklist = (() => {
 
       const two_bg  = twoTimeBg(row.two_time);
       const rowBg   = idx % 2 === 0 ? '#fff' : '#f8fafc';
-      const nameBg  = row.actual ? '#bae6fd' : '';
+      const _rn = (row.name || '').trim();
+      const nameBg  = row.actual ? ((_rn && _dupNames.has(_rn)) ? '#fecaca' : '#bae6fd') : '';
 
       // 뱃지들 (2타임·불멍·플레이·추가옵션)
       const badges = [
@@ -767,8 +770,19 @@ const Checklist = (() => {
       + mobileTicketSection(d.extra||[]);
   }
 
+  function buildDupNames(d) {
+    const freq = {};
+    const allRows = [...(d.tent4||[]), ...(d.tent2||[]), ...(d.tent8||[]), ...(d.extra||[])];
+    for (const row of allRows) {
+      const n = (row.name || '').trim();
+      if (n) freq[n] = (freq[n] || 0) + 1;
+    }
+    _dupNames = new Set(Object.keys(freq).filter(n => freq[n] > 1));
+  }
+
   /* ── 타임슬롯 렌더링 ── */
   function renderSlot(d, E) {
+    buildDupNames(d);
     injectPrevExtraHour(d);
     recalcSummary(d, state.timeslot);
     const s = d.summary || {};
@@ -856,7 +870,11 @@ const Checklist = (() => {
 
   function cellBg(key, row) {
     if (key === 'two_time')        return twoTimeBg(row.two_time);
-    if (key === 'name')            return row.actual ? '#bae6fd' : '';
+    if (key === 'name') {
+      if (!row.actual) return '';
+      const n = (row.name || '').trim();
+      return (n && _dupNames.has(n)) ? '#fecaca' : '#bae6fd';
+    }
     if (key === 'extra_hour')      return row.extra_hour ? '#fca5a5' : '';
     if (key === 'prev_extra_hour') return row.prev_extra_hour ? '#bbf7d0' : '';
     return '';
