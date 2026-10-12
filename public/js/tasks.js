@@ -310,59 +310,66 @@ const Tasks = {
       ['','선택 안 함'],['open','🌅 오픈시'],['operation','⚡ 운영 중'],['close','🌙 마감시'],
     ].map(([v,l]) => `<option value="${v}" ${(task?.phase||'')===v?'selected':''}>${l}</option>`).join('');
 
-    Utils.showModal(`
-      <h3 style="margin:0 0 18px;font-size:16px">${isEdit ? '업무 수정' : '업무 추가'}</h3>
-      <div class="form-group">
-        <label style="font-size:13px;font-weight:600;color:#495057">업무명 *</label>
-        <input id="t-title" type="text" class="form-control" value="${task?.title || ''}" placeholder="예: 커피머신 대청소">
-      </div>
-      <div style="display:flex;gap:10px">
-        <div class="form-group" style="flex:1">
-          <label style="font-size:13px;font-weight:600;color:#495057">시점</label>
-          <select id="t-phase" class="form-control">${phaseOpts}</select>
+    document.getElementById('task-modal')?.remove();
+    const overlay = document.createElement('div');
+    overlay.id = 'task-modal';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
+    overlay.innerHTML = `
+      <div style="background:#fff;border-radius:12px;padding:24px;width:460px;max-width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.18)">
+        <h3 style="margin:0 0 18px;font-size:16px">${isEdit ? '업무 수정' : '업무 추가'}</h3>
+        <div class="form-group">
+          <label style="font-size:13px;font-weight:600;color:#495057">업무명 *</label>
+          <input id="t-title" type="text" class="form-control" value="${task?.title || ''}" placeholder="예: 커피머신 대청소">
         </div>
-        <div class="form-group" style="flex:1">
-          <label style="font-size:13px;font-weight:600;color:#495057">카테고리</label>
-          <input id="t-category" type="text" class="form-control" value="${task?.category || ''}" placeholder="예: 청소, 재고">
+        <div style="display:flex;gap:10px">
+          <div class="form-group" style="flex:1">
+            <label style="font-size:13px;font-weight:600;color:#495057">시점</label>
+            <select id="t-phase" class="form-control">${phaseOpts}</select>
+          </div>
+          <div class="form-group" style="flex:1">
+            <label style="font-size:13px;font-weight:600;color:#495057">카테고리</label>
+            <input id="t-category" type="text" class="form-control" value="${task?.category || ''}" placeholder="예: 청소, 재고">
+          </div>
         </div>
-      </div>
-      <div class="form-group">
-        <label style="font-size:13px;font-weight:600;color:#495057">반복 주기 *</label>
-        <select id="t-freq" class="form-control" onchange="Tasks._onFreqChange()">${freqOpts}</select>
-      </div>
-      <div id="t-dow-wrap" style="display:none;margin-bottom:12px">
-        <label style="font-size:13px;font-weight:600;color:#495057;display:block;margin-bottom:6px">요일 선택</label>
-        <div style="display:flex;gap:6px;flex-wrap:wrap">
-          ${DOW_ITEMS.map(d => `
-            <label style="display:flex;align-items:center;gap:4px;padding:5px 12px;border:1px solid ${selectedDays.includes(d.v)?'#1b4332':'#dee2e6'};border-radius:6px;cursor:pointer;font-size:13px;background:${selectedDays.includes(d.v)?'#ebfbee':'#fff'}">
-              <input type="checkbox" name="t-dow" value="${d.v}" ${selectedDays.includes(d.v)?'checked':''} style="display:none" onchange="Tasks._updateDowStyle(this)">
-              ${d.l}
-            </label>
-          `).join('')}
+        <div class="form-group">
+          <label style="font-size:13px;font-weight:600;color:#495057">반복 주기 *</label>
+          <select id="t-freq" class="form-control" onchange="Tasks._onFreqChange()">${freqOpts}</select>
         </div>
-      </div>
-      <div id="t-dom-wrap" style="display:none;margin-bottom:12px">
-        <label style="font-size:13px;font-weight:600;color:#495057">날짜 (일)</label>
-        <input id="t-dom" type="number" min="1" max="31" class="form-control" value="${task?.day_of_month || ''}" placeholder="예: 5 (매월 5일)">
-      </div>
-      ${deptList.length > 0 ? `
-      <div class="form-group">
-        <label style="font-size:13px;font-weight:600;color:#495057">대상 부서 <span style="font-weight:400;color:#adb5bd">(선택 안 하면 전체 표시)</span></label>
-        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">
-          ${deptList.map(d => `
-            <label style="display:flex;align-items:center;gap:4px;padding:5px 12px;border:1px solid ${selectedDepts.includes(d)?'#1b4332':'#dee2e6'};border-radius:6px;cursor:pointer;font-size:13px;background:${selectedDepts.includes(d)?'#ebfbee':'#fff'}">
-              <input type="checkbox" name="t-dept" value="${d}" ${selectedDepts.includes(d)?'checked':''} style="display:none" onchange="Tasks._updateDowStyle(this)">
-              ${d}
-            </label>
-          `).join('')}
+        <div id="t-dow-wrap" style="display:none;margin-bottom:12px">
+          <label style="font-size:13px;font-weight:600;color:#495057;display:block;margin-bottom:6px">요일 선택</label>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            ${DOW_ITEMS.map(d => `
+              <label style="display:flex;align-items:center;gap:4px;padding:5px 12px;border:1px solid ${selectedDays.includes(d.v)?'#1b4332':'#dee2e6'};border-radius:6px;cursor:pointer;font-size:13px;background:${selectedDays.includes(d.v)?'#ebfbee':'#fff'}">
+                <input type="checkbox" name="t-dow" value="${d.v}" ${selectedDays.includes(d.v)?'checked':''} style="display:none" onchange="Tasks._updateDowStyle(this)">
+                ${d.l}
+              </label>
+            `).join('')}
+          </div>
         </div>
-      </div>
-      ` : ''}
-      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:20px">
-        <button onclick="Utils.closeModal()" class="btn btn-secondary">취소</button>
-        <button onclick="Tasks._save(${isEdit ? task.id : 'null'})" class="btn btn-primary">${isEdit ? '저장' : '추가'}</button>
-      </div>
-    `);
+        <div id="t-dom-wrap" style="display:none;margin-bottom:12px">
+          <label style="font-size:13px;font-weight:600;color:#495057">날짜 (일)</label>
+          <input id="t-dom" type="number" min="1" max="31" class="form-control" value="${task?.day_of_month || ''}" placeholder="예: 5 (매월 5일)">
+        </div>
+        ${deptList.length > 0 ? `
+        <div class="form-group">
+          <label style="font-size:13px;font-weight:600;color:#495057">대상 부서 <span style="font-weight:400;color:#adb5bd">(선택 안 하면 전체 표시)</span></label>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">
+            ${deptList.map(d => `
+              <label style="display:flex;align-items:center;gap:4px;padding:5px 12px;border:1px solid ${selectedDepts.includes(d)?'#1b4332':'#dee2e6'};border-radius:6px;cursor:pointer;font-size:13px;background:${selectedDepts.includes(d)?'#ebfbee':'#fff'}">
+                <input type="checkbox" name="t-dept" value="${d}" ${selectedDepts.includes(d)?'checked':''} style="display:none" onchange="Tasks._updateDowStyle(this)">
+                ${d}
+              </label>
+            `).join('')}
+          </div>
+        </div>
+        ` : ''}
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:20px">
+          <button onclick="document.getElementById('task-modal').remove()" class="btn btn-secondary">취소</button>
+          <button onclick="Tasks._save(${isEdit ? task.id : 'null'})" class="btn btn-primary">${isEdit ? '저장' : '추가'}</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
     setTimeout(() => Tasks._onFreqChange(), 0);
   },
 
@@ -402,7 +409,7 @@ const Tasks = {
       } else {
         await API.post('/api/tasks', { title, category, phase, departments, frequency, day_of_week, day_of_month });
       }
-      Utils.closeModal();
+      document.getElementById('task-modal')?.remove();
       Utils.showToast(id ? '수정되었습니다' : '업무가 추가되었습니다');
       await this._load();
       this._render();
