@@ -57,8 +57,11 @@ router.get('/', requireAuth, async (req, res) => {
     const parseMin = t => { const [h,m] = (t||'00:00').split(':').map(Number); return h*60+m; };
     function calcOfficialHours(checkIn, checkOut, employeeType, date, workLocation) {
       if (!checkIn || !checkOut) return 0;
-      const dow = new Date(date).getDay(); // 0=일, 6=토
-      const isWeekend = dow === 0 || dow === 6 || isHoliday(date);
+      // ISO 날짜 문자열(YYYY-MM-DD)을 UTC로 파싱 → 서버 로컬 타임존 무관하게 정확한 요일 계산
+      const dateStr = String(date).slice(0, 10); // 'YYYY-MM-DD' 추출
+      const [dy, dm, dd] = dateStr.split('-').map(Number);
+      const dow = new Date(Date.UTC(dy, dm - 1, dd)).getUTCDay(); // 0=일, 6=토
+      const isWeekend = dow === 0 || dow === 6 || isHoliday(dateStr);
       // work_location 2 = 현장, 1 = 사무실. 미설정 시 employee_type으로 fallback
       const isField = workLocation === 2 || (workLocation == null && ['주말고정','주말','평일'].includes(employeeType));
       const officialStartStr = isField ? (isWeekend ? fieldWeekendStart : fieldWeekdayStart) : officeStart;
@@ -333,7 +336,9 @@ router.get('/excel', requireSuperAdmin, async (req, res) => {
     const parseMin = t => { const [h,mm] = (t||'00:00').split(':').map(Number); return h*60+mm; };
     const calcH = (ci,co,et,date,wl) => {
       if(!ci||!co) return 0;
-      const dow=new Date(date).getDay(), isWknd=dow===0||dow===6||isHol(date);
+      const ds=String(date).slice(0,10);
+      const [dy,dm,dd]=ds.split('-').map(Number);
+      const dow=new Date(Date.UTC(dy,dm-1,dd)).getUTCDay(), isWknd=dow===0||dow===6||isHol(ds);
       const isField=wl===2||(wl==null&&['주말고정','주말','평일'].includes(et));
       const start=parseMin(isField?(isWknd?fieldWeekendStart:fieldWeekdayStart):officeStart);
       const mins=parseMin(co)-Math.max(parseMin(ci),start);
