@@ -1,17 +1,22 @@
-// ── 자동배치 규칙 (JS Date.getDay: 0=일,1=월,2=화,3=수,4=목,5=금,6=토) ──
-const FIELD_RULES = {
-  '이신호': { days: [1,2,3,4,5], excludeHoliday: true },
-  '문예은': { days: [0,6], excludeHoliday: false },
-  '정민채': { days: [6],   excludeHoliday: false },
-  '신동현': { days: [0],   excludeHoliday: false },
-  '정병욱': { days: [1,2], excludeHoliday: false },
-  '김관형': { days: [3,4,5,6,0], excludeHoliday: false },
+// ── 자동배치 기본 규칙 (서버에 저장된 규칙이 없을 때 fallback)
+// JS Date.getDay: 0=일,1=월,2=화,3=수,4=목,5=금,6=토
+const DEFAULT_SCHEDULE_RULES = {
+  field: {
+    '이신호': { days: [1,2,3,4,5], excludeHoliday: true },
+    '문예은': { days: [0,6], excludeHoliday: false },
+    '정민채': { days: [6],   excludeHoliday: false },
+    '신동현': { days: [0],   excludeHoliday: false },
+    '장병욱': { days: [1,2], excludeHoliday: false },
+    '김관형': { days: [3,4,5,6,0], excludeHoliday: false },
+  },
+  office: {
+    '문예은': { days: [1,3,4] },
+    '정민채': { days: [1,3,4] },
+    '이승재': { days: [3,4,5], excludeHoliday: true },
+  },
 };
-const OFFICE_RULES = {
-  '문예은': { days: [1,3,4] },
-  '정민채': { days: [1,3,4] },
-  '이승재': { days: [3,4,5], excludeHoliday: true },
-};
+let FIELD_RULES  = DEFAULT_SCHEDULE_RULES.field;
+let OFFICE_RULES = DEFAULT_SCHEDULE_RULES.office;
 const ALL_SCHEDULE_NAMES = [...new Set([
   ...Object.keys(FIELD_RULES), ...Object.keys(OFFICE_RULES)
 ])];
@@ -139,13 +144,23 @@ const Dashboard = {
       const cy = today.getFullYear(), cm = today.getMonth() + 1;
       let ny = cy, nm = cm + 1; if (nm > 12) { nm = 1; ny++; }
 
-      const [schedData, leaveData, empData, shTimesheet, shTimesheetNext] = await Promise.all([
+      const [schedData, leaveData, empData, shTimesheet, shTimesheetNext, settingsData] = await Promise.all([
         API.get(`/api/dashboard/schedule?from=${from}&to=${to}`).catch(() => ({})),
         API.get(`/api/leaves/approved-range?from=${from}&to=${to}`).catch(() => []),
         API.get('/api/employees').catch(() => []),
         API.get(`/api/sh-timesheet?year=${cy}&month=${cm}`).catch(() => null),
         API.get(`/api/sh-timesheet?year=${ny}&month=${nm}`).catch(() => null),
+        API.get('/api/settings').catch(() => ({})),
       ]);
+
+      // 서버에 저장된 자동배치 규칙 로드
+      try {
+        const saved = settingsData?.schedule_rules ? JSON.parse(settingsData.schedule_rules) : null;
+        if (saved?.field && saved?.office) {
+          FIELD_RULES  = saved.field;
+          OFFICE_RULES = saved.office;
+        }
+      } catch { /* 파싱 실패 시 기본값 유지 */ }
 
       this._scheduleData = schedData || {};
       this._leaveMap = this._buildLeaveMap(leaveData || []);
@@ -156,9 +171,14 @@ const Dashboard = {
         <div class="card" style="padding:0;overflow:hidden;margin-bottom:20px">
           <div style="padding:14px 20px;display:flex;align-items:center;gap:10px;border-bottom:1px solid #dee2e6;background:#f8f9fa">
             <span style="font-size:15px;font-weight:700">📅 3주간 근무표</span>
-            ${canEdit ? `<button id="dash-edit-btn" onclick="Dashboard.toggleEdit()"
+            ${canEdit ? `
+            <button id="dash-edit-btn" onclick="Dashboard.toggleEdit()"
               style="margin-left:auto;padding:5px 14px;font-size:12px;border-radius:6px;border:1px solid #6f42c1;background:#fff;color:#6f42c1;cursor:pointer;font-weight:600">
               ✏️ 수정
+            </button>
+            <button onclick="Dashboard.openRulesModal()"
+              style="padding:5px 14px;font-size:12px;border-radius:6px;border:1px solid #0c8599;background:#fff;color:#0c8599;cursor:pointer;font-weight:600">
+              ⚙️ 자동배치 규칙
             </button>` : ''}
           </div>
           <div style="padding:16px" id="dash-schedule-wrap">
@@ -376,6 +396,153 @@ const Dashboard = {
     try {
       const entries = (this._scheduleData[ds] || []).filter(e => e.text?.trim());
       await API.put(`/api/dashboard/schedule/${ds}`, { entries });
+    } catch (e) { Utils.showToast('저장 실패: ' + e.message, 'error'); }
+  },
+
+  // ── 자동배치 규칙 편집 모달 ───────────────────────────────────────
+  openRulesModal() {
+    document.getElementById('dash-rules-modal')?.remove();
+    const DOW_LABELS = ['일','월','화','수','목','금','토'];
+
+    const renderRuleRows = (rules, type) =>
+      Object.entries(rules).map(([name, rule], idx) => `
+        <tr id="rule-row-${type}-${idx}" style="border-bottom:1px solid #f1f3f5">
+          <td style="padding:6px 8px">
+            <input value="${name}" data-type="${type}" data-idx="${idx}" data-field="name"
+              style="width:72px;border:1px solid #dee2e6;border-radius:4px;padding:3px 6px;font-size:13px">
+          </td>
+          <td style="padding:6px 4px">
+            <div style="display:flex;gap:3px;flex-wrap:wrap">
+              ${DOW_LABELS.map((d,i) => `
+                <label style="display:flex;align-items:center;gap:1px;font-size:11px;cursor:pointer">
+                  <input type="checkbox" data-type="${type}" data-idx="${idx}" data-dow="${i}"
+                    ${(rule.days||[]).includes(i)?'checked':''}
+                    style="margin:0;cursor:pointer"> ${d}
+                </label>`).join('')}
+            </div>
+          </td>
+          <td style="padding:6px 8px;text-align:center">
+            <input type="checkbox" data-type="${type}" data-idx="${idx}" data-field="excludeHoliday"
+              ${rule.excludeHoliday!==false?'checked':''}
+              style="cursor:pointer">
+          </td>
+          <td style="padding:6px 4px;text-align:center">
+            <button onclick="Dashboard._deleteRuleRow('${type}',${idx})"
+              style="border:none;background:none;color:#e53e3e;cursor:pointer;font-size:16px;line-height:1">×</button>
+          </td>
+        </tr>`).join('');
+
+    const overlay = document.createElement('div');
+    overlay.id = 'dash-rules-modal';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
+    overlay.innerHTML = `
+      <div style="background:#fff;border-radius:12px;width:100%;max-width:620px;max-height:90vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.2)">
+        <div style="padding:16px 20px;border-bottom:1px solid #dee2e6;display:flex;align-items:center">
+          <span style="font-weight:700;font-size:15px">⚙️ 자동배치 규칙 편집</span>
+          <button onclick="document.getElementById('dash-rules-modal').remove()"
+            style="margin-left:auto;border:none;background:none;font-size:20px;cursor:pointer;color:#868e96">×</button>
+        </div>
+        <div style="padding:16px 20px">
+          <p style="font-size:12px;color:#868e96;margin:0 0 12px">요일 체크 = 해당 요일에 자동 표시 / 공휴일제외 = 공휴일엔 미표시</p>
+
+          <div style="font-weight:700;font-size:13px;color:#1b4332;margin-bottom:6px">🏕 현장</div>
+          <table id="rules-field-table" style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:4px">
+            <thead><tr style="background:#f8f9fa">
+              <th style="padding:6px 8px;text-align:left;font-weight:600;width:88px">이름</th>
+              <th style="padding:6px 4px;text-align:left;font-weight:600">요일</th>
+              <th style="padding:6px 8px;text-align:center;font-weight:600;width:60px">공휴일제외</th>
+              <th style="width:30px"></th>
+            </tr></thead>
+            <tbody id="rules-field-body">${renderRuleRows(FIELD_RULES,'field')}</tbody>
+          </table>
+          <button onclick="Dashboard._addRuleRow('field')"
+            style="font-size:12px;padding:4px 12px;border:1px dashed #74c0fc;background:#f0f9ff;color:#1971c2;border-radius:6px;cursor:pointer;margin-bottom:16px">+ 현장 추가</button>
+
+          <div style="font-weight:700;font-size:13px;color:#364fc7;margin-bottom:6px">🏢 사무실</div>
+          <table id="rules-office-table" style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:4px">
+            <thead><tr style="background:#f8f9fa">
+              <th style="padding:6px 8px;text-align:left;font-weight:600;width:88px">이름</th>
+              <th style="padding:6px 4px;text-align:left;font-weight:600">요일</th>
+              <th style="padding:6px 8px;text-align:center;font-weight:600;width:60px">공휴일제외</th>
+              <th style="width:30px"></th>
+            </tr></thead>
+            <tbody id="rules-office-body">${renderRuleRows(OFFICE_RULES,'office')}</tbody>
+          </table>
+          <button onclick="Dashboard._addRuleRow('office')"
+            style="font-size:12px;padding:4px 12px;border:1px dashed #74c0fc;background:#f0f9ff;color:#1971c2;border-radius:6px;cursor:pointer;margin-bottom:16px">+ 사무실 추가</button>
+
+          <div style="display:flex;justify-content:flex-end;gap:8px;border-top:1px solid #dee2e6;padding-top:12px">
+            <button onclick="document.getElementById('dash-rules-modal').remove()"
+              style="padding:8px 20px;border:1px solid #dee2e6;background:#fff;border-radius:6px;cursor:pointer">취소</button>
+            <button onclick="Dashboard._saveRules()"
+              style="padding:8px 20px;background:#1b4332;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600">저장</button>
+          </div>
+        </div>
+      </div>`;
+    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+    document.body.appendChild(overlay);
+  },
+
+  _addRuleRow(type) {
+    const tbody = document.getElementById(`rules-${type}-body`);
+    const idx = tbody.querySelectorAll('tr').length;
+    const DOW_LABELS = ['일','월','화','수','목','금','토'];
+    const tr = document.createElement('tr');
+    tr.id = `rule-row-${type}-${idx}`;
+    tr.style.borderBottom = '1px solid #f1f3f5';
+    tr.innerHTML = `
+      <td style="padding:6px 8px">
+        <input value="" data-type="${type}" data-idx="${idx}" data-field="name"
+          style="width:72px;border:1px solid #dee2e6;border-radius:4px;padding:3px 6px;font-size:13px" placeholder="이름">
+      </td>
+      <td style="padding:6px 4px">
+        <div style="display:flex;gap:3px;flex-wrap:wrap">
+          ${DOW_LABELS.map((d,i) => `
+            <label style="display:flex;align-items:center;gap:1px;font-size:11px;cursor:pointer">
+              <input type="checkbox" data-type="${type}" data-idx="${idx}" data-dow="${i}"
+                style="margin:0;cursor:pointer"> ${d}
+            </label>`).join('')}
+        </div>
+      </td>
+      <td style="padding:6px 8px;text-align:center">
+        <input type="checkbox" data-type="${type}" data-idx="${idx}" data-field="excludeHoliday" checked style="cursor:pointer">
+      </td>
+      <td style="padding:6px 4px;text-align:center">
+        <button onclick="this.closest('tr').remove()"
+          style="border:none;background:none;color:#e53e3e;cursor:pointer;font-size:16px;line-height:1">×</button>
+      </td>`;
+    tbody.appendChild(tr);
+  },
+
+  _deleteRuleRow(type, idx) {
+    document.getElementById(`rule-row-${type}-${idx}`)?.remove();
+  },
+
+  _collectRules(type) {
+    const tbody = document.getElementById(`rules-${type}-body`);
+    const rules = {};
+    tbody.querySelectorAll('tr').forEach(tr => {
+      const nameEl = tr.querySelector('[data-field="name"]');
+      const name = nameEl?.value.trim();
+      if (!name) return;
+      const days = [];
+      tr.querySelectorAll('[data-dow]').forEach(cb => { if (cb.checked) days.push(parseInt(cb.dataset.dow)); });
+      const exHolEl = tr.querySelector('[data-field="excludeHoliday"]');
+      rules[name] = { days, excludeHoliday: exHolEl ? exHolEl.checked : false };
+    });
+    return rules;
+  },
+
+  async _saveRules() {
+    const newField  = this._collectRules('field');
+    const newOffice = this._collectRules('office');
+    try {
+      await API.post('/api/settings', { schedule_rules: JSON.stringify({ field: newField, office: newOffice }) });
+      FIELD_RULES  = newField;
+      OFFICE_RULES = newOffice;
+      document.getElementById('dash-rules-modal').remove();
+      this._rerenderSchedule();
+      Utils.showToast('자동배치 규칙이 저장되었습니다.');
     } catch (e) { Utils.showToast('저장 실패: ' + e.message, 'error'); }
   },
 
