@@ -369,7 +369,8 @@ const Tasks = {
         </div>
       </div>`;
     document.body.appendChild(overlay);
-    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+    overlay.addEventListener('mousedown', e => { overlay._mdTarget = e.target; });
+    overlay.addEventListener('click', e => { if (e.target === overlay && overlay._mdTarget === overlay) overlay.remove(); });
     setTimeout(() => Tasks._onFreqChange(), 0);
   },
 

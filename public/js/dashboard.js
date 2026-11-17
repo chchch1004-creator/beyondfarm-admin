@@ -479,7 +479,8 @@ const Dashboard = {
           </div>
         </div>
       </div>`;
-    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+    overlay.addEventListener('mousedown', e => { overlay._mdTarget = e.target; });
+    overlay.addEventListener('click', e => { if (e.target === overlay && overlay._mdTarget === overlay) overlay.remove(); });
     document.body.appendChild(overlay);
   },
 

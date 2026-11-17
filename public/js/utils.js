@@ -20,7 +20,7 @@ const Utils = {
   modal(title, bodyHtml, onConfirm, confirmLabel = '저장') {
     const noConfirm = onConfirm === null;
     document.getElementById('modal-container').innerHTML = `
-      <div class="modal-backdrop" onclick="if(event.target===this)Utils.closeModal()">
+      <div class="modal-backdrop">
         <div class="modal">
           <button class="modal-close" onclick="Utils.closeModal()">✕</button>
           <div class="modal-title">${title}</div>
@@ -34,6 +34,12 @@ const Utils = {
         </div>
       </div>`;
     Utils._onConfirm = onConfirm;
+    // 드래그 후 오버레이 위에서 마우스를 떼도 닫히지 않도록: mousedown 위치 추적
+    const backdrop = document.querySelector('.modal-backdrop');
+    backdrop.addEventListener('mousedown', e => { backdrop._mdTarget = e.target; });
+    backdrop.addEventListener('click', e => {
+      if (e.target === backdrop && backdrop._mdTarget === backdrop) Utils.closeModal();
+    });
   },
   closeModal() { document.getElementById('modal-container').innerHTML = ''; },
   val(id) { return document.getElementById(id)?.value?.trim() || ''; },
