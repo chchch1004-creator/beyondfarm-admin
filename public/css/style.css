@@ -271,3 +271,10 @@ tr:hover td { background: #f8f9fa; }
 
 .empty-state { text-align: center; padding: 48px; color: var(--text-muted); }
 .empty-state .icon { font-size: 48px; margin-bottom: 12px; }
+
+/* ── 대시보드 2컬럼 그리드 (반응형) ── */
+.dash-grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 20px; }
+@media (max-width: 768px) {
+  .dash-grid { grid-template-columns: 1fr; }
+  .ts-input { font-size: 16px !important; }
+}
