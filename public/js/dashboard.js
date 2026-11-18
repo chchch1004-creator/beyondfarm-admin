@@ -236,81 +236,90 @@ const Dashboard = {
     </div>`;
   },
 
-  // ── 모바일 전용: 날짜를 행으로 세로 배치 ──────────────────────────
+  // ── 모바일 전용: 탭으로 주차 선택, 날짜를 행으로 ────────────────
   _renderWeeksMobile(weeks, canEdit) {
     const labels = ['이번 주', '다음 주', '3주 후'];
     const DOW = ['일','월','화','수','목','금','토'];
     const isEdit = this._editMode && canEdit;
     const todayStr = this._fmtDate(new Date());
+    const sel = this._mobileWeekTab || 0;
 
-    return weeks.map((week, wi) => {
-      const rows = week.map((d, i) => {
-        const ds = this._fmtDate(d);
-        const isToday = ds === todayStr;
-        const isWknd = i === 0 || i === 6;
-        const isHol  = this._isHoliday(d);
-        const isRed  = isWknd || isHol;
+    const tabs = labels.map((l, i) => {
+      const active = i === sel;
+      return `<button onclick="Dashboard._mobileWeekTab=${i};Dashboard._rerenderSchedule()"
+        style="flex:1;padding:8px 4px;font-size:12px;font-weight:600;border:none;cursor:pointer;
+          background:${active?'#1b4332':'#f8f9fa'};color:${active?'#fff':'#495057'};
+          border-bottom:2px solid ${active?'#1b4332':'transparent'}">${l}</button>`;
+    }).join('');
 
-        const autoField  = this._autoField(d);
-        const autoOffice = this._autoOffice(d);
-        const stored = this._scheduleData[ds] || [];
-        const { fieldExtra, officeExtra, fieldExclude, officeExclude } = this._parseStored(stored);
-        const shNames = isRed ? (this._shMap[ds] || []) : [];
-        const autoFieldFiltered  = autoField.filter(n => !fieldExclude.includes(n));
-        const autoOfficeFiltered = autoOffice.filter(n => !officeExclude.includes(n));
-        const fieldNames  = [...new Set([...shNames, ...autoFieldFiltered, ...fieldExtra])];
-        const officeNames = [...new Set([...autoOfficeFiltered, ...officeExtra])];
+    const week = weeks[sel];
+    const rows = week.map((d, i) => {
+      const ds = this._fmtDate(d);
+      const isToday = ds === todayStr;
+      const isWknd = i === 0 || i === 6;
+      const isHol  = this._isHoliday(d);
+      const isRed  = isWknd || isHol;
 
-        const rowBg    = isToday ? '#f0fff4' : isRed ? '#fff9f9' : '#fff';
-        const dowColor = isRed ? '#e03131' : '#212529';
-        const dateBg   = isToday ? '#1b4332' : 'transparent';
-        const dateColor= isToday ? '#fff' : dowColor;
+      const autoField  = this._autoField(d);
+      const autoOffice = this._autoOffice(d);
+      const stored = this._scheduleData[ds] || [];
+      const { fieldExtra, officeExtra, fieldExclude, officeExclude } = this._parseStored(stored);
+      const shNames = isRed ? (this._shMap[ds] || []) : [];
+      const autoFieldFiltered  = autoField.filter(n => !fieldExclude.includes(n));
+      const autoOfficeFiltered = autoOffice.filter(n => !officeExclude.includes(n));
+      const fieldNames  = [...new Set([...shNames, ...autoFieldFiltered, ...fieldExtra])];
+      const officeNames = [...new Set([...autoOfficeFiltered, ...officeExtra])];
 
-        const fieldHtml  = this._renderSection('현장',  'field',  ds, fieldNames,  autoFieldFiltered,  fieldExtra,  shNames, isEdit);
-        const officeHtml = this._renderSection('사무실', 'office', ds, officeNames, autoOfficeFiltered, officeExtra, [],     isEdit);
-        const hasContent = fieldNames.length || officeNames.length;
+      const rowBg    = isToday ? '#f0fff4' : isRed ? '#fff9f9' : '#fff';
+      const dowColor = isRed ? '#e03131' : '#212529';
+      const dateBg   = isToday ? '#1b4332' : 'transparent';
+      const dateColor= isToday ? '#fff' : dowColor;
 
-        const addRow = isEdit ? `
-          <tr style="background:#fafafa">
-            <td colspan="2" style="padding:4px 8px 7px;border-bottom:1px solid #f1f3f5">
-              <div style="display:flex;gap:5px">
-                <input id="inp-${ds}" list="emp-dl-${ds}" placeholder="이름..."
-                  style="flex:1;min-width:0;font-size:16px;padding:7px 10px;border:1px solid #dee2e6;border-radius:6px"
-                  onkeydown="if(event.key==='Enter'&&!event.isComposing){Dashboard._addByText('${ds}')}"
-                >
-                <datalist id="emp-dl-${ds}">${this._employees.map(n=>`<option value="${n}">`).join('')}</datalist>
-                <select id="typ-${ds}" style="font-size:14px;padding:6px 4px;border:1px solid #dee2e6;border-radius:6px">
-                  <option value="field">현장</option>
-                  <option value="office">사무실</option>
-                </select>
-                <button onclick="Dashboard._addByText('${ds}')"
-                  style="padding:7px 12px;font-size:13px;border:1px solid #6f42c1;border-radius:6px;background:#6f42c1;color:#fff;cursor:pointer;white-space:nowrap">추가</button>
-              </div>
-            </td>
-          </tr>` : '';
+      const fieldHtml  = this._renderSection('현장',  'field',  ds, fieldNames,  autoFieldFiltered,  fieldExtra,  shNames, isEdit);
+      const officeHtml = this._renderSection('사무실', 'office', ds, officeNames, autoOfficeFiltered, officeExtra, [],     isEdit);
+      const hasContent = fieldNames.length || officeNames.length;
 
-        return `
-          <tr style="background:${rowBg};border-bottom:1px solid #f1f3f5">
-            <td style="padding:6px 8px;width:46px;vertical-align:top">
-              <div style="border-radius:7px;background:${dateBg};padding:3px 5px;text-align:center;min-width:38px">
-                <div style="font-size:11px;font-weight:700;color:${dateColor}">${DOW[i]}</div>
-                <div style="font-size:11px;color:${dateColor}">${d.getMonth()+1}/${d.getDate()}</div>
-              </div>
-            </td>
-            <td style="padding:6px 8px 6px 4px;vertical-align:top">
-              ${fieldHtml}${officeHtml}
-              ${!hasContent && !isEdit ? '<span style="font-size:11px;color:#ced4da">-</span>' : ''}
-            </td>
-          </tr>
-          ${addRow}`;
-      }).join('');
+      // 추가 행: input 한 줄 + select·버튼 한 줄로 분리 (모바일 오버플로 방지)
+      const addRow = isEdit ? `
+        <tr style="background:#fafafa">
+          <td colspan="2" style="padding:4px 8px 7px;border-bottom:1px solid #f1f3f5">
+            <input id="inp-${ds}" list="emp-dl-${ds}" placeholder="이름 입력..."
+              style="width:100%;font-size:16px;padding:7px 10px;border:1px solid #dee2e6;border-radius:6px;margin-bottom:5px;box-sizing:border-box"
+              onkeydown="if(event.key==='Enter'&&!event.isComposing){Dashboard._addByText('${ds}')}"
+            >
+            <datalist id="emp-dl-${ds}">${this._employees.map(n=>`<option value="${n}">`).join('')}</datalist>
+            <div style="display:flex;gap:5px">
+              <select id="typ-${ds}" style="flex:1;font-size:15px;padding:7px 6px;border:1px solid #dee2e6;border-radius:6px">
+                <option value="field">현장</option>
+                <option value="office">사무실</option>
+              </select>
+              <button onclick="Dashboard._addByText('${ds}')"
+                style="flex:1;padding:7px 0;font-size:14px;font-weight:600;border:1px solid #6f42c1;border-radius:6px;background:#6f42c1;color:#fff;cursor:pointer">추가</button>
+            </div>
+          </td>
+        </tr>` : '';
 
       return `
-        <div style="margin-bottom:14px;border:1px solid #dee2e6;border-radius:8px;overflow:hidden">
-          <div style="font-size:12px;font-weight:700;color:#495057;padding:6px 12px;background:#f8f9fa;border-bottom:1px solid #dee2e6">${labels[wi]}</div>
-          <table style="width:100%;border-collapse:collapse">${rows}</table>
-        </div>`;
+        <tr style="background:${rowBg};border-bottom:1px solid #f1f3f5">
+          <td style="padding:6px 8px;width:46px;vertical-align:top">
+            <div style="border-radius:7px;background:${dateBg};padding:3px 5px;text-align:center;min-width:38px">
+              <div style="font-size:11px;font-weight:700;color:${dateColor}">${DOW[i]}</div>
+              <div style="font-size:11px;color:${dateColor}">${d.getMonth()+1}/${d.getDate()}</div>
+            </div>
+          </td>
+          <td style="padding:6px 8px 6px 4px;vertical-align:top">
+            ${fieldHtml}${officeHtml}
+            ${!hasContent && !isEdit ? '<span style="font-size:11px;color:#ced4da">-</span>' : ''}
+          </td>
+        </tr>
+        ${addRow}`;
     }).join('');
+
+    return `
+      <div style="border:1px solid #dee2e6;border-radius:8px;overflow:hidden">
+        <div style="display:flex;border-bottom:1px solid #dee2e6">${tabs}</div>
+        <table style="width:100%;border-collapse:collapse">${rows}</table>
+      </div>`;
   },
 
   _makeRow(dates, canEdit) {
