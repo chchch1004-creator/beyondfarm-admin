@@ -56,6 +56,8 @@ const Salary = {
             </select>
           </div>
 
+          <div id="sal-annual-summary"></div>
+
           <div class="table-wrap">
             <table>
               <thead>
@@ -103,7 +105,67 @@ const Salary = {
     if (!tbody) return;
     const canViewAll = ['admin','superadmin'].includes(App.user.role);
     const canEdit = App.user.role === 'superadmin';
+    const monthFilter = document.getElementById('sal-month')?.value || '';
+    const yearFilter  = document.getElementById('sal-year')?.value  || '';
+    const isYearView  = !monthFilter;
 
+    // ── 연간 요약 패널 ──────────────────────────────────────────────
+    const summaryEl = document.getElementById('sal-annual-summary');
+    if (summaryEl) {
+      if (isYearView && this.data.length > 0) {
+        // 직원별 집계
+        const byEmp = {};
+        this.data.forEach(s => {
+          if (!byEmp[s.name]) byEmp[s.name] = { dept: s.department||'-', base:0, bonus:0, deduction:0, net:0 };
+          byEmp[s.name].base      += s.base_salary||0;
+          byEmp[s.name].bonus     += s.bonus||0;
+          byEmp[s.name].deduction += s.deduction||0;
+          byEmp[s.name].net       += s.net_pay||0;
+        });
+        const grandNet = Object.values(byEmp).reduce((s,e) => s + e.net, 0);
+
+        const rows = Object.entries(byEmp).map(([name, e]) => `
+          <tr>
+            ${canViewAll ? `<td><strong>${name}</strong></td><td style="color:#6c757d;font-size:12px">${e.dept}</td>` : ''}
+            <td style="text-align:right">${Utils.formatNum(e.base)}원</td>
+            <td style="text-align:right">${Utils.formatNum(e.bonus)}원</td>
+            <td style="text-align:right;color:#dc3545">-${Utils.formatNum(e.deduction)}원</td>
+            <td style="text-align:right;font-weight:700;color:#1b4332">${Utils.formatNum(e.net)}원</td>
+          </tr>`).join('');
+
+        const grandTotal = Object.values(byEmp).reduce((acc,e) => {
+          acc.base += e.base; acc.bonus += e.bonus; acc.deduction += e.deduction; acc.net += e.net; return acc;
+        }, {base:0,bonus:0,deduction:0,net:0});
+
+        summaryEl.innerHTML = `
+          <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:16px;margin-bottom:16px">
+            <div style="font-size:14px;font-weight:700;color:#1b4332;margin-bottom:12px">📊 ${yearFilter}년 연간 급여 요약</div>
+            <div class="table-wrap">
+              <table style="min-width:0">
+                <thead><tr>
+                  ${canViewAll ? '<th>직원</th><th>부서</th>' : ''}
+                  <th style="text-align:right">총 월급여</th>
+                  <th style="text-align:right">총 상여금</th>
+                  <th style="text-align:right">총 공제</th>
+                  <th style="text-align:right">연간 실수령</th>
+                </tr></thead>
+                <tbody>${rows}</tbody>
+                <tfoot><tr style="background:#dcfce7;font-weight:700">
+                  ${canViewAll ? '<td colspan="2">합계</td>' : ''}
+                  <td style="text-align:right">${Utils.formatNum(grandTotal.base)}원</td>
+                  <td style="text-align:right">${Utils.formatNum(grandTotal.bonus)}원</td>
+                  <td style="text-align:right;color:#dc3545">-${Utils.formatNum(grandTotal.deduction)}원</td>
+                  <td style="text-align:right;color:#1b4332;font-size:15px">${Utils.formatNum(grandTotal.net)}원</td>
+                </tr></tfoot>
+              </table>
+            </div>
+          </div>`;
+      } else {
+        summaryEl.innerHTML = '';
+      }
+    }
+
+    // ── 월별 상세 테이블 ────────────────────────────────────────────
     if (this.data.length === 0) {
       tbody.innerHTML = `<tr><td colspan="10"><div class="empty-state">급여 내역이 없습니다</div></td></tr>`;
       if (tfoot) tfoot.innerHTML = '';
