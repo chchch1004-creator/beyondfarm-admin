@@ -1,7 +1,7 @@
 const express = require('express');
 const { isHoliday } = require('../utils/holidays');
 const { getDb } = require('../db/database');
-const db = { prepare: (...a) => getDb().prepare(...a) };
+const db = { prepare: (...a) => getDb().prepare(...a), batch: (...a) => getDb().batch(...a) };
 const router = express.Router();
 
 function requireLogin(req, res, next) { if (!req.session.user) return res.status(401).json({ error: '로그인 필요' }); next(); }
