@@ -158,7 +158,7 @@ const App = {
     const isSuperAdmin = App.user.role === 'superadmin';
 
     // 메뉴 표시/숨김: 권한 기반
-    const navPages = ['dashboard','employees','attendance','leaves','salary','inventory','timesheet','shareholder_timesheet','sales','inflow','tasks','checklist','charcoal','announcement','corp','subscriptions'];
+    const navPages = ['dashboard','employees','attendance','leaves','salary','inventory','timesheet','shareholder_timesheet','sales','inflow','tasks','checklist','charcoal','announcement','corp','subscriptions','board','contacts'];
     navPages.forEach(p => {
       const el = document.querySelector(`#sidebar [data-page="${p}"]`);
       if (el) el.style.display = App.canView(p) ? '' : 'none';

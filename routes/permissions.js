@@ -19,6 +19,8 @@ const PAGES = [
   { key: 'announcement',          label: '안내방송' },
   { key: 'callstaff',             label: '직원 호출' },
   { key: 'community',             label: '커뮤니티' },
+  { key: 'board',                 label: '게시판' },
+  { key: 'contacts',              label: '명단관리' },
   { key: 'subscriptions',         label: '구독 관리' },
   { key: 'corp',                  label: '법인 계정 정보' },
 ];
