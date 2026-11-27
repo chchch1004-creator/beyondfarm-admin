@@ -70,6 +70,7 @@ const App = {
       }
       App.goto(firstPage, pendingParams);
     });
+    NoticeBanner.init();
     Push.init().then(() => {
       const subscribed = Push.isSubscribed();
       const btnEnable = document.getElementById('btn-push-enable');
@@ -146,7 +147,8 @@ const App = {
       callstaff: '직원 호출',
       community: '커뮤니티',
       corp: '법인 계정 정보',
-      subscriptions: '구독 관리'
+      subscriptions: '구독 관리',
+      board: '게시판'
     };
     document.getElementById('page-title').textContent = titles[page] || page;
     const mpt = document.getElementById('mobile-page-title');
@@ -181,7 +183,7 @@ const App = {
       return;
     }
 
-    const pages = { dashboard: Dashboard, employees: Employees, attendance: Attendance, leaves: Leaves, salary: Salary, finance: Finance, inventory: Inventory, settings: Settings, mypage: MyPage, timesheet: Timesheet, shareholder_timesheet: ShareholderTimesheet, sales: Sales, inflow: Inflow, tasks: Tasks, checklist: Checklist, charcoal: Charcoal, announcement: Announcement, callstaff: CallStaff, community: Community, corp: Corp, subscriptions: Subscriptions };
+    const pages = { dashboard: Dashboard, employees: Employees, attendance: Attendance, leaves: Leaves, salary: Salary, finance: Finance, inventory: Inventory, settings: Settings, mypage: MyPage, timesheet: Timesheet, shareholder_timesheet: ShareholderTimesheet, sales: Sales, inflow: Inflow, tasks: Tasks, checklist: Checklist, charcoal: Charcoal, announcement: Announcement, callstaff: CallStaff, community: Community, corp: Corp, subscriptions: Subscriptions, board: Board };
     const renderParams = App._gotoParams || {};
     App._gotoParams = {};
     pages[page]?.render(renderParams);

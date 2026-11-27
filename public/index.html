@@ -106,6 +106,9 @@
       <a href="#" onclick="App.goto('callstaff')" data-page="callstaff">
         <span class="icon">📣</span><span>직원 호출</span>
       </a>
+      <a href="#" onclick="App.goto('board')" data-page="board">
+        <span class="icon">📌</span><span>게시판</span>
+      </a>
       <a href="#" onclick="App.goto('community')" data-page="community">
         <span class="icon">💬</span><span>커뮤니티</span>
       </a>
@@ -138,6 +141,7 @@
       <span id="pull-icon" style="display:inline-block;transition:transform 0.2s">↓</span>
       <span id="pull-text">당겨서 새로고침</span>
     </div>
+    <div id="notice-banner" style="display:none;align-items:center;padding:6px 16px;background:#1b4332;color:#fff;font-size:12px;gap:6px;border-bottom:1px solid rgba(255,255,255,0.1)"></div>
     <div id="topbar">
       <h2 id="page-title">대시보드</h2>
       <div class="spacer"></div>
@@ -196,6 +200,7 @@ document.addEventListener('DOMContentLoaded', () => {
 <script src="/js/shareholder_timesheet.js?v=20260723"></script>
 <script src="/js/sales.js?v=20260723"></script>
 <script src="/js/tasks.js?v=20261117a"></script>
+<script src="/js/board.js?v=20261127a"></script>
 <script src="/js/checklist.js?v=20261012a"></script>
 <script src="/js/charcoal.js?v=20260803c"></script>
 <script src="/js/announcement.js?v=20260723"></script>

@@ -367,6 +367,19 @@ async function init() {
     UNIQUE(user_id, endpoint)
   )`);
 
+  tables.push(`CREATE TABLE IF NOT EXISTS board_posts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    author_name TEXT NOT NULL,
+    title TEXT NOT NULL,
+    content TEXT,
+    is_notice INTEGER DEFAULT 0,
+    notice_until TEXT,
+    views INTEGER DEFAULT 0,
+    created_at TEXT DEFAULT (datetime('now','localtime')),
+    updated_at TEXT DEFAULT (datetime('now','localtime'))
+  )`);
+
   tables.push(`CREATE TABLE IF NOT EXISTS dashboard_schedule (
     date TEXT NOT NULL,
     slot INTEGER NOT NULL DEFAULT 0,

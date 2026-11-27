@@ -54,6 +54,7 @@ app.use('/api/dashboard', require('./routes/dashboard'));
 app.use('/api/backup', require('./routes/backup'));
 app.use('/api/subscriptions', require('./routes/subscriptions'));
 app.use('/api/tasks', require('./routes/tasks'));
+app.use('/api/board', require('./routes/board'));
 
 app.get('*', (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
