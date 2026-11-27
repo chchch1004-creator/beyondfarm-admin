@@ -66,10 +66,9 @@ const Board = {
       </table>`;
     }
 
-    // 하이라이트된 글은 자동으로 열기
-    if (this._highlightId) {
-      this._highlightId = null;
-      await this.showDetail(params?.postId || res.posts.find(p => p.id === (params?.postId))?.id);
+    // 공지배너에서 넘어온 경우 해당 글 바로 열기
+    if (params.postId) {
+      await this.showDetail(params.postId);
     }
 
     // 페이저

@@ -148,7 +148,8 @@ const App = {
       community: '커뮤니티',
       corp: '법인 계정 정보',
       subscriptions: '구독 관리',
-      board: '게시판'
+      board: '게시판',
+      contacts: '명단관리'
     };
     document.getElementById('page-title').textContent = titles[page] || page;
     const mpt = document.getElementById('mobile-page-title');
@@ -183,7 +184,7 @@ const App = {
       return;
     }
 
-    const pages = { dashboard: Dashboard, employees: Employees, attendance: Attendance, leaves: Leaves, salary: Salary, finance: Finance, inventory: Inventory, settings: Settings, mypage: MyPage, timesheet: Timesheet, shareholder_timesheet: ShareholderTimesheet, sales: Sales, inflow: Inflow, tasks: Tasks, checklist: Checklist, charcoal: Charcoal, announcement: Announcement, callstaff: CallStaff, community: Community, corp: Corp, subscriptions: Subscriptions, board: Board };
+    const pages = { dashboard: Dashboard, employees: Employees, attendance: Attendance, leaves: Leaves, salary: Salary, finance: Finance, inventory: Inventory, settings: Settings, mypage: MyPage, timesheet: Timesheet, shareholder_timesheet: ShareholderTimesheet, sales: Sales, inflow: Inflow, tasks: Tasks, checklist: Checklist, charcoal: Charcoal, announcement: Announcement, callstaff: CallStaff, community: Community, corp: Corp, subscriptions: Subscriptions, board: Board, contacts: Contacts };
     const renderParams = App._gotoParams || {};
     App._gotoParams = {};
     pages[page]?.render(renderParams);

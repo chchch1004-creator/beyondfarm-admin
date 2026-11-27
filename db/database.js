@@ -380,6 +380,26 @@ async function init() {
     updated_at TEXT DEFAULT (datetime('now','localtime'))
   )`);
 
+  tables.push(`CREATE TABLE IF NOT EXISTS contact_groups (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    category TEXT,
+    memo TEXT,
+    created_at TEXT DEFAULT (datetime('now','localtime'))
+  )`);
+
+  tables.push(`CREATE TABLE IF NOT EXISTS contacts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    group_id INTEGER NOT NULL REFERENCES contact_groups(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    email TEXT,
+    phone TEXT,
+    address TEXT,
+    memo TEXT,
+    created_at TEXT DEFAULT (datetime('now','localtime')),
+    updated_at TEXT DEFAULT (datetime('now','localtime'))
+  )`);
+
   tables.push(`CREATE TABLE IF NOT EXISTS dashboard_schedule (
     date TEXT NOT NULL,
     slot INTEGER NOT NULL DEFAULT 0,
