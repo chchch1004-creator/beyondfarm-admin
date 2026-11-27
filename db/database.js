@@ -396,8 +396,17 @@ async function init() {
     phone TEXT,
     address TEXT,
     memo TEXT,
+    custom_values TEXT DEFAULT '{}',
     created_at TEXT DEFAULT (datetime('now','localtime')),
     updated_at TEXT DEFAULT (datetime('now','localtime'))
+  )`);
+
+  tables.push(`CREATE TABLE IF NOT EXISTS contact_fields (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    group_id INTEGER NOT NULL REFERENCES contact_groups(id) ON DELETE CASCADE,
+    label TEXT NOT NULL,
+    field_type TEXT NOT NULL DEFAULT 'text',
+    sort_order INTEGER NOT NULL DEFAULT 0
   )`);
 
   tables.push(`CREATE TABLE IF NOT EXISTS dashboard_schedule (
@@ -500,6 +509,7 @@ async function init() {
     )`,
     "ALTER TABLE task_templates ADD COLUMN phase TEXT",
     "ALTER TABLE task_templates ADD COLUMN departments TEXT",
+    "ALTER TABLE contacts ADD COLUMN custom_values TEXT DEFAULT '{}'",
   ];
   for (const sql of newCols) {
     try { await client.execute({ sql, args: [] }); } catch {}
