@@ -76,6 +76,8 @@ const Contacts = {
     const fixedCols = ['이름','이메일','전화번호','주소','메모'];
     const customCols = this._fields.map(f => f.label);
     const allCols = [...fixedCols, ...customCols];
+    // 열 key: fixed는 영문 key, custom은 'custom_<id>'
+    const colKeys = ['name','email','phone','address','memo', ...this._fields.map(f=>`custom_${f.id}`)];
 
     panel.innerHTML = `
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap">
@@ -102,7 +104,11 @@ const Contacts = {
             <table style="width:100%;border-collapse:collapse;min-width:400px">
               <thead>
                 <tr style="background:#f8f9fa;font-size:12px;color:#6c757d;border-bottom:2px solid #dee2e6">
-                  ${allCols.map(h=>`<th style="padding:8px 12px;text-align:left;font-weight:600;white-space:nowrap">${this._esc(h)}</th>`).join('')}
+                  ${allCols.map((h,i)=>`<th style="padding:8px 10px;text-align:left;font-weight:600;white-space:nowrap;cursor:pointer;user-select:none"
+                    title="${this._esc(h)} 열 복사"
+                    onclick="Contacts._copyCol('${colKeys[i]}','${this._esc(h)}',this)">
+                    ${this._esc(h)}<span style="margin-left:4px;font-size:10px;opacity:0.5">⎘</span>
+                  </th>`).join('')}
                   <th style="padding:8px 12px;width:70px"></th>
                 </tr>
               </thead>
@@ -133,6 +139,26 @@ const Contacts = {
     navigator.clipboard.writeText(this._emailList).then(() => {
       const btn = document.getElementById('ct-copy-btn');
       if (btn) { btn.textContent = '✓ 복사됨'; setTimeout(() => btn.textContent = '복사', 1500); }
+    }).catch(() => Utils.showToast('복사 실패', 'error'));
+  },
+
+  _copyCol(key, label, thEl) {
+    const vals = this._contacts.map(c => {
+      if (key.startsWith('custom_')) {
+        let cv = {};
+        try { cv = JSON.parse(c.custom_values || '{}'); } catch {}
+        return cv[key.slice(7)] || '';
+      }
+      return c[key] || '';
+    }).filter(v => v !== '');
+    if (!vals.length) { Utils.showToast(`'${label}' 열에 데이터가 없습니다`, 'error'); return; }
+    navigator.clipboard.writeText(vals.join('\n')).then(() => {
+      Utils.showToast(`'${label}' ${vals.length}개 복사됨`);
+      if (thEl) {
+        const orig = thEl.innerHTML;
+        thEl.innerHTML = `${label} <span style="font-size:10px;color:#1b4332">✓</span>`;
+        setTimeout(() => { thEl.innerHTML = orig; }, 1500);
+      }
     }).catch(() => Utils.showToast('복사 실패', 'error'));
   },
 
