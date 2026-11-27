@@ -168,6 +168,8 @@ const Dashboard = {
       this._employees = (empData || []).filter(e => e.status === 'active').map(e => e.name);
 
       content.innerHTML = `
+        <div id="dash-3day" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px"></div>
+
         <div class="card" style="padding:0;overflow:hidden;margin-bottom:20px">
           <div style="padding:14px 20px;display:flex;align-items:center;gap:10px;border-bottom:1px solid #dee2e6;background:#f8f9fa">
             <span style="font-size:15px;font-weight:700">📅 3주간 근무표</span>
@@ -645,6 +647,34 @@ const Dashboard = {
     catch { this.gcalEvents = []; }
     if (btn) btn.textContent = '🔄';
     this.renderCalendar();
+    this._render3Day();
+  },
+
+  _render3Day() {
+    const el = document.getElementById('dash-3day');
+    if (!el) return;
+    const pad = n => String(n).padStart(2, '0');
+    const toStr = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+    const labels = ['오늘', '내일', '모레'];
+    const days = [0, 1, 2].map(i => { const d = new Date(); d.setDate(d.getDate() + i); return d; });
+
+    el.innerHTML = days.map((d, i) => {
+      const dateStr = toStr(d);
+      const dow = ['일','월','화','수','목','금','토'][d.getDay()];
+      const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+      const events = (this.gcalEvents || []).filter(e => {
+        const start = (e.start || '').slice(0, 10);
+        const end   = (e.end   || '').slice(0, 10);
+        return start <= dateStr && dateStr <= (end || start);
+      });
+      const evHtml = events.length
+        ? events.map(e => `<div style="font-size:11px;color:#1b4332;background:#d1fae5;border-radius:3px;padding:2px 5px;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${e.title||''}">${e.title||'(제목없음)'}</div>`).join('')
+        : `<div style="font-size:11px;color:#adb5bd;margin-top:4px">일정 없음</div>`;
+      return `<div style="background:#fff;border:1px solid #dee2e6;border-radius:8px;padding:8px 10px;min-width:0">
+        <div style="font-size:11px;font-weight:700;color:${isWeekend?'#e74c3c':'#495057'};margin-bottom:2px">${labels[i]} <span style="font-weight:400">(${d.getMonth()+1}/${d.getDate()} ${dow})</span></div>
+        ${evHtml}
+      </div>`;
+    }).join('');
   },
 
   renderCalendar() {

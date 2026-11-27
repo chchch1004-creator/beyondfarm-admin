@@ -247,15 +247,27 @@ const NoticeBanner = {
   _idx: 0,
   _timer: null,
 
-  async init() {
-    try {
-      this._notices = await API.get('/api/board/notices/active');
-    } catch { this._notices = []; }
-    this.show(this._notices);
+  _readKey() { return `board_read_${App.user?.id || 'guest'}`; },
+  _readSet() {
+    try { return new Set(JSON.parse(localStorage.getItem(this._readKey()) || '[]')); } catch { return new Set(); }
+  },
+  _markRead(id) {
+    const s = this._readSet();
+    s.add(id);
+    try { localStorage.setItem(this._readKey(), JSON.stringify([...s])); } catch {}
   },
 
-  show(notices) {
-    this._notices = notices || [];
+  async init() {
+    try {
+      const all = await API.get('/api/board/notices/active');
+      this.show(all);
+    } catch { this.show([]); }
+  },
+
+  show(all) {
+    // 이미 읽은 공지는 제외
+    const read = this._readSet();
+    this._notices = (all || []).filter(n => !read.has(n.id));
     clearInterval(this._timer);
     const el = document.getElementById('notice-banner');
     if (!el) return;
@@ -273,19 +285,45 @@ const NoticeBanner = {
   _render(el) {
     const n = this._notices[this._idx];
     if (!n) return;
-    const count = this._notices.length > 1 ? ` <span style="opacity:0.6;font-size:11px">(${this._idx+1}/${this._notices.length})</span>` : '';
+    const count = this._notices.length > 1
+      ? `<span style="opacity:0.7;font-size:11px;flex-shrink:0">${this._idx+1}/${this._notices.length}</span>` : '';
     el.style.display = 'flex';
     el.innerHTML = `
-      <span style="background:rgba(255,255,255,0.2);border-radius:3px;padding:0 5px;font-size:10px;font-weight:700;flex-shrink:0;margin-right:6px">공지</span>
+      <span style="background:rgba(255,255,255,0.25);border-radius:3px;padding:0 5px;font-size:10px;font-weight:700;flex-shrink:0;margin-right:6px">공지</span>
       <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer"
-        onclick="App.goto('board',{postId:${n.id}})">${Board._esc(n.title)}</span>
+        onclick="NoticeBanner._open(${n.id})">${Board._esc(n.title)}</span>
       ${count}
-      <button onclick="NoticeBanner._dismiss()" style="border:none;background:none;color:rgba(255,255,255,0.7);font-size:16px;cursor:pointer;padding:0;margin-left:8px;line-height:1;flex-shrink:0">×</button>`;
+      <button onclick="NoticeBanner._close(${n.id})" style="border:none;background:none;color:rgba(255,255,255,0.8);font-size:17px;cursor:pointer;padding:0;margin-left:8px;line-height:1;flex-shrink:0">×</button>`;
   },
 
-  _dismiss() {
+  _open(id) {
+    this._markRead(id);
+    App.goto('board', { postId: id });
+    // 나머지 미읽은 공지 재표시
+    this._notices = this._notices.filter(n => n.id !== id);
+    if (!this._notices.length) {
+      clearInterval(this._timer);
+      const el = document.getElementById('notice-banner');
+      if (el) el.style.display = 'none';
+    } else {
+      this._idx = 0;
+      this._render(document.getElementById('notice-banner'));
+    }
+  },
+
+  _close(id) {
+    this._markRead(id);
+    this._notices = this._notices.filter(n => n.id !== id);
     clearInterval(this._timer);
     const el = document.getElementById('notice-banner');
-    if (el) el.style.display = 'none';
+    if (!this._notices.length) { if (el) el.style.display = 'none'; return; }
+    this._idx = 0;
+    this._render(el);
+    if (this._notices.length > 1) {
+      this._timer = setInterval(() => {
+        this._idx = (this._idx + 1) % this._notices.length;
+        this._render(document.getElementById('notice-banner'));
+      }, 5000);
+    }
   },
 };
